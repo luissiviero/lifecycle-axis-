@@ -1,0 +1,23 @@
+{
+  "name": "lifecycle-axis-sdlc",
+  "version": "0.1.0",
+  "description": "Enforced AI-native SDLC for Claude Code: the intent to spec to plan to diff to review to incident artifact chain as skills, read-only reviewer subagents, and governance templates and scripts. Deterministic hooks stay repo-local -- install them with scripts/adopt.sh --with-hooks.",
+  "author": {
+    "name": "luissiviero"
+  },
+  "repository": "https://github.com/luissiviero/lifecycle-axis-",
+  "keywords": [
+    "sdlc",
+    "governance",
+    "artifact-chain",
+    "agents",
+    "plugin"
+  ],
+  "skills": "./.claude/skills",
+  "agents": [
+    "./.claude/agents/explorer.md",
+    "./.claude/agents/plan-reviewer.md",
+    "./.claude/agents/security-reviewer.md",
+    "./.claude/agents/verifier.md"
+  ]
+}

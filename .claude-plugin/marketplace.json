@@ -1,0 +1,14 @@
+{
+  "name": "lifecycle-axis",
+  "owner": {
+    "name": "luissiviero"
+  },
+  "plugins": [
+    {
+      "name": "lifecycle-axis-sdlc",
+      "source": "./",
+      "description": "Enforced AI-native SDLC for Claude Code: artifact-chain skills, read-only reviewer subagents, and governance templates and scripts.",
+      "version": "0.1.0"
+    }
+  ]
+}
