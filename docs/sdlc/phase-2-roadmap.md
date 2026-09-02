@@ -16,6 +16,14 @@ are what remains once all of that is built. Ordered by how soon a complex projec
 ## Phase 1.5 — multi-model knowledge layer (see `okf-pairing.md`)
 0. **OKF bundle and Gemini parity.** Artifact chain as an OKF bundle, `knowledge/` for institutional knowledge,
    `log.md` gate ledger, `GEMINI.md`/`AGENTS.md` generated from the same rule source, conformance check as a warning.
+   **Done in phase 1:** the [`knowledge/`](../../knowledge/index.md) bundle, the
+   [`docs/sdlc/rules/`](rules/index.md) fragments rendered by
+   [`scripts/gen_context_files.py`](../../scripts/gen_context_files.py), the `log.md` ledger (see
+   `docs/sdlc/templates/log.md`), and [`scripts/check_okf.py`](../../scripts/check_okf.py) as a warning-only check.
+   Gemini hook wiring remains — see the item below.
+   - **New: Gemini `BeforeTool` hook wiring.** Wire `.gemini/settings.json` reusing the same hook scripts, after
+     verifying Gemini's `tool_input` keys (see the UNVERIFIED notes in
+     [`docs/sdlc/spikes/gemini-parity.md`](spikes/gemini-parity.md)).
 
 ## Phase 2 — measurable, safe to run unattended
 1. **Cost and budget attribution.** The playbook names "agent budget" and reads timings from git and OTel but never
@@ -34,6 +42,11 @@ are what remains once all of that is built. Ordered by how soon a complex projec
    (outcome → requirement → step → test) and an agentic spec-conformance reviewer that fails a requirement without a test.
 6. **Distribution as a plugin.** The playbook distributes skills and hooks through a private marketplace. Package this
    repo as a plugin (skills, agents, hooks, templates) plus a thin template repo, so projects update centrally.
+   **Done in phase 1:** [`.claude-plugin/plugin.json`](../../.claude-plugin/plugin.json) +
+   [`marketplace.json`](../../.claude-plugin/marketplace.json),
+   [`scripts/check_plugin_manifest.py`](../../scripts/check_plugin_manifest.py) as a drift check, and
+   [`knowledge/decisions/plugin-distribution.md`](../../knowledge/decisions/plugin-distribution.md). Hooks stay
+   repo-local, installed via `scripts/adopt.sh --with-hooks` rather than shipped inside the plugin.
 
 ## Phase 3 — scale across agents and repos
 7. **Multi-repo intent and orchestration.** One `intent.md` fanning out to several `plan.md`; worktree-per-work-item

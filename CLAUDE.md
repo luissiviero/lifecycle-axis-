@@ -31,11 +31,14 @@ human sets `status: approved`. The active work item is named in `.sdlc/active`.
    outputs), not opinions.
 
 ## Verifying your work
-- Verify everything: `scripts/verify.sh` — must end with `VERIFY: PASS (<sha>)`
+- Verify everything: `scripts/verify.sh` — must end with `VERIFY: PASS (<sha>)`; it also runs every `scripts/checks/*.sh`
 - Artifact chain for a PR: `python3 scripts/check_artifact_chain.py --base origin/main` — must end with `CHAIN: PASS`
-- Evals: `scripts/run_evals.sh` — must end with `EVALS: N pass, 0 fail, ...` (see `evals/README.md`)
+- Evals: `scripts/run_evals.sh` — must end with `EVALS: N pass, 0 fail, ...` (`--kind`/`--only`/`--list` select cases; see `evals/README.md`)
+- OKF conformance: `python3 scripts/check_okf.py` — must end with `OKF: N docs, 0 warnings` (warning-only unless `OKF_STRICT=1`)
 Run all of them before reporting a task complete and paste the last lines. If a test fails, fix the code, not the test.
+- Regenerate before committing — verify fails on drift: `python3 scripts/gen_index.py` and `python3 scripts/gen_context_files.py`
 - Band detector: `python3 scripts/detect_bands.py --series ...` (exit 3 = breach); metrics: `scripts/sdlc_metrics.py`
+- Keep this file under `MAX_CONTEXT_LINES` (120): `wc -l CLAUDE.md` after regenerating; trim prose, never rules, if over
 
 ## Workflow
 One stage at a time: write `intent.md`, then `spec.md`, then `plan.md`, then implement,
@@ -47,6 +50,9 @@ previous one.
 - Branch: `work/<slug>`. PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
+- `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
+  handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
+  `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.
 
 ## Workflow entry points (skills)
 `/sdlc-intent` → `/sdlc-spec` → `/sdlc-plan` → implement → `/sdlc-review` → `/sdlc-incident`

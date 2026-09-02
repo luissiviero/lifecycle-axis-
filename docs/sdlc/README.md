@@ -54,25 +54,35 @@ the gates. The commit chain is the audit trail.
 ## 2. How this repo implements each play
 
 ```
-CLAUDE.md                        one page: rules, commands, conventions, lessons learned
+CLAUDE.md                        one page: rules, commands, conventions, lessons learned; generated, see docs/sdlc/rules/
 REVIEW.md                        review passes, Important vs Nit, five-nit cap, do-not-report
-.sdlc/                           control plane (agents cannot edit): config.env, active, environments.yaml, release-authorizations/
-work/<slug>/                     intent.md → spec.md → plan.md → incident.md (YAML status, approved-by, record, kind)
-docs/sdlc/templates/             the four artifact templates, sections named as in the playbook
+.sdlc/                           control plane (agents cannot edit): config.env, active, environments.yaml, release-authorizations/, approvers.yaml
+work/<slug>/                     intent.md → spec.md → plan.md → incident.md (YAML status, approved-by, record, kind) + log.md gate ledger
+docs/sdlc/templates/             the four artifact templates plus log.md, sections named as in the playbook
+docs/sdlc/rules/                 one rule source: fragments rendered into CLAUDE.md / GEMINI.md / AGENTS.md by gen_context_files.py
+docs/sdlc/spikes/                design spikes that back a decision (plugin packaging, Gemini parity, PR review identity)
 docs/sdlc/managed-settings.example.json   the playbook's regulated-enterprise settings, to tailor
 docs/sdlc/metrics.md             leading/lagging indicator per play and where to read it
-docs/sdlc/lessons.md             version-controlled lessons file (Claude Tag / incidents append here)
+docs/sdlc/lessons.md             pointer file: lessons now live in knowledge/lessons/, one OKF doc per incident
 docs/sdlc/okf-pairing.md         how the artifact chain becomes an Open Knowledge Format bundle (multi-model)
+knowledge/                       model-neutral OKF bundle: decisions/, lessons/, runbooks/, metrics/, services/
+.claude-plugin/                  plugin.json + marketplace.json; ships skills, agents, templates, scripts as a plugin
+scripts/adopt.sh                 installs this kit into another repo without overwriting; --with-hooks for .claude/hooks
 .claude/skills/sdlc-*            /sdlc-intent /sdlc-spec /sdlc-plan /sdlc-review /sdlc-incident
 .claude/skills/security-standards        policy-as-skill, backed by hooks and the review pass
 .claude/agents/                  explorer, plan-reviewer, security-reviewer, verifier (all read-only)
 .claude/hooks/ + settings.json   protect-paths, block-secrets, require-plan, protect-tests, production-gate, post-edit-format, stop-verify-reminder
-scripts/verify.sh                the single pass/fail signal
-scripts/check_artifact_chain.py  artifacts approved; diff ⊆ "Files that change"; release-gated paths have an owner
-scripts/run_evals.sh + evals/    hook cases run anywhere; prompt cases run with `claude -p` when a key exists
+scripts/verify.sh                the single pass/fail signal; also runs every scripts/checks/*.sh
+scripts/checks/                  self-registering verify.sh checks: okf, index-drift, context-drift, workflow-permissions, plugin-manifest
+scripts/check_artifact_chain.py  artifacts approved by a valid approver with a log.md entry; diff ⊆ "Files that change"; release-gated paths have an owner
+scripts/check_okf.py             OKF conformance over knowledge/ and docs/sdlc/ (warning by default, OKF_STRICT=1 to fail)
+scripts/run_evals.sh + evals/    hook cases run anywhere; prompt cases run with `claude -p` when a key exists; --kind/--only/--list select cases
 scripts/detect_bands.py          deterministic Western Electric detector, unit-tested; monitoring/bands.yaml tiers
 .github/workflows/sdlc-gate.yml  chain check, verify, control-plane guard, triage-on-failure judgment step
 .github/workflows/agent-evals.yml runs on CLAUDE.md / .claude/** / evals changes and nightly
+.github/workflows/bands.yml      daily: collect GitHub metrics, run the band detector, file an issue on a breach
+.github/workflows/deploy.yml     workflow_dispatch behind a GitHub Environment; the only place scripts/deploy.sh runs
+.github/workflows/pr-review.yml  runs /sdlc-review against REVIEW.md on PR open, read-only tools plus verify/chain
 ```
 
 ### Enforcement matrix
@@ -91,6 +101,12 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
 | Config that steers the agent is regression-tested | Test play | `agent-evals.yml` on every CLAUDE.md/skills/hooks change | config owner |
 | Mistake twice → memory | rule 7, REVIEW.md Memory pass | — | reviewer insists |
 | Detection stays deterministic; tier bounds the agent | — | `detect_bands.py` + `bands.yaml` tools/routes | service owner triages |
+| `approved-by` is a real human role, backed by a ledger entry | rule 8, `docs/sdlc/rules/30-conventions.md` | `check_artifact_chain.py` validates against `.sdlc/approvers.yaml` and requires a matching `work/<slug>/log.md` entry | approver named in the file |
+| Control-plane diff on an agent PR needs explicit human sign-off | rule 3 | CI blocks any `claude/*`-authored PR touching `PROTECTED_PATHS`; a human applying `control-plane-approved` is the only exemption | applies the label after reading the diff |
+| Context files stay one source, never hand-drift | CLAUDE.md play | `context-drift.sh` fails `verify.sh` when `CLAUDE.md`/`GEMINI.md`/`AGENTS.md` don't match `docs/sdlc/rules/*.md` | edits a fragment, not the generated file |
+| Workflows stay read-only and unprivileged | — | `workflow-permissions.sh`: every workflow declares `permissions:`, none grants `contents: write` outside an empty allowlist, none uses `pull_request_target` | reviews workflow diffs |
+| Plugin manifest matches what's actually on disk | — | `plugin-manifest.sh`: every skill/agent listed and vice versa, hook paths exist and are executable, semver valid | — |
+| Deploys run only from CI, never from an agent session | rule 4 | `deploy.yml` behind a GitHub Environment's required reviewers; `deploy.sh` refuses without `RELEASE_APPROVAL` matching `HEAD` and `CI` set | approves the Environment's deployment |
 
 ### Design choices worth knowing
 - **`work/<slug>/` instead of a bare `intent/` folder.** The playbook commits `spec.md` beside `intent.md`; keeping the
@@ -98,13 +114,19 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
   pays off when intent spans many repos.
 - **`ask` lives only in the production gate.** The playbook is explicit: approval prompts during build put a person back
   on the critical path of every parallel session. Build hooks allow or block; only the release gate asks.
-- **Strong gates are in CI and branch protection, not only in Claude hooks.** Hooks are Claude-specific; the chain
-  check, verify, and branch protection hold for any model or human. See `okf-pairing.md` for the multi-model argument.
+- **Strong gates are in CI and branch protection, not only in Claude hooks.** Per the Gemini parity spike
+  (`docs/sdlc/spikes/gemini-parity.md`), Gemini CLI has a `BeforeTool` hook with the same exit-2 block contract, so
+  the hooks in `.claude/hooks/` are reusable in principle — but this repo has not wired a Gemini side yet. Until it
+  does, CI (the chain check, verify, branch protection) is the gate that holds for any model or human, model-neutral
+  by construction. See `okf-pairing.md` for the multi-model argument.
 - **Evals cover the workflow.** Hook cases need no model and run in seconds; prompt cases run with `claude -p` and
   bounded tools, exactly as the playbook's `agent-evals.yml` does.
 
 ## 3. Using it in a project
-1. Copy the tree (or install it as a plugin, see roadmap). Set `VERIFY_CMDS`, `FORMAT_CMD`, and the path classes in `.sdlc/config.env`.
+1. Run `scripts/adopt.sh <target>` (add `--with-hooks` to also install `.claude/hooks/` and `settings.json`; it copies
+   without overwriting and lists what it skipped). Or install as a Claude Code plugin — `claude --plugin-dir .` from
+   this repo, or add it to a marketplace via `.claude-plugin/marketplace.json` — for the skills, agents, and templates
+   without the repo-local hooks. Either way, set `VERIFY_CMDS`, `FORMAT_CMD`, and the path classes in `.sdlc/config.env`.
 2. Rewrite `CLAUDE.md`: commands with healthy output, architecture in ten lines, the mistakes the team sees most. One page.
 3. Add standards as skills (security is included; add UX, API conventions, data classification) and list them in `/sdlc-spec`.
 4. Protect `main`: require `sdlc-gate` and `agent-evals`; CODEOWNERS for `RELEASE_GATED_PATHS`.

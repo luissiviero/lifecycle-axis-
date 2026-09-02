@@ -118,7 +118,8 @@ def load_fragments(rules_dir, known_targets):
     if not os.path.isdir(rules_dir):
         raise RenderError("rule source directory %s does not exist" % rules_dir)
     fragments = []
-    for name in sorted(n for n in os.listdir(rules_dir) if n.endswith(".md")):
+    # index.md is the OKF index of the fragment directory, never a fragment itself.
+    for name in sorted(n for n in os.listdir(rules_dir) if n.endswith(".md") and n != "index.md"):
         path = os.path.join(rules_dir, name)
         front = chain.front_matter(path) or {}
         targets = parse_targets(front.get("targets"), name)

@@ -17,3 +17,6 @@ previous one.
 - Branch: `work/<slug>`. PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
+- `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
+  handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
+  `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.
