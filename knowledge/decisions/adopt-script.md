@@ -35,8 +35,9 @@ list of paths from this repo (`KIT`, resolved via `git -C "$(dirname "$0")" rev-
   invocations emits no `copy:` lines at all).
 - **Hooks are opt-in.** `.claude/hooks/` and `.claude/settings.json` — the files that actually
   enforce the eight hard rules locally — are copied only with `--with-hooks` (the settings file
-  comes from `docs/sdlc/templates/claude-settings.json`, since the kit repo does not wire the
-  hooks on itself — see `self-enforcement-off.md`); otherwise the
+  comes from `docs/sdlc/templates/claude-settings.json`, never from the kit's own
+  `.claude/settings.json`, which carries the control-plane unlock the kit needs to maintain
+  itself — see `self-hooks-on.md`); otherwise the
   script prints a one-line note explaining that only CI enforces the rules until the flag is
   used. This mirrors `plugin-distribution.md`'s reasoning exactly: a governance mechanism that
   binds "everyone who trusts the folder" should be a deliberate, visible step, not a default a
