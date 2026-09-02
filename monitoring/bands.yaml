@@ -1,0 +1,19 @@
+# Control bands. A detector compares each metric with its baseline and acts by tier.
+# 1σ → log. 2σ → invoke /sdlc-incident to diagnose and propose. 3σ → propose rollback/fix; a human authorizes.
+baseline_window: 14d
+metrics:
+  - name: error_rate_5xx
+    source: "<your metrics query>"
+    tiers: { log: 1, diagnose: 2, act: 3 }
+  - name: p95_latency_ms
+    source: "<your metrics query>"
+    tiers: { log: 1, diagnose: 2, act: 3 }
+  - name: ci_failure_rate
+    source: "GitHub Actions"
+    tiers: { log: 1, diagnose: 2, act: 3 }
+  - name: pr_cycle_time_hours
+    source: "GitHub"
+    tiers: { log: 1, diagnose: 2, act: 3 }
+  - name: agent_cost_per_merged_pr_usd
+    source: "usage export"
+    tiers: { log: 1, diagnose: 2, act: 3 }

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Release gate: an agent may prepare a release but never cross into production without a named human.
+. "$(dirname "$0")/_lib.sh"
+[ -z "$CMD" ] && exit 0
+DEPLOY_RE='(^|[;&| ])(kubectl[[:space:]]+(apply|rollout|delete)|helm[[:space:]]+(install|upgrade|rollback)|terraform[[:space:]]+(apply|destroy)|pulumi[[:space:]]+up|aws[[:space:]]+(cloudformation|lambda|ecs|s3[[:space:]]+sync)|gcloud[[:space:]]+(run|app|functions)[[:space:]]+deploy|az[[:space:]]+webapp|npm[[:space:]]+publish|twine[[:space:]]+upload|docker[[:space:]]+push|flyctl[[:space:]]+deploy|fly[[:space:]]+deploy|vercel[[:space:]]+(--prod|deploy)|serverless[[:space:]]+deploy|cap[[:space:]]+production|git[[:space:]]+push[^;&|]*[[:space:]](main|master|prod|production|release)([[:space:]]|$))'
+DANGER_RE='(^|[;&| ])(rm[[:space:]]+-rf[[:space:]]+/|git[[:space:]]+push[[:space:]]+[^;&|]*--force|git[[:space:]]+reset[[:space:]]+--hard[[:space:]]+origin|DROP[[:space:]]+(TABLE|DATABASE))'
+if printf '%s' "$CMD" | grep -Eiq "$DANGER_RE"; then
+  block "destructive command. Not allowed from an agent session: $CMD"
+fi
+if printf '%s' "$CMD" | grep -Eiq "$DEPLOY_RE"; then
+  SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
+  AUTH="$ROOT/.sdlc/release-authorizations/$SHA"
+  if [ -f "$AUTH" ] && grep -q '^approved-by:' "$AUTH"; then
+    exit 0   # a human authorized exactly this commit
+  fi
+  [ -n "$SDLC_UNATTENDED" ] && block "deploy command in an unattended session with no release authorization for $SHA."
+  ask "Release gate: '$CMD' looks like a deploy. No human authorization exists for HEAD ($SHA). Approve only if you are the named release owner."
+fi
+exit 0

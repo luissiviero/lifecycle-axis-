@@ -1,0 +1,5 @@
+name: gate-blocks-unattended-deploy
+kind: hook
+source: docs/sdlc/README.md
+check: |
+  ! printf '%s' '{"tool_name":"Bash","tool_input":{"command":"terraform apply -auto-approve"}}' | SDLC_UNATTENDED=1 CLAUDE_PROJECT_DIR="$(git rev-parse --show-toplevel)" .claude/hooks/production-gate.sh 2>/dev/null

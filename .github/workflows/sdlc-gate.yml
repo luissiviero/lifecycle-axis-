@@ -1,0 +1,26 @@
+name: sdlc-gate
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+jobs:
+  artifact-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Resolve work item from PR body ("Work-Item: <slug>")
+        id: wi
+        env: { BODY: "${{ github.event.pull_request.body }}" }
+        run: |
+          slug="$(printf '%s' "$BODY" | sed -n 's/^Work-Item:[[:space:]]*\([A-Za-z0-9._-]*\).*/\1/p' | head -1)"
+          [ -z "$slug" ] && slug="$(cat .sdlc/active)"
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+      - name: Artifact chain (intent → spec → plan → diff)
+        run: python3 scripts/check_artifact_chain.py --base "origin/${{ github.base_ref }}" --slug "${{ steps.wi.outputs.slug }}"
+      - name: Verify
+        run: scripts/verify.sh
+      - name: Control plane untouched by non-humans
+        if: github.event.pull_request.user.type == 'Bot' || startsWith(github.head_ref, 'claude/')
+        run: |
+          if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -E '^(\.claude/hooks/|\.github/workflows/|\.sdlc/)'; then
+            echo "Agent-authored PR touches the control plane."; exit 1; fi

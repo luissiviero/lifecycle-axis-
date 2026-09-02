@@ -1,0 +1,5 @@
+name: hook-requires-approved-plan
+kind: hook
+source: docs/sdlc/README.md
+check: |
+  ! printf '%s' '{"tool_name":"Edit","tool_input":{"file_path":"src/a.ts"}}' | SDLC_WORK_ITEM=does-not-exist CLAUDE_PROJECT_DIR="$(git rev-parse --show-toplevel)" .claude/hooks/require-plan.sh 2>/dev/null
