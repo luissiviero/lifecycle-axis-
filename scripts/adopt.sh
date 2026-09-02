@@ -238,6 +238,8 @@ Next steps:
   1. Fill in VERIFY_CMDS in .sdlc/config.env (it currently holds a TODO placeholder).
   2. Edit CLAUDE.md: cut it to one page and start the "Lessons learned" section for this project.
   3. Protect the main branch: require the sdlc-gate check (and agent-evals) before merge.
+     (Private repos need GitHub Pro or public visibility for this; otherwise the merge click is
+     the gate -- knowledge/decisions/merge-click-is-the-gate.md.)
   4. Add an ANTHROPIC_API_KEY secret (or CLAUDE_CODE_OAUTH_TOKEN from `claude setup-token` on a Pro/Max
      plan) so prompt-based evals and PR review run in CI.
   5. Approve the example work item as yourself (the chain check refuses agent-authored approvals):

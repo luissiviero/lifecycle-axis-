@@ -19,4 +19,5 @@ decisions land here as their task ships; this index is regenerated to add each o
 - [Plugin distribution for the SDLC kit](plugin-distribution.md)
 - [bash-write-guard.md](bash-write-guard.md) — hook heuristic and CI job together close the Bash heredoc bypass; human unlock env var
 - [The kit repo does not wire its own hooks](self-enforcement-off.md) — superseded by self-hooks-on.md the same day; kept for the record
+- [CI is informational; the merge click is the gate](merge-click-is-the-gate.md) — private repo on the GitHub Free plan: no branch protection, rulesets or environment rules; the owner reads the checks and clicks, or tells the agent to
 - [The kit repo wires its own hooks, with the control-plane unlock](self-hooks-on.md) — .claude/settings.json restored with SDLC_CONTROL_PLANE_UNLOCK=1; the unlock covers Edit/Write too; require-plan and protect-tests gain a Bash branch

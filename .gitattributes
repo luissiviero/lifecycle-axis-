@@ -1,0 +1,4 @@
+# Shell scripts must stay LF on every checkout: bash cannot run a CRLF script, and on a Windows
+# clone with core.autocrlf=true the hooks in .claude/hooks/ and the scripts/ tooling otherwise
+# arrive as CRLF and fail with "$'\r': command not found" (roadmap item 19e).
+*.sh text eol=lf
