@@ -196,4 +196,6 @@ Files: `.claude/hooks/protect-paths.sh` (when `$FILE` empty and `$CMD` set and `
 4. Hand checks: `adopt.sh` into a temp target is not blocked by the Bash guard (absolute path outside `$ROOT`); single-Edit hook latency < ~150 ms; `verify.sh` wall time reported.
 5. `/sdlc-review` (security-reviewer + plan-reviewer subagents, both read-only) → findings in `REVIEW.md` format, fixed or answered.
 6. Reconcile `plan.md` `## Files that change` with the real diff; append `## Deviations log` in the same commit; append gate entries to `log.md`; push; update PR #1 body with the verify/chain/evals last lines; ask the owner to apply `control-plane-approved` and confirm the branch-protection checklist from T04.
-
+status: approved
+approved-by: luissiviero
+approved-on: 2026-09-02
