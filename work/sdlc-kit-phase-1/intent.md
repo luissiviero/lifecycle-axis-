@@ -4,10 +4,10 @@ id: sdlc-kit-phase-1
 title: Make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects
 description: Turn the scaffold into a drop-in kit with an OKF knowledge layer and model-neutral gates.
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude
-approved-by:
-approved-on:
+approved-by: luissiviero 
+approved-on: 2026-09-02
 supersedes:
 record:
 resource: https://claude.com/blog/the-ai-native-sdlc-playbook
@@ -58,6 +58,3 @@ low — process and documentation, plus scripts with unit tests. No production s
   A: None yet. Start a `knowledge/` bundle per repo, conformance check as a warning, both models read it.
 - Q: Distribution? (template repo, plugin, or both)
   A: Both: a Claude Code plugin (skills, agents, hooks, templates) plus this repo as the thin template with `scripts/adopt.sh`.
-status: approved
-approved-by: luissiviero
-approved-on: 2026-09-02
