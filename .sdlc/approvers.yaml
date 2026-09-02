@@ -1,0 +1,26 @@
+# Approvers: who may hold `status: approved` for each artifact type.
+# Only humans appear under `roles` — no bot or agent identity is ever listed
+# here. `scripts/approvers.py` and `scripts/check_artifact_chain.py` read
+# this file to validate the `approved-by` field on intent/spec/plan/incident
+# artifacts.
+
+# roles: named human approvers, one list per role. A role may list more than
+# one handle; this repo's owner currently holds every role.
+roles:
+  product-owner: [luissiviero]
+  tech-lead: [luissiviero]
+  release-manager: [luissiviero]
+  service-owner: [luissiviero]
+
+# artifacts: which role must approve each artifact type before its
+# `status: approved` is considered valid.
+artifacts:
+  intent.md: product-owner
+  spec.md: product-owner
+  plan.md: tech-lead
+  incident.md: service-owner
+
+# never-approve: identities that must never satisfy an approval, even if a
+# handle matching one of these appears in a role's list above. Agent and CI
+# identities go here so a mistaken or spoofed entry still fails closed.
+never-approve: ["claude[bot]", "github-actions[bot]", "claude"]

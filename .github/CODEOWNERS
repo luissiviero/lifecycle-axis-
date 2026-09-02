@@ -1,0 +1,23 @@
+# CODEOWNERS: review routing for pull requests.
+#
+# Everything defaults to the repo owner, then a few control-plane and
+# release-gated groups are called out explicitly so their review request
+# never depends on the fallback rule alone. The group boundaries mirror
+# .sdlc/config.env so a change to that config is the only place this list
+# needs to follow.
+
+# Default owner for anything not matched below.
+* @luissiviero
+
+# PROTECTED_PATHS in .sdlc/config.env: control-plane paths an agent may
+# never edit; a human must review any change here.
+/.claude/hooks/ @luissiviero
+/.github/workflows/ @luissiviero
+/.sdlc/ @luissiviero
+
+# RELEASE_GATED_PATHS in .sdlc/config.env: paths that always need a named
+# human approver in the PR per REVIEW.md.
+/migrations/ @luissiviero
+/infra/ @luissiviero
+/terraform/ @luissiviero
+/helm/ @luissiviero
