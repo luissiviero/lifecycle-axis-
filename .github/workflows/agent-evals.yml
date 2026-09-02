@@ -5,6 +5,9 @@ on:
     paths: ['CLAUDE.md', 'REVIEW.md', '.claude/**', 'evals/**', '.sdlc/**']
   schedule:
     - cron: '0 2 * * *'
+permissions:
+  contents: read   # read-only token: this workflow only checks and reports
+
 jobs:
   evals:
     runs-on: ubuntu-latest

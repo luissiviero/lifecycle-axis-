@@ -2,6 +2,9 @@ name: sdlc-gate
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+permissions:
+  contents: read   # read-only token: this workflow only checks and reports
+
 jobs:
   artifact-chain:
     runs-on: ubuntu-latest
