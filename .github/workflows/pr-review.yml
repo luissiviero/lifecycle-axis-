@@ -37,13 +37,14 @@ jobs:
        contains(github.event.comment.body, '@claude') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     # Secrets cannot be read directly in a job-level `if:`, so the guard lives here as an
-    # env indirection and gates every step below: without a configured key the job still
-    # "runs" (its own if: above passed) but does nothing.
+    # env indirection and gates every step below: without a configured credential the job
+    # still "runs" (its own if: above passed) but does nothing. Either an API key or a
+    # subscription OAuth token (`claude setup-token`, Pro/Max) satisfies it.
     env:
-      HAVE_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+      HAVE_CLAUDE_AUTH: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
       - name: Checkout the PR head (on both triggers)
-        if: env.HAVE_ANTHROPIC_KEY == 'true'
+        if: env.HAVE_CLAUDE_AUTH == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.event.pull_request.head.sha }}
@@ -54,17 +55,18 @@ jobs:
       # could rewrite the very policy the reviewer is meant to follow. Pin it ourselves.
       # On issue_comment the base ref is not in the event payload; the default branch is used.
       - name: Pin review policy from base branch
-        if: env.HAVE_ANTHROPIC_KEY == 'true'
+        if: env.HAVE_CLAUDE_AUTH == 'true'
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
         run: |
           git show "origin/$BASE_REF:REVIEW.md" > /tmp/REVIEW.base.md
 
       - name: Claude review
-        if: env.HAVE_ANTHROPIC_KEY == 'true'
+        if: env.HAVE_CLAUDE_AUTH == 'true'
         uses: anthropics/claude-code-action@8251c103ac8c1d761882c86aba1412c7f583c844 # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             Read /tmp/REVIEW.base.md and follow it verbatim: run all four passes (Bugs,
             Security, Compliance, Memory) tagged per finding, apply the Important-vs-Nit

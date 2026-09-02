@@ -79,7 +79,7 @@ No context or env var names the environment approver; the job simply does not st
 - [ ] Restrict who can push: `luissiviero` + the Claude App; block force pushes and deletions
 - [ ] Settings -> Actions -> General: workflow token **read-only**; "Allow GitHub Actions to create and
       approve pull requests" **unchecked**
-- [ ] Secrets: `ANTHROPIC_API_KEY` at repo scope with a spend limit (Q7)
+- [ ] Secrets: `ANTHROPIC_API_KEY` at repo scope with a spend limit, or `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` on a Pro/Max plan (Q7)
 
 ## Consequences
 - **T12** - the branch-prefix test is the real trigger; `SDLC_PR_AUTHOR_TYPE` stays advisory and must

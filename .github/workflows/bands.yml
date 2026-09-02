@@ -20,8 +20,12 @@ jobs:
   detect:
     runs-on: ubuntu-latest
     env:
-      # job-level so step `if:` expressions can test it (a step's own env is not visible to its if)
+      # job-level so step `if:` expressions can test it (a step's own env is not visible to its if).
+      # Either credential satisfies the guard: an API key, or a subscription OAuth token
+      # (`claude setup-token`, Pro/Max); `claude -p` reads whichever is set.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      HAVE_CLAUDE_AUTH: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     strategy:
       fail-fast: false
       # One run per GitHub-sourced metric in monitoring/bands.yaml. `source` mirrors that file's
@@ -69,12 +73,12 @@ jobs:
       # 3) Diagnose (2sigma/3sigma only, and only when a Claude key is configured): a read-only
       #    investigation using exactly this metric's tier tools, drafting the durable-fix intent.
       - name: Install Claude Code
-        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.ANTHROPIC_API_KEY != ''
+        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.HAVE_CLAUDE_AUTH == 'true'
         run: npm install -g @anthropic-ai/claude-code@2.1.258
 
       - name: Diagnose breach (read-only) and draft an intent
         id: diagnose
-        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.ANTHROPIC_API_KEY != ''
+        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.HAVE_CLAUDE_AUTH == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           METRIC: ${{ matrix.metric }}
@@ -94,7 +98,7 @@ jobs:
       # 4) File the issue -- diagnosis body when Claude ran, raw detector JSON otherwise. Either
       #    way, only an issue: this workflow never opens a pull request (said again in a comment).
       - name: Open GitHub issue (diagnosis)
-        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.ANTHROPIC_API_KEY != ''
+        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.HAVE_CLAUDE_AUTH == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -105,7 +109,7 @@ jobs:
           gh issue comment "$url" --body "Filed automatically by the bands workflow. This workflow only ever opens issues, never pull requests -- a human turns the drafted intent.md above into an approved work item."
 
       - name: Open GitHub issue (detector output only, no key configured)
-        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.ANTHROPIC_API_KEY == ''
+        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.HAVE_CLAUDE_AUTH != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           METRIC: ${{ matrix.metric }}
@@ -114,7 +118,7 @@ jobs:
         run: |
           body_file="$(mktemp)"
           {
-            echo "No ANTHROPIC_API_KEY is configured, so no automated diagnosis ran. Detector output:"
+            echo "No Claude credential (ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN) is configured, so no automated diagnosis ran. Detector output:"
             echo
             echo '```json'
             echo "$DETECTOR_JSON"

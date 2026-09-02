@@ -133,5 +133,5 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
 3. Add standards as skills (security is included; add UX, API conventions, data classification) and list them in `/sdlc-spec`.
 4. Protect `main`: require `sdlc-gate` and `agent-evals`; CODEOWNERS for `RELEASE_GATED_PATHS`.
 5. Run the loop by hand once. Then automate the spec pass on intent merge and the review pass on PR open.
-6. Collect 20–50 real tasks into `evals/cases/`. Add `ANTHROPIC_API_KEY` to CI so prompt cases run.
+6. Collect 20–50 real tasks into `evals/cases/`. Add an `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` secret to CI so prompt cases run.
 7. Point `bands.yaml` at real metrics; have the detector's caller invoke `/sdlc-incident` at 2σ.
