@@ -2,28 +2,34 @@
 # Red line: agents never edit the control plane or secret material.
 #
 # Two branches:
-#   $FILE set   -> Edit/Write/MultiEdit: match the declared file_path (original behaviour).
+#   $FILE set   -> Edit/Write/MultiEdit/NotebookEdit: match the declared file_path.
 #   $FILE empty -> Bash: extract likely write targets from the command text and match those.
 #                  Defect 4: the edit hooks matched only Edit|Write|MultiEdit, so a heredoc
 #                  redirect into .sdlc/config.env bypassed every one of them.
 #                  Rationale, coverage and limits: knowledge/decisions/bash-write-guard.md.
+# Every candidate is canonicalised (canon in _lib.sh) before matching, so `work/../.sdlc/x`,
+# a symlink into the control plane, or `cd .sdlc && ... >> config.env` are all seen as writes
+# under `.sdlc` (security review, finding 1).
 . "$(dirname "$0")/_lib.sh"
 
-if [ -n "$FILE" ]; then
-  R="$(rel "$FILE")"
-  under_any "$R" "$PROTECTED_PATHS" && block "'$R' is a protected path ($PROTECTED_PATHS). Describe the change you want in the PR body; a human applies it."
+check_target() { # check_target <repo-relative canonical path> <where>
+  local R="$1" where="$2"
+  under_any "$R" "$PROTECTED_PATHS" && block "'$R' is a protected path ($PROTECTED_PATHS)$where. Describe the change you want in the PR body; a human applies it."
   case "$R" in
-    .env|.env.*|*.pem|*.key|*.p12|*id_rsa*|*.keystore) block "'$R' looks like secret material. Never write secrets to the repo.";;
+    .env|.env.*|*.pem|*.key|*.p12|*id_rsa*|*.keystore) block "'$R' looks like secret material. Never write secrets to the repo$where.";;
   esac
+}
+
+if [ -n "$FILE" ]; then
+  check_target "$(canon "$FILE")" ""
   exit 0
 fi
 
 [ -z "$CMD" ] && exit 0
 [ "${BASH_WRITE_GUARD:-1}" = 1 ] || exit 0
 
-# Human-only escape hatch: set in the environment that launches Claude Code. A command an agent
-# runs sets variables in its own shell, never in this hook process's environment, so an agent
-# cannot grant itself the unlock. Every allow leaves this line in the transcript.
+# Human-only escape hatch: read from the environment that launched Claude Code (captured in
+# _lib.sh before the repo config is sourced). Every allow leaves this line in the transcript.
 if [ "${SDLC_CONTROL_PLANE_UNLOCK:-}" = 1 ]; then
   printf 'SDLC: control plane unlocked by human env (SDLC_CONTROL_PLANE_UNLOCK=1)\n' >&2
   exit 0
@@ -95,6 +101,11 @@ bash_write_targets() {
       cp|mv|install|rsync)                        # destination is the last argument
         q="${toks[e-1]}"
         case "$q" in -*|'<'*|'>'*) ;; *) out+=("$q");; esac ;;
+      ln)                                         # a symlink into the control plane is a write there
+        for ((j=i+1; j<e; j++)); do
+          case "${toks[j]}" in -*) continue;; esac
+          out+=("${toks[j]}")
+        done ;;
       truncate)                                   # truncate [-s N] <path>
         for ((j=i+1; j<e; j++)); do
           case "${toks[j]}" in -*|[0-9]*|'<'*|'>'*) continue;; esac
@@ -135,11 +146,20 @@ bash_write_targets() {
   done
 }
 
+# Directories the command changes into: a relative target written after `cd`/`pushd` resolves
+# against them, so every candidate is also tested relative to each such directory.
+CD_DIRS="$(printf '%s' "${CMD:0:16384}" | grep -Eo '(^|[;&|[:space:]()])(cd|pushd)[[:space:]]+[^[:space:];&|)]+' \
+  | sed -E 's/^[^[:alnum:]]*(cd|pushd)[[:space:]]+//' | tr -d '"'"'"'')"
+
+WHERE=" (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body)"
 while IFS= read -r CAND; do
-  R="$(rel "$CAND")"
-  under_any "$R" "$PROTECTED_PATHS" && block "'$R' is a protected path ($PROTECTED_PATHS) (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body)."
-  case "$R" in
-    .env|.env.*|*.pem|*.key|*.p12|*id_rsa*|*.keystore) block "'$R' looks like secret material. Never write secrets to the repo (detected in a Bash command).";;
-  esac
+  check_target "$(canon "$CAND")" "$WHERE"
+  while IFS= read -r D; do
+    [ -z "$D" ] && continue
+    case "$D" in \$*|*'${'*) continue;; esac
+    check_target "$(canon "$CAND" "$(canon "$D")")" "$WHERE"
+  done <<EOF
+$CD_DIRS
+EOF
 done < <(bash_write_targets "$CMD")
 exit 0
