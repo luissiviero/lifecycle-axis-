@@ -1,5 +1,7 @@
 ---
+type: sdlc/plan
 id: _example
+kind: feature
 stage: build
 status: approved
 reads: spec.md
@@ -9,20 +11,20 @@ risk-class: low
 ---
 # Plan: example work item
 
-## Files
+## Files that change
 - docs/**
 - work/_example/**
 
 ## Release-gated
 (none)
 
-## Steps
+## Order of work
 1. Nothing to implement.
 
-## Verification
+## Proof
 - `python3 scripts/check_artifact_chain.py --slug _example`
 
-## Risks and rollback
+## Risks
 - none
 
 ## Deviations log

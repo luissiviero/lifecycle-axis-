@@ -24,3 +24,11 @@ jobs:
         run: |
           if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -E '^(\.claude/hooks/|\.github/workflows/|\.sdlc/)'; then
             echo "Agent-authored PR touches the control plane."; exit 1; fi
+      - name: Triage failure (read-only judgment step; runs only when a Claude key is configured)
+        if: failure() && env.ANTHROPIC_API_KEY != ''
+        env: { ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}" }
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude -p "Read the job log context in this checkout and the last failing step. Say whether the failure looks flaky or real, the most likely cause with file:line, and a three-line summary for the PR thread." \
+            --allowedTools "Read,Grep,Glob" >> triage.md || true
+          cat triage.md >> "$GITHUB_STEP_SUMMARY"

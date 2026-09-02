@@ -1,34 +1,39 @@
 ---
+type: sdlc/intent
 id: <slug>
+title: <one-line problem statement in the originator's words>
+description: <one sentence for indexes and catalogs>
 stage: plan
 status: draft            # draft | in-review | approved | superseded
-originator: <name or team who asked>
-approved-by:             # human name; set only by a human
+author: <originator name and team>
+approved-by:             # product owner; set only by a human
 approved-on:
 supersedes:              # previous intent id, if any
-source: <link to issue / incident / conversation>
+record:                  # legacy system id (Jira/ServiceNow) if that system holds a copy
+resource: <link to issue / incident / channel thread / band breach log>
+tags: []
+timestamp: <RFC3339>
 ---
-# Intent: <one-line problem statement in the originator's words>
+# Intent: <title>
 
 ## Problem
-What is wrong or missing today, for whom, and how we know. Quote the originator.
+What cannot be done today, who is affected, how we know. In the originator's words.
 
-## Success criteria
-- Observable outcome 1 (measurable, with the metric and the target)
-- Observable outcome 2
+## Proposed outcome
+What better looks like, observable. Add a number or a test where possible.
 
 ## Affected users and systems
 - Users:
 - Services / repos / data:
 
-## Constraints and non-goals
+## Constraints
 - Must:
 - Must not:
 - Out of scope:
 
 ## Risk class
-low | medium | high — and why (blast radius, data sensitivity, regulation).
+low | medium | high — and why (blast radius, data sensitivity, regulation). Sets who approves spec and plan.
 
-## Open questions (agent asks; originator answers; resolved before approval)
+## Open questions (agent asks; originator answers; carried into spec.md if unresolved)
 - Q:
   A:

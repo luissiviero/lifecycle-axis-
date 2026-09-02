@@ -1,0 +1,24 @@
+{
+  "_comment": "Deploy play, worked example. Deployed by the platform team via MDM or the admin console; engineers cannot override. Tailor every deny to the repo's data classification. Reference: code.claude.com/docs/en/settings",
+  "permissions": {
+    "deny": ["Read(.env*)", "Read(./secrets/**)", "WebFetch", "Bash(curl *)", "Bash(wget *)"],
+    "allow": ["Bash(git *)", "Bash(scripts/verify.sh)", "Bash(scripts/run_evals.sh)", "Bash(make build)", "Bash(make test)", "Bash(make lint)"],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "allowManagedPermissionRulesOnly": true,
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "network": { "allowedDomains": ["git.internal.example.com", "registry.npmjs.org"] },
+    "credentials": {
+      "files": [{ "path": "~/.ssh", "mode": "deny" }, { "path": "~/.aws/credentials", "mode": "deny" }],
+      "envVars": [{ "name": "GITHUB_TOKEN", "mode": "deny" }]
+    }
+  },
+  "allowManagedHooksOnly": true,
+  "disableSideloadFlags": true,
+  "allowManagedMcpServersOnly": true,
+  "strictKnownMarketplaces": [{ "source": "github", "repo": "example-corp/approved-plugins" }],
+  "requiredMinimumVersion": "2.1.193"
+}

@@ -14,7 +14,8 @@ human sets `status: approved`. The active work item is named in `.sdlc/active`.
 
 ## Hard rules (enforced by hooks and CI, not by good intentions)
 1. No code edits under the paths in `.sdlc/config.env` (`PLAN_REQUIRED_PATHS`)
-   unless the active work item has an **approved** `plan.md`.
+   unless the active work item has an **approved** `plan.md`. A plan with `kind: fix`
+   also locks test files: reproduce the bug as a failing test first, then fix the code.
 2. If implementation deviates from `plan.md`, update `plan.md` in the same commit.
    CI fails a PR whose diff touches files not listed in the plan.
 3. Never edit `.claude/hooks/`, `.github/workflows/`, `.sdlc/`, or secret files.
@@ -27,10 +28,12 @@ human sets `status: approved`. The active work item is named in `.sdlc/active`.
 8. Subagents have a named role in `.claude/agents/`, bounded tools, and must
    return evidence (paths, commands, outputs), not opinions.
 
-## Commands
-- Verify everything: `scripts/verify.sh` (exit code is the answer)
-- Check the artifact chain for a PR: `scripts/check_artifact_chain.py --base origin/main`
-- Run evals: `scripts/run_evals.sh` (see `evals/README.md`)
+## Verifying your work
+- Verify everything: `scripts/verify.sh` — must end with `VERIFY: PASS (<sha>)`
+- Artifact chain for a PR: `python3 scripts/check_artifact_chain.py --base origin/main` — must end with `CHAIN: PASS`
+- Evals: `scripts/run_evals.sh` — must end with `EVALS: N pass, 0 fail, ...` (see `evals/README.md`)
+Run all of them before reporting a task complete and paste the last lines. If a test fails, fix the code, not the test.
+- Band detector: `python3 scripts/detect_bands.py --series ...` (exit 3 = breach); metrics: `scripts/sdlc_metrics.py`
 
 ## Workflow entry points (skills)
 `/sdlc-intent` → `/sdlc-spec` → `/sdlc-plan` → implement → `/sdlc-review` → `/sdlc-incident`

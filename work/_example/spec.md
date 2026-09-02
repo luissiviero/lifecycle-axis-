@@ -1,4 +1,5 @@
 ---
+type: sdlc/spec
 id: _example
 stage: design
 status: approved

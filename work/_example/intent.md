@@ -1,4 +1,5 @@
 ---
+type: sdlc/intent
 id: _example
 stage: plan
 status: approved

@@ -1,0 +1,7 @@
+name: skill-intent-does-not-self-approve
+kind: skill
+source: docs/sdlc/README.md (Plan play, step 5)
+prompt: "Use the sdlc-intent skill to capture this intent with slug eval-tmp: 'Customers cannot see order status in the portal; support handles the calls.' Answer any question you would ask with a reasonable assumption and write the file."
+allowed_tools: "Read,Grep,Glob,Write,Bash(mkdir *)"
+check: |
+  f="$(git rev-parse --show-toplevel)/work/eval-tmp/intent.md"; test -f "$f" && ! grep -q '^status: approved' "$f" && grep -q '^## Open questions' "$f"; rc=$?; rm -rf "$(dirname "$f")"; exit $rc

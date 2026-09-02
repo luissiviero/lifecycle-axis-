@@ -1,89 +1,105 @@
 # The AI-native SDLC loop, built into this repo
 
-> Source: Anthropic, *The AI-Native SDLC playbook* (claude.com/blog, 21 Aug 2026) and the companion Claude Academy course.
-> This document reconstructs the playbook's model and explains how this repo turns it into **enforced agent behaviour**.
+> Source: Louis Claxton, *The AI-Native SDLC playbook*, claude.com/blog, 21 Aug 2026 (verified against the full text).
+> This document digests the playbook and maps every play to what this repo enforces.
 
-## 1. What the playbook says (digest)
+## 1. The playbook in one page
 
-**Thesis.** Agents made code generation cheap, so the bottleneck moved to everything around the code: planning,
-design alignment, security review, testing, approval, incident response. Keep the old *control objectives*
-(someone decided what to build, someone checked it, someone approved it, someone can audit it) but change the
-*enforcement*: from meetings and ticket queues to committed artifacts, hooks, skills, evals, and gates.
+**Thesis.** Code is no longer the bottleneck. Plan, review/test, and deploy still run at human speed; per-line human
+review cannot keep up with agent-written diffs; governance-by-committee gets more expensive. Keep the old *control
+objectives* (someone decided, someone checked, someone approved, it can be audited) and change the *enforcement*.
 
-**The loop.** Six non-linear stages. Each stage ends by committing one Markdown artifact; the next stage starts by reading it.
+**The loop.** Six non-linear stages. A stage ends by committing an artifact; the commit starts the next stage.
+An accepted `intent.md` triggers the requirements-and-design pass, an approved `spec.md` triggers plan mode, a merged
+PR triggers the pipeline, and a breached control band writes the next `intent.md`. Human attention concentrates at the gates.
 
-| Stage | Reads | Produces | Gate (human) | Claude mechanism |
-|---|---|---|---|---|
-| Plan | originator's words | `intent.md` | intent accepted | agent interviews originator |
-| Design | `intent.md` + standards | `spec.md` (requirements + design) | spec approved | skills encode brand/security/UX/compliance as hard constraints |
-| Build | `spec.md` | `plan.md` → diff + tests | plan approved | plan mode; `CLAUDE.md` memory; hooks as red lines; subagents |
-| Test | repo + evals | eval results, regressions | eval config review | 20–50 real-task eval suite; every incident adds an eval |
-| Deploy | PR | review findings, release | merge; release authorization | layered agentic review (plan match, security), branch protection, `ask` hooks |
-| Maintain | production metrics | incident record → new `intent.md` | triage decision | control bands (1σ log, 2σ diagnose, 3σ act); Claude Tag first-response |
-
-**Enforcement has three layers.**
-1. *Advisory*: `CLAUDE.md` and skills make the right behaviour likely.
-2. *Deterministic*: hooks and CI make the wrong behaviour impossible (protected paths, secrets, release gate, plan-required).
-3. *Human judgment*: approvals at the gates. The commit chain is the audit trail: who asked, what the agent made, who approved.
-
-**Role shifts.** Engineers direct, set intent, and approve. QA becomes verification engineering (design the
-machine-checkable loops). Engineering managers allocate *verification attention* and *agent budget* instead of engineer-hours.
-Security separates four jobs (create, check, authorize, deploy) across different identities.
-
-**Adoption order.** Leaf plays first: intent template, one-page `CLAUDE.md`, a verify command with a clear exit code,
-one deterministic hook, plan mode. Then skills, subagents, evals. Then design pass and PR review. Then CI/CD and gates.
-Last, the monitoring-driven loop.
-
-## 2. How this repo builds it
-
-```
-CLAUDE.md                      one page of repository memory + the eight hard rules
-REVIEW.md                      review policy: order, severity, evidence, five-nit cap
-.sdlc/                         control plane (agents cannot edit): path classes, verify cmds, active item, release authorizations
-work/<slug>/                   intent.md → spec.md → plan.md → incident.md, each with YAML status + approved-by
-docs/sdlc/templates/           the four artifact templates
-.claude/skills/sdlc-*          one skill per stage transition: /sdlc-intent /sdlc-spec /sdlc-plan /sdlc-review /sdlc-incident
-.claude/skills/security-standards   policy-as-skill; loaded by Design and Review
-.claude/agents/                explorer (read-only scout), plan-reviewer, security-reviewer, verifier
-.claude/hooks/ + settings.json protect-paths, block-secrets, require-plan, production-gate, stop-verify-reminder
-scripts/verify.sh              the single pass/fail signal agents and CI use
-scripts/check_artifact_chain.py CI: artifacts approved, diff ⊆ plan, release-gated paths declared
-.github/workflows/sdlc-gate.yml runs the chain check + verify on every PR
-evals/                         workflow evals; run when CLAUDE.md, skills, hooks, or agents change
-monitoring/bands.yaml          control bands with 1σ/2σ/3σ tiers
-```
-
-### The enforcement matrix (what stops an agent from doing what)
-
-| Behaviour we want | Advisory | Deterministic | Human |
+| Stage | Play | Artifact / mechanism | Gate |
 |---|---|---|---|
-| No code before an approved plan | CLAUDE.md rule 1, `/sdlc-plan` | `require-plan.sh` blocks Edit/Write under `PLAN_REQUIRED_PATHS` unless `work/<active>/plan.md` is `approved` | sets `status: approved` |
-| Diff matches plan | CLAUDE.md rule 2 | `check_artifact_chain.py` fails PR on unplanned files | reviews deviation log |
-| Agent never edits the control plane | rule 3 | `protect-paths.sh`; CI job rejects agent PRs touching hooks/workflows/.sdlc | applies via PR |
-| No secrets in repo | security-standards §1 | `block-secrets.sh` pattern match on written content | — |
-| Agent never crosses into production | rule 4 | `production-gate.sh`: destructive → deny; deploy → `ask`, or deny when unattended, unless `.sdlc/release-authorizations/<sha>` exists | creates the authorization file |
-| Verified before review | rule 5 | Stop hook blocks ending a turn with unverified code changes; CI runs `verify.sh` | reads the pasted verify line |
-| Review has evidence, ≤5 nits | REVIEW.md, `/sdlc-review` | reviewer subagents are read-only | final approval |
-| Mistakes become memory | rule 7 | — (eval added per incident is checked by `/sdlc-incident`) | reviewer insists |
-| Subagents are bounded | rule 8 | `tools:` allow-lists in `.claude/agents/*.md` | — |
+| 1 Plan | Capture as intent.md | originator brainstorms with Claude; template as a skill; committed to the intent home | product owner accepts (merge) |
+| 2 Design | Requirements and design | one session, org skills as constraints, **flagged areas of concern**; `spec.md` beside `intent.md`; can run headless on intent merge | product owner (tech lead for higher risk) |
+| 3 Build | Plan mode as the default start | interview the engineer; `plan.md`: files that change, order of work, risks, proof; update in the same commit when deviating | engineer (tech lead/architect for higher risk) |
+| 3 Build | The CLAUDE.md | `/init`, cut to one page, mistake-twice rule | code owners review changes |
+| 3 Build | Skills as institutional knowledge | `.claude/skills/<name>/SKILL.md`, policy owner signs off, advisory control backed by a hook | policy owner |
+| 3 Build | Hooks as build-time guardrails | protected paths, formatter after edits, credentials out of the diff; fast, file-scoped; no approval prompts in build | — |
+| 3 Build | Parallel sessions and subagents | worktrees, 2–3 sessions, `.claude/agents/*.md` with bounded tools (simplifier, verifier, researcher) | controls come from repo config |
+| 4 Test | Give Claude a feedback loop | one verify command, healthy-output examples in CLAUDE.md, failing test first for fixes, **hook blocks test edits during a fix**, visual check for UI, verification is part of "done" | code owner reads attached evidence |
+| 4 Test | Continuous evals in CI | 20–50 real tasks; runs on any change to CLAUDE.md, skills, hooks and nightly; pass rate gates config changes; every incident adds an eval | config-owning team |
+| 5 Deploy | AI in the PR review loop | `REVIEW.md` passes (bugs, security, compliance vs spec/plan), Important vs Nit, five-nit cap, `@claude` fix loop, findings feed CLAUDE.md, monthly tuning | code owner via branch protection |
+| 5 Deploy | Hooks as approval gates | allow / ask / block; team hooks in `.claude/settings.json`, non-negotiable ones in managed settings; a block explains the route to approval | release manager; change board |
+| 5 Deploy | CI/CD integration | `claude -p` read-only judgment first (triage), write steps behind gates, sandboxed with scoped tokens, deploy/rollback as MCP tools, autonomy tiered per environment, rollback rehearsed | production gate hook |
+| 6 Maintain | Closing the loop | deterministic detector (mean/σ, Western Electric) + `bands.yaml` tiers: 1σ log, 2σ diagnose read-only, 3σ propose via PR or pre-approved runbook; diagnosis written as `intent.md` | service owner triages |
+| 6 Maintain | Recurring codebase scans | scheduled scans (Claude Security); fixes via the review gate; larger findings become `intent.md`; eval per vulnerability class | security lead |
+| 6 Maintain | Claude on call (Claude Tag) | first responder in the incident channel under its own identity; verifies recovery over MCP; writes the post-mortem to a version-controlled lessons file | channel is the audit trail |
 
-### Why each design choice
+**Adoption order.** Start with the "clay" plays that nothing points into: intent.md, CLAUDE.md, feedback loop, build-time
+hooks, plan mode. Then skills, subagents, evals. Then requirements-and-design, PR review. Then approval gates and CI/CD.
+Last, the monitoring loop, scans, and on-call.
 
-- **Front matter, not labels.** `status`/`approved-by` live in the artifact itself, so hooks, CI, and humans read the same bit. Git blame shows who flipped it.
-- **`## Files` in plan.md is a contract.** It is the cheapest "does the diff match the plan" check that is deterministic. Agentic plan review (the `plan-reviewer` subagent) sits on top for semantics.
-- **Skills per transition, not per stage.** A skill is where the agent needs a procedure; `/sdlc-spec` and `/sdlc-plan` are where most drift happens.
-- **`ask` vs deny in the release gate.** Interactive sessions get a permission prompt naming the commit; unattended sessions (`SDLC_UNATTENDED=1`, set in CI or headless runs) are denied outright. The authorization file is per-commit, so an approval cannot be reused for a different diff.
-- **Reviewer subagents cannot write.** That is the "creator ≠ checker" separation from Anthropic's security write-up, done with tool allow-lists.
-- **Evals cover the workflow.** Cases assert hook and skill behaviour, so a `CLAUDE.md` edit that weakens a guardrail fails CI.
+**Source of truth sidebar.** For every artifact name one system as the source of truth: the repo, the legacy tool
+(Jira/ServiceNow via MCP), or at minimum linkage (record id in the artifact, commit SHA in the record). This repo's
+front matter carries a `record:` field for that link.
+
+**Enforcement has three layers.** Advisory (CLAUDE.md, skills) makes the right behaviour likely. Deterministic (hooks,
+CI, branch protection, managed settings, sandbox) makes the wrong behaviour close to impossible. Human judgment stays at
+the gates. The commit chain is the audit trail.
+
+## 2. How this repo implements each play
+
+```
+CLAUDE.md                        one page: rules, commands, conventions, lessons learned
+REVIEW.md                        review passes, Important vs Nit, five-nit cap, do-not-report
+.sdlc/                           control plane (agents cannot edit): config.env, active, environments.yaml, release-authorizations/
+work/<slug>/                     intent.md → spec.md → plan.md → incident.md (YAML status, approved-by, record, kind)
+docs/sdlc/templates/             the four artifact templates, sections named as in the playbook
+docs/sdlc/managed-settings.example.json   the playbook's regulated-enterprise settings, to tailor
+docs/sdlc/metrics.md             leading/lagging indicator per play and where to read it
+docs/sdlc/lessons.md             version-controlled lessons file (Claude Tag / incidents append here)
+docs/sdlc/okf-pairing.md         how the artifact chain becomes an Open Knowledge Format bundle (multi-model)
+.claude/skills/sdlc-*            /sdlc-intent /sdlc-spec /sdlc-plan /sdlc-review /sdlc-incident
+.claude/skills/security-standards        policy-as-skill, backed by hooks and the review pass
+.claude/agents/                  explorer, plan-reviewer, security-reviewer, verifier (all read-only)
+.claude/hooks/ + settings.json   protect-paths, block-secrets, require-plan, protect-tests, production-gate, post-edit-format, stop-verify-reminder
+scripts/verify.sh                the single pass/fail signal
+scripts/check_artifact_chain.py  artifacts approved; diff ⊆ "Files that change"; release-gated paths have an owner
+scripts/run_evals.sh + evals/    hook cases run anywhere; prompt cases run with `claude -p` when a key exists
+scripts/detect_bands.py          deterministic Western Electric detector, unit-tested; monitoring/bands.yaml tiers
+.github/workflows/sdlc-gate.yml  chain check, verify, control-plane guard, triage-on-failure judgment step
+.github/workflows/agent-evals.yml runs on CLAUDE.md / .claude/** / evals changes and nightly
+```
+
+### Enforcement matrix
+
+| Behaviour | Advisory | Deterministic | Human |
+|---|---|---|---|
+| Nothing implemented without an accepted plan | rule 1, `/sdlc-plan`, plan mode | `require-plan.sh` blocks code edits unless `work/<active>/plan.md` is `approved` | approves plan |
+| Diff matches plan; deviations in the same commit | rule 2 | chain check fails PR on files outside "Files that change" | reads deviations log |
+| Agent never edits control plane or secrets | rule 3 | `protect-paths.sh`; CI rejects agent PRs touching hooks/workflows/.sdlc | applies via PR |
+| Credentials never enter the diff | security-standards §1 | `block-secrets.sh` | — |
+| Agent cannot weaken the check on its own fix | Test play step 7 | `protect-tests.sh` when plan `kind: fix` | changes a wrong test |
+| Formatting never drifts | — | `post-edit-format.sh` (PostToolUse, one file) | — |
+| Verified before "done" | rule 5, CLAUDE.md verification block | Stop hook; CI runs `verify.sh` | reads the pasted line |
+| Agent stops at the production gate | rule 4, environments.yaml | `production-gate.sh`: destructive → block; deploy → ask, or block when unattended, unless `.sdlc/release-authorizations/<sha>` or `RELEASE_APPROVAL=<sha>` | release manager |
+| Review has evidence, ≤5 nits, no self-approval | REVIEW.md, `/sdlc-review` | reviewer subagents have no write tools; branch protection | code owner |
+| Config that steers the agent is regression-tested | Test play | `agent-evals.yml` on every CLAUDE.md/skills/hooks change | config owner |
+| Mistake twice → memory | rule 7, REVIEW.md Memory pass | — | reviewer insists |
+| Detection stays deterministic; tier bounds the agent | — | `detect_bands.py` + `bands.yaml` tools/routes | service owner triages |
+
+### Design choices worth knowing
+- **`work/<slug>/` instead of a bare `intent/` folder.** The playbook commits `spec.md` beside `intent.md`; keeping the
+  whole chain of one change in one directory makes the chain check and the git log trivial. A separate intent repo only
+  pays off when intent spans many repos.
+- **`ask` lives only in the production gate.** The playbook is explicit: approval prompts during build put a person back
+  on the critical path of every parallel session. Build hooks allow or block; only the release gate asks.
+- **Strong gates are in CI and branch protection, not only in Claude hooks.** Hooks are Claude-specific; the chain
+  check, verify, and branch protection hold for any model or human. See `okf-pairing.md` for the multi-model argument.
+- **Evals cover the workflow.** Hook cases need no model and run in seconds; prompt cases run with `claude -p` and
+  bounded tools, exactly as the playbook's `agent-evals.yml` does.
 
 ## 3. Using it in a project
-
-1. Copy this repo's tree into the project (or add it as a template). Fill `VERIFY_CMDS` and the path classes in `.sdlc/config.env`.
-2. Rewrite `CLAUDE.md` for the project: commands, architecture in ten lines, the mistakes the team sees most. Keep it to a page.
-3. Add project standards as skills (security is included; add `ux-standards`, `api-conventions`, `data-classification` as needed) and list them in `/sdlc-spec`.
-4. Protect `main` in GitHub: require `sdlc-gate` and CODEOWNERS review for `RELEASE_GATED_PATHS`.
-5. Run the minimal loop by hand once: `/sdlc-intent` → approve → `/sdlc-spec` → approve → `/sdlc-plan` → approve → implement → `/sdlc-review` → PR.
-6. Collect 20–50 real tasks into `evals/cases/` and replace `scripts/run_evals.sh` with a runner that drives the agent.
-7. Wire `monitoring/bands.yaml` to real metrics and have the detector call `/sdlc-incident`.
-
-See `phase-2-roadmap.md` for what the playbook does not cover.
+1. Copy the tree (or install it as a plugin, see roadmap). Set `VERIFY_CMDS`, `FORMAT_CMD`, and the path classes in `.sdlc/config.env`.
+2. Rewrite `CLAUDE.md`: commands with healthy output, architecture in ten lines, the mistakes the team sees most. One page.
+3. Add standards as skills (security is included; add UX, API conventions, data classification) and list them in `/sdlc-spec`.
+4. Protect `main`: require `sdlc-gate` and `agent-evals`; CODEOWNERS for `RELEASE_GATED_PATHS`.
+5. Run the loop by hand once. Then automate the spec pass on intent merge and the review pass on PR open.
+6. Collect 20–50 real tasks into `evals/cases/`. Add `ANTHROPIC_API_KEY` to CI so prompt cases run.
+7. Point `bands.yaml` at real metrics; have the detector's caller invoke `/sdlc-incident` at 2σ.

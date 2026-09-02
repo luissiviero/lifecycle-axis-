@@ -6,13 +6,22 @@
         "hooks": [
           { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-paths.sh" },
           { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-secrets.sh" },
-          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/require-plan.sh" }
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/require-plan.sh" },
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-tests.sh" }
         ]
       },
       {
         "matcher": "Bash",
         "hooks": [
           { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/production-gate.sh" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-format.sh" }
         ]
       }
     ],

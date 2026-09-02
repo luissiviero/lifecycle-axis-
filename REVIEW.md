@@ -1,31 +1,31 @@
-# REVIEW.md — code review policy
+# Review instructions (REVIEW.md)
 
-Applies to humans, `/sdlc-review`, and the `security-reviewer` subagent.
+Applies to the managed Code Review service, `claude-code-action`, `/sdlc-review`, the reviewer subagents, and humans.
 
-## What a review checks, in order
-1. **Plan conformance.** Does the diff do what `plan.md` says, and only that?
-   Unplanned files or behaviour → `blocking` unless the plan was updated in the same PR.
-2. **Spec conformance.** Do the tests prove each acceptance criterion in `spec.md`?
-3. **Security.** Run the `security-standards` skill checklist. Any hit → `blocking`.
-4. **Correctness.** Bugs you can demonstrate with an input and an expected output.
-5. **Maintainability.** Only if it changes what the next engineer must do.
+## Passes
+Run four passes and tag each finding with its pass:
+- **Bugs**: logic errors, broken edge cases, subtle regressions. Evidence: an input and the wrong output.
+- **Security**: injection, authentication or authorization gaps, secrets, PII in logs. Apply `.claude/skills/security-standards/SKILL.md`.
+- **Compliance**: the change matches `spec.md` (every requirement row has its acceptance test), `plan.md`
+  (no unplanned files; deviations logged), and our design principles.
+- **Memory**: a mistake seen for the second time in this repo gets a line in `CLAUDE.md` "Lessons learned" in this PR;
+  flag when the change has made `CLAUDE.md` outdated.
 
-## Severity
-| Level | Meaning | Required evidence |
-|---|---|---|
-| blocking | Must change before merge | `file:line`, the failing input or the policy line violated |
-| major | Should change; author may push back with reasons | `file:line` and a concrete scenario |
-| minor | Nit. Maximum **five** per review. Skip the rest. | `file:line` |
+## What Important means here
+Reserve **Important** for findings that would break behavior, leak data, or breach a policy. Style and naming are **Nits**.
 
-## Output format
+## Cap the nits
+Report at most five nits per review; summarize the rest as a count.
+
+## Do not report
+Generated files (see `GENERATED_PATHS` in `.sdlc/config.env`) and anything CI already enforces (formatting, lint, the artifact-chain check).
+
+## Format
 ```
-[blocking] src/auth/session.ts:42 — token compared with `==`; timing-safe compare required (security-standards §2). Repro: ...
-[minor] src/api/users.ts:10 — rename `d` to `deadline`.
-Verdict: request-changes | approve | approve-with-nits
-Verify: <last line of scripts/verify.sh output>
+[Important][security] src/auth/session.ts:42 — token compared with `==`; constant-time compare required (security-standards §2). Repro: ...
+[Nit][bugs] src/api/users.ts:10 — rename `d` to `deadline`.
+Chain: <last line of scripts/check_artifact_chain.py>   Verify: <last line of scripts/verify.sh>
+Human approver required: yes/no (RELEASE_GATED_PATHS touched: ...)
 ```
-
-## Do not
-- Restate the diff. Comment only where something should change.
-- Ask for work outside `plan.md`. Open a new intent instead.
-- Approve anything under `RELEASE_GATED_PATHS` without a named human approver.
+Findings never approve or block on their own. Branch protection requires a code owner; a change under
+`RELEASE_GATED_PATHS` requires the owner named in `plan.md`.

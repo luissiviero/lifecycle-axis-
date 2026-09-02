@@ -1,0 +1,21 @@
+name: agent-evals
+# Runs whenever the configuration that steers the agent changes, and nightly (Test play: continuous evals).
+on:
+  pull_request:
+    paths: ['CLAUDE.md', 'REVIEW.md', '.claude/**', 'evals/**', '.sdlc/**']
+  schedule:
+    - cron: '0 2 * * *'
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Claude Code (only needed for prompt-driven cases)
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        env: { ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}" }
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Run eval suite
+        env:
+          ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}"
+          SDLC_UNATTENDED: "1"
+        run: scripts/run_evals.sh

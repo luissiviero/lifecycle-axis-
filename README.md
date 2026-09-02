@@ -5,5 +5,8 @@ artifact chain (`intent.md → spec.md → plan.md → diff → review → incid
 read-only reviewer subagents, a single verify signal, and CI that checks the chain.
 
 - Start here: [`docs/sdlc/README.md`](docs/sdlc/README.md)
+- Pairing with the Open Knowledge Format for Claude + Gemini: [`docs/sdlc/okf-pairing.md`](docs/sdlc/okf-pairing.md)
 - What comes next: [`docs/sdlc/phase-2-roadmap.md`](docs/sdlc/phase-2-roadmap.md)
+- Metrics per play: [`docs/sdlc/metrics.md`](docs/sdlc/metrics.md)
+- Next work item (draft, awaiting your answers): [`work/sdlc-kit-phase-1/intent.md`](work/sdlc-kit-phase-1/intent.md)
 - Agent memory and rules: [`CLAUDE.md`](CLAUDE.md), [`REVIEW.md`](REVIEW.md)

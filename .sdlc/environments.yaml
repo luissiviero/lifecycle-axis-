@@ -1,0 +1,13 @@
+# Autonomy tiers per environment (Deploy play: "tier the autonomy by environment").
+# The production gate hook and CI read this; deployment tools exposed over MCP should be scoped the same way.
+environments:
+  development:
+    agent_may: [deploy, rollback]
+    approval: none
+  staging:
+    agent_may: [deploy, rollback]
+    approval: any-engineer            # recorded in the PR or run log
+  production:
+    agent_may: [prepare-release, propose-rollback]
+    approval: release-manager         # .sdlc/release-authorizations/<sha> or RELEASE_APPROVAL=<sha>
+    rollback: runbook:rollback-deploy # pre-approved; rehearsed in staging on a schedule
