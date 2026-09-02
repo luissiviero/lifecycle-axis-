@@ -1,10 +1,13 @@
 name: sdlc-gate
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 jobs:
   artifact-chain:
     runs-on: ubuntu-latest
+    env:
+      # job-level so step `if:` expressions can test it (a step's own env is not visible to its if)
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -20,13 +23,14 @@ jobs:
       - name: Verify
         run: scripts/verify.sh
       - name: Control plane untouched by non-humans
-        if: github.event.pull_request.user.type == 'Bot' || startsWith(github.head_ref, 'claude/')
-        run: |
-          if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -E '^(\.claude/hooks/|\.github/workflows/|\.sdlc/)'; then
-            echo "Agent-authored PR touches the control plane."; exit 1; fi
+        shell: bash   # bash sets -o pipefail, so the script's exit code survives the tee
+        env:
+          SDLC_PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          SDLC_PR_HEAD_REF: ${{ github.head_ref }}
+          SDLC_PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: scripts/check_control_plane.sh "origin/${{ github.base_ref }}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Triage failure (read-only judgment step; runs only when a Claude key is configured)
         if: failure() && env.ANTHROPIC_API_KEY != ''
-        env: { ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}" }
         run: |
           npm install -g @anthropic-ai/claude-code
           claude -p "Read the job log context in this checkout and the last failing step. Say whether the failure looks flaky or real, the most likely cause with file:line, and a three-line summary for the PR thread." \

@@ -2,7 +2,7 @@
 # and the tier sets what it may do. Baseline: mean and standard deviation over a rolling window.
 metrics:
   - metric: ci_test_failure_rate
-    source: "github-actions"          # scripts/detect_bands.py reads a CSV/JSON series; wire your store here
+    source: "scripts/github_metrics.py ci_test_failure_rate --days 30"
     baseline: rolling_30d
     rules: western_electric
     tiers:
@@ -10,7 +10,7 @@ metrics:
       2sigma: { action: diagnose, tools: "Read,Grep,Bash(gh run view *)" }
       3sigma: { action: propose,  routes: [pull_request, runbook:rollback-deploy] }
   - metric: post_deploy_5xx_rate
-    source: "<metrics query>"
+    source: "(none — no metrics store yet; tier actions are inert until one exists, see decisions.md Q7)"
     baseline: rolling_14d
     rules: western_electric
     tiers:
@@ -18,7 +18,7 @@ metrics:
       2sigma: { action: diagnose, tools: "Read,Grep,Bash(kubectl logs *)" }
       3sigma: { action: propose,  routes: [runbook:rollback-deploy] }
   - metric: pr_cycle_time_hours
-    source: "github"
+    source: "scripts/github_metrics.py pr_cycle_time_hours --days 30"
     baseline: rolling_30d
     rules: western_electric
     tiers:

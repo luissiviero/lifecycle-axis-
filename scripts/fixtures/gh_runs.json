@@ -1,0 +1,9 @@
+{
+  "total_count": 4,
+  "workflow_runs": [
+    {"id": 1001, "name": "sdlc-gate", "created_at": "2026-08-30T09:00:00Z", "status": "completed", "conclusion": "failure"},
+    {"id": 1002, "name": "sdlc-gate", "created_at": "2026-08-30T15:00:00Z", "status": "completed", "conclusion": "success"},
+    {"id": 1003, "name": "sdlc-gate", "created_at": "2026-08-31T10:00:00Z", "status": "in_progress", "conclusion": null},
+    {"id": 1004, "name": "sdlc-gate", "created_at": "2026-09-01T11:00:00Z", "status": "completed", "conclusion": "success"}
+  ]
+}
