@@ -47,14 +47,4 @@ previous one.
 - Branch: `work/<slug>`. PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
-
-## Workflow entry points (skills)
-`/sdlc-intent` → `/sdlc-spec` → `/sdlc-plan` → implement → `/sdlc-review` → `/sdlc-incident`
-- Hooks in `.claude/hooks/` enforce rules 1, 3 and 4 as `PreToolUse` matchers on
-  `Edit|Write|MultiEdit|Bash`, plus a `Stop` reminder for rule 5. They read
-  `.sdlc/config.env` under `$CLAUDE_PROJECT_DIR`; a block is `exit 2` with the reason on stderr.
-- Subagents live in `.claude/agents/` with a named role and a bounded `tools:` list.
 <!-- END GENERATED -->
-
-## Lessons learned (append; one line each; delete when a hook makes it impossible)
-- (none yet)
