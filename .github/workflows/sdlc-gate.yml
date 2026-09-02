@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - name: Resolve work item from PR body ("Work-Item: <slug>")
+      - name: "Resolve work item from the PR body's Work-Item line"
         id: wi
         env: { BODY: "${{ github.event.pull_request.body }}" }
         run: |
