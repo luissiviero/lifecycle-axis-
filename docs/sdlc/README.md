@@ -72,7 +72,7 @@ scripts/adopt.sh                 installs this kit into another repo without ove
 .claude/skills/security-standards        policy-as-skill, backed by hooks and the review pass
 .claude/agents/                  explorer, plan-reviewer, security-reviewer, verifier (all read-only)
 .claude/hooks/                   protect-paths, block-secrets, require-plan, protect-tests, production-gate, post-edit-format, stop-verify-reminder
-docs/sdlc/templates/claude-settings.json   the hook wiring adopters get as .claude/settings.json (this repo does not wire the hooks on itself)
+docs/sdlc/templates/claude-settings.json   the hook wiring adopters get as .claude/settings.json (this repo wires the same hooks on itself, plus the control-plane unlock: knowledge/decisions/self-hooks-on.md)
 scripts/verify.sh                the single pass/fail signal; also runs every scripts/checks/*.sh
 scripts/checks/                  self-registering verify.sh checks: okf, index-drift, context-drift, workflow-permissions, plugin-manifest
 scripts/check_artifact_chain.py  artifacts approved by a valid approver with a log.md entry; diff ⊆ "Files that change"; release-gated paths have an owner

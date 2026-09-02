@@ -7,8 +7,9 @@
 #   --dry-run     print what would be copied/skipped; write nothing
 #   --with-hooks  also install .claude/hooks/ and .claude/settings.json (the deterministic
 #                 gates). The settings file is written from the kit's template
-#                 docs/sdlc/templates/claude-settings.json: the kit repo does not wire the
-#                 hooks on itself (knowledge/decisions/self-enforcement-off.md). Without this
+#                 docs/sdlc/templates/claude-settings.json, not from the kit's own
+#                 .claude/settings.json, which adds the control-plane unlock the kit needs to
+#                 maintain itself (knowledge/decisions/self-hooks-on.md). Without this
 #                 flag only CI enforces the eight hard rules locally
 #                 -- see knowledge/decisions/plugin-distribution.md.
 #   --no-create   fail instead of creating <target-dir> when it does not exist

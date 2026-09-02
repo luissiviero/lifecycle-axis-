@@ -175,8 +175,8 @@ class AdoptScript(unittest.TestCase):
             self.assertTrue(mode & stat.S_IXUSR, "hook is not executable")
 
     def test_with_hooks_settings_is_the_kit_template(self):
-        # The kit repo does not wire the hooks on itself; adopters get the wiring from the
-        # template (knowledge/decisions/self-enforcement-off.md).
+        # Adopters get the wiring from the template, never from the kit's own .claude/settings.json,
+        # which adds the control-plane unlock (knowledge/decisions/self-hooks-on.md).
         with tempfile.TemporaryDirectory() as root:
             target = os.path.join(root, "target")
             result = run_adopt(target, "--with-hooks")
