@@ -4,7 +4,7 @@ id: _example
 title: Example work item
 description: Always-green example so hooks and CI can be exercised end to end.
 stage: plan
-status: in-review
+status: approved
 originator: repo maintainer
 approved-by: luissiviero
 approved-on: 2026-09-02

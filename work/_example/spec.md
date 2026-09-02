@@ -4,7 +4,7 @@ id: _example
 title: Example work item spec
 description: Spec for the always-green example; no code, exists so the hooks have an approved plan to point at.
 stage: design
-status: in-review
+status: approved
 reads: intent.md
 approved-by: luissiviero
 approved-on: 2026-09-02
