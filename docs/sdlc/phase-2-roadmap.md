@@ -55,6 +55,10 @@ are what remains once all of that is built. Ordered by how soon a complex projec
 18. **Pin CI dependencies and tighten the file contract.** Pin `actions/checkout`, `claude-code-action` and the
     `claude-code` npm install to exact versions or SHAs; replace the wildcard entries in `plan.md` file lists with
     explicit paths once the kit is stable (security review nits on PR #1).
+    **Done (pins):** every `uses:` line carries a full commit SHA with the version as a trailing comment, the
+    npm install names an exact version, and `.github/dependabot.yml` (ecosystem `github-actions`, weekly)
+    proposes SHA bumps as PRs for a human to merge. **Open:** the wildcard file lists; new work items list
+    exact paths, and the phase-1 plan keeps its wildcards as a record of what shipped.
 
 ## Phase 3 — scale across agents and repos
 7. **Multi-repo intent and orchestration.** One `intent.md` fanning out to several `plan.md`; worktree-per-work-item

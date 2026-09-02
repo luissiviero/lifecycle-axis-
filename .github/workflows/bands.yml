@@ -37,7 +37,7 @@ jobs:
             source: "scripts/github_metrics.py pr_cycle_time_hours --days 30"
             tools: "Read,Grep"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # 1) Collect: run the metric's bands.yaml `source:` command, saving the series in the
       #    exact one-float-per-line, oldest-first shape detect_bands.py --file expects.
@@ -70,7 +70,7 @@ jobs:
       #    investigation using exactly this metric's tier tools, drafting the durable-fix intent.
       - name: Install Claude Code
         if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.ANTHROPIC_API_KEY != ''
-        run: npm install -g @anthropic-ai/claude-code
+        run: npm install -g @anthropic-ai/claude-code@2.1.258
 
       - name: Diagnose breach (read-only) and draft an intent
         id: diagnose

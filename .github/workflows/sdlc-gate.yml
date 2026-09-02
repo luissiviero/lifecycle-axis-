@@ -14,7 +14,7 @@ jobs:
       # (security review, finding 3 and 4).
       HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with: { fetch-depth: 0 }
       - name: "Resolve work item from the PR body's Work-Item line"
         id: wi
@@ -46,7 +46,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # step-scoped; only Read/Grep/Glob tools below
         run: |
-          npm install -g @anthropic-ai/claude-code
+          npm install -g @anthropic-ai/claude-code@2.1.258
           claude -p "Read the job log context in this checkout and the last failing step. Say whether the failure looks flaky or real, the most likely cause with file:line, and a three-line summary for the PR thread." \
             --allowedTools "Read,Grep,Glob" >> triage.md || true
           cat triage.md >> "$GITHUB_STEP_SUMMARY"
