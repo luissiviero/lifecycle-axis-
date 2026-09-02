@@ -39,6 +39,7 @@ Detailed per-task specs, tests and model tiers: `spec.md` § "Design detail per 
 - .claude/hooks/post-edit-format.sh — added by the alignment commit that precedes this work item in PR #1; listed so the PR-level chain check covers the whole diff
 - .claude/hooks/production-gate.sh — same
 - .claude/hooks/protect-tests.sh — same
+- REVIEW.md — rewritten to the four-pass format by the alignment commit that precedes this work item in PR #1; T20's review prompt depends on it
 - .claude-plugin/** — plugin.json, marketplace.json (T21)
 - scripts/** — verify.sh, checks/*, hooktest.py, fixtures/*, approvers.py, log_ledger.py, run_evals.sh, check_artifact_chain.py, check_okf.py, gen_index.py, gen_context_files.py, github_metrics.py, deploy.sh, check_control_plane.sh, check_workflow_permissions.py, check_plugin_manifest.py, adopt.sh, and one test_*.py per script
 - knowledge/** — OKF bundle (T15a, decisions, runbook, metrics)
@@ -90,3 +91,4 @@ Commit once per wave after `scripts/verify.sh` is green.
 - 2026-09-02: `RELEASE_APPROVAL` in deploy.yml is bound to the checked-out commit (`inputs.sha || github.sha`), not always `github.sha` (found in T19 review).
 - 2026-09-02: every workflow hoists `ANTHROPIC_API_KEY` to job-level env so step `if:` expressions can test it; the control-plane step uses `shell: bash` for pipefail (found in T12/T18 review).
 - 2026-09-02: `knowledge/decisions/adopt-script.md` added by T22 (covered by `knowledge/**`).
+- 2026-09-02: plan review found `GENERATED_PATHS` in `.sdlc/config.env` still reads `src/gen` while the kit now generates `CLAUDE.md`, `GEMINI.md`, `AGENTS.md`, `work/index.md` and `work/*/index.md`. The Bash-write guard (T11) now blocks the agent from editing `.sdlc/`, so per rule 3 the change is proposed in the PR body for the owner to apply.
