@@ -11,7 +11,7 @@ severity: sev1 | sev2 | sev3
 owner:
 resource: <alert, thread, or scan finding link>
 tags: []
-timestamp:
+timestamp: 2026-09-02T20:00:00Z
 ---
 # Incident: <title>
 

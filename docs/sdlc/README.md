@@ -1,3 +1,11 @@
+---
+type: doc
+title: The AI-native SDLC loop, built into this repo
+description: A digest of the AI-native SDLC playbook mapped to enforcement mechanisms in this repo.
+tags: [sdlc, process, playbook]
+timestamp: 2026-09-02T20:00:00Z
+---
+
 # The AI-native SDLC loop, built into this repo
 
 > Source: Louis Claxton, *The AI-Native SDLC playbook*, claude.com/blog, 21 Aug 2026 (verified against the full text).

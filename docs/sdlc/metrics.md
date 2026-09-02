@@ -1,3 +1,11 @@
+---
+type: doc
+title: Metrics: one leading and one lagging indicator per play
+description: Leading and lagging indicators for each SDLC play from the AI-native playbook.
+tags: [sdlc, metrics, measurement]
+timestamp: 2026-09-02T20:00:00Z
+---
+
 # Metrics: one leading and one lagging indicator per play
 
 All taken from the playbook. Where to read each one in this repo's setup is in the last column. `scripts/sdlc_metrics.py`

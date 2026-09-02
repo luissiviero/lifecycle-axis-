@@ -1,3 +1,11 @@
+---
+type: doc
+title: Pairing the SDLC playbook with the Open Knowledge Format (OKF)
+description: Guidelines for integrating the SDLC playbook with OKF as a model-neutral knowledge format.
+tags: [sdlc, okf, knowledge]
+timestamp: 2026-09-02T20:00:00Z
+---
+
 # Pairing the SDLC playbook with the Open Knowledge Format (OKF)
 
 > Source: Google Cloud, *Introducing the Open Knowledge Format*, 12 Jun 2026. OKF v0.1 is a directory of Markdown files

@@ -13,7 +13,7 @@ risk-class: low
 record:
 resource:
 tags: []
-timestamp:
+timestamp: 2026-09-02T20:00:00Z
 ---
 # Plan: <title> (from intent.md <date>)
 

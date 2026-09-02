@@ -12,7 +12,7 @@ supersedes:              # previous intent id, if any
 record:                  # legacy system id (Jira/ServiceNow) if that system holds a copy
 resource: <link to issue / incident / channel thread / band breach log>
 tags: []
-timestamp: <RFC3339>
+timestamp: 2026-09-02T20:00:00Z
 ---
 # Intent: <title>
 

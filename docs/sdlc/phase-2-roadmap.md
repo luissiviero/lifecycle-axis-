@@ -1,3 +1,11 @@
+---
+type: doc
+title: Phase 2+ roadmap: what the playbook leaves out
+description: Future phases and gaps beyond Phase 1 of the AI-native SDLC implementation.
+tags: [sdlc, roadmap, future]
+timestamp: 2026-09-02T20:00:00Z
+---
+
 # Phase 2+ roadmap: what the playbook leaves out
 
 Checked against the full article. The playbook does cover more than early summaries suggested: it defines a leading and
