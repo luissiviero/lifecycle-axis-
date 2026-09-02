@@ -17,3 +17,4 @@ decisions land here as their task ships; this index is regenerated to add each o
 - [Deploy only from CI via GitHub Environments](deploy-from-ci.md)
 - [One rule source renders CLAUDE.md, GEMINI.md and AGENTS.md](one-rule-source.md)
 - [Plugin distribution for the SDLC kit](plugin-distribution.md)
+- [bash-write-guard.md](bash-write-guard.md) — hook heuristic and CI job together close the Bash heredoc bypass; human unlock env var

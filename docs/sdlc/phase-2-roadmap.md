@@ -48,6 +48,10 @@ are what remains once all of that is built. Ordered by how soon a complex projec
    [`knowledge/decisions/plugin-distribution.md`](../../knowledge/decisions/plugin-distribution.md). Hooks stay
    repo-local, installed via `scripts/adopt.sh --with-hooks` rather than shipped inside the plugin.
 
+17. **Bash writes to plan-required and test paths.** `require-plan.sh` and `protect-tests.sh` still match only
+    Edit/Write/MultiEdit; a Bash redirection into `src/` skips the plan requirement locally (the chain check catches it
+    at PR time). Reuse `bash_write_targets()` from `protect-paths.sh` in both hooks.
+
 ## Phase 3 — scale across agents and repos
 7. **Multi-repo intent and orchestration.** One `intent.md` fanning out to several `plan.md`; worktree-per-work-item
    convention; an orchestration skill that assigns plan steps to subagents with per-step verification.
