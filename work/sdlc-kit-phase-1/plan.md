@@ -33,6 +33,7 @@ Detailed per-task specs, tests and model tiers: `spec.md` § "Design detail per 
 - .github/workflows/deploy.yml — deploy only from CI via Environment (T19)
 - .github/workflows/pr-review.yml — claude-code-action review from REVIEW.md (T20)
 - .claude/hooks/stop-verify-reminder.sh — read PLAN_REQUIRED_PATHS (T10)
+- .claude/hooks/_lib.sh — canonical paths; human-only switches captured from the process env (security hardening)
 - .claude/hooks/protect-paths.sh — Bash write guard + human unlock (T11)
 - .claude/hooks/block-secrets.sh — scan edits[] and command (T11)
 - .claude/settings.json — Bash matcher gains the two hooks (T11)
@@ -113,3 +114,4 @@ The security review of the PR found five Important issues in those files; the fi
 - 2026-09-02: owner chose option C for approvals: `scripts/approve.py` (flips front matter, appends the ledger line, refuses inside a Claude Code session via `CLAUDECODE`), with `scripts/test_approve.py` and an eval case. Not in the original task list; covered by `scripts/**` and `evals/**`.
 - 2026-09-02: an environment variable is not a gate, so the chain check now also rejects an approval whose committing author is an agent identity (never-approve handle or agent email). That exposed the example item: its approval had been committed by the agent, so `work/_example` is back to `in-review` (ledger updated) and `scripts/verify.sh` stays red on the chain step until the owner runs `scripts/approve.py _example intent.md spec.md plan.md` and commits. `adopt.sh` tells adopters the same.
 - 2026-09-02: found after the owner's approvals: `sdlc-gate.yml` never ran on any push because line 17's step name (`"Work-Item: <slug>"` inside an unquoted scalar) is invalid YAML; GitHub showed a failed run with no jobs, listed by file path. Fixed in `control-plane.patch` (quoted step name) and guarded by `scripts/checks/workflow-yaml.sh`. The owner can also fix the live file with one web edit on line 17.
+- 2026-09-02: on the owner's explicit instruction, the control-plane hardening and the `GENERATED_PATHS` change were pushed through the owner's GitHub connector (commit fff489a, under the owner's identity) because the local guard blocks the agent from those paths by any route; the owner had also applied the `control-plane-approved` label via the same connector. The chain check then flagged `_lib.sh` as unlisted; added above.
