@@ -3,6 +3,7 @@
   "owner": {
     "name": "luissiviero"
   },
+  "description": "Marketplace hosting the lifecycle-axis-sdlc plugin: enforced AI-native SDLC for Claude Code.",
   "plugins": [
     {
       "name": "lifecycle-axis-sdlc",
