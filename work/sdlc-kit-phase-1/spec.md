@@ -4,10 +4,10 @@ id: sdlc-kit-phase-1
 title: Reusable AI-native SDLC kit for Claude + Gemini projects
 description: Requirements and design for turning the scaffold into a plugin-distributed kit with an OKF knowledge layer and model-neutral gates.
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-02
 skills-applied: [security-standards]
 skills-version: 76c05c8
 prompt: "Plan-mode session; owner accepted every [recommended] row of decisions.md; draft breakdown by an Opus planner, reviewed and trimmed by the orchestrator."
@@ -196,6 +196,3 @@ Files: `.claude/hooks/protect-paths.sh` (when `$FILE` empty and `$CMD` set and `
 4. Hand checks: `adopt.sh` into a temp target is not blocked by the Bash guard (absolute path outside `$ROOT`); single-Edit hook latency < ~150 ms; `verify.sh` wall time reported.
 5. `/sdlc-review` (security-reviewer + plan-reviewer subagents, both read-only) → findings in `REVIEW.md` format, fixed or answered.
 6. Reconcile `plan.md` `## Files that change` with the real diff; append `## Deviations log` in the same commit; append gate entries to `log.md`; push; update PR #1 body with the verify/chain/evals last lines; ask the owner to apply `control-plane-approved` and confirm the branch-protection checklist from T04.
-status: approved
-approved-by: luissiviero
-approved-on: 2026-09-02
