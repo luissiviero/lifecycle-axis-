@@ -4,7 +4,7 @@ id: sdlc-kit-phase-1
 title: Make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects
 description: Turn the scaffold into a drop-in kit with an OKF knowledge layer and model-neutral gates.
 stage: plan
-status: draft
+status: in-review
 author: Luis Siviero (repo owner), drafted with Claude
 approved-by:
 approved-on:
@@ -12,7 +12,7 @@ supersedes:
 record:
 resource: https://claude.com/blog/the-ai-native-sdlc-playbook
 tags: [sdlc, okf, claude, gemini]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-02T18:00:00Z
 ---
 # Intent: make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects
 
@@ -39,22 +39,22 @@ low — process and documentation, plus scripts with unit tests. No production s
 
 ## Open questions (answered by the owner before spec)
 - Q: Which stacks and commands? (languages; build/test/lint commands per repo; test-file naming; formatter)
-  A:
+  A: Per repo, one `scripts/verify.sh` reading `VERIFY_CMDS`/`FORMAT_CMD`/`TEST_FILE_GLOBS` from `.sdlc/config.env`; the adopt script leaves `VERIFY_CMDS` as a TODO for the adopter rather than guessing.
 - Q: Repo topology? (monorepo vs many repos; are `src lib app services packages` the right plan-required paths; where the intent home lives)
-  A:
+  A: `work/<slug>/` inside each product repo; the plan-required paths default stays and is edited per repo; intent home is `work/`.
 - Q: Which Gemini surface and for which stages? (Gemini CLI, Antigravity, Vertex agents; does it read GEMINI.md/AGENTS.md; does it support hooks)
-  A:
+  A: Gemini CLI for interactive work, reading `GEMINI.md` generated from the same rule source as `CLAUDE.md`; enforcement parity is not assumed, CI is the hard gate (see spike docs/sdlc/spikes/gemini-parity.md).
 - Q: Who approves what? (GitHub handles for product owner, tech lead, release manager; is the owner all three for now)
-  A:
+  A: luissiviero holds product-owner, tech-lead, release-manager and service-owner (`.sdlc/approvers.yaml`); agents act under a separate bot/App identity that can never approve; branch protection requires one human review.
 - Q: Deploy targets and environments? (commands to match in the production gate; dev/staging/prod; rollback command)
-  A:
+  A: Deploy only from CI via GitHub Environments with required reviewers (`deploy.yml`); agents never run deploy commands; the production-gate hook stays as defence in depth; rollback is the pre-approved runbook `knowledge/runbooks/rollback-deploy.md`.
 - Q: Legacy source of truth? (Jira/Linear/none; linkage or repo as source of truth)
-  A:
+  A: The repo. No ticket tool in the loop; `record:` stays optional.
 - Q: Metrics store for bands and CI budget? (GitHub-only for now; Prometheus; is an ANTHROPIC_API_KEY available in CI for evals and triage)
-  A:
+  A: GitHub only (Actions API, PR metadata) via `scripts/github_metrics.py`; an `ANTHROPIC_API_KEY` with a console spend limit is added to CI so prompt evals and triage run.
 - Q: Claude platform features in use? (Enterprise managed settings, Claude Tag in Slack, Claude Security, private plugin marketplace)
-  A:
+  A: Team/Pro: repo-level hooks, `claude-code-action` for PR review driven by `REVIEW.md`; no managed settings, Claude Tag or Claude Security in this phase.
 - Q: OKF today? (existing bundles or Knowledge Catalog; shared `knowledge/` bundle vs per-repo)
-  A:
+  A: None yet. Start a `knowledge/` bundle per repo, conformance check as a warning, both models read it.
 - Q: Distribution? (template repo, plugin, or both)
-  A:
+  A: Both: a Claude Code plugin (skills, agents, hooks, templates) plus this repo as the thin template with `scripts/adopt.sh`.
