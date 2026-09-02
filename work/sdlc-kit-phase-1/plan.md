@@ -112,3 +112,6 @@ The security review of the PR found five Important issues in those files; the fi
 - 2026-09-02: security review (five Important findings) → fixes delivered as `control-plane.patch` for the owner to apply (see the section above); `evals/` removed from the chain check's exempt list so a new eval case needs a plan entry; `check_control_plane.sh` compares whole labels. The review's other nits (unpinned action refs; the plan's wildcard file list) are accepted for phase 1 and noted in the roadmap.
 - 2026-09-02: owner chose option C for approvals: `scripts/approve.py` (flips front matter, appends the ledger line, refuses inside a Claude Code session via `CLAUDECODE`), with `scripts/test_approve.py` and an eval case. Not in the original task list; covered by `scripts/**` and `evals/**`.
 - 2026-09-02: an environment variable is not a gate, so the chain check now also rejects an approval whose committing author is an agent identity (never-approve handle or agent email). That exposed the example item: its approval had been committed by the agent, so `work/_example` is back to `in-review` (ledger updated) and `scripts/verify.sh` stays red on the chain step until the owner runs `scripts/approve.py _example intent.md spec.md plan.md` and commits. `adopt.sh` tells adopters the same.
+status: approved
+approved-by: luissiviero
+approved-on: 2026-09-02
