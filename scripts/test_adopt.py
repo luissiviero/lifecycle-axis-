@@ -174,6 +174,23 @@ class AdoptScript(unittest.TestCase):
             mode = stat.S_IMODE(os.stat(hook).st_mode)
             self.assertTrue(mode & stat.S_IXUSR, "hook is not executable")
 
+    def test_with_hooks_settings_is_the_kit_template(self):
+        # The kit repo does not wire the hooks on itself; adopters get the wiring from the
+        # template (knowledge/decisions/self-enforcement-off.md).
+        with tempfile.TemporaryDirectory() as root:
+            target = os.path.join(root, "target")
+            result = run_adopt(target, "--with-hooks")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with open(os.path.join(target, ".claude", "settings.json"), encoding="utf-8") as f:
+                got = f.read()
+            template = os.path.join(KIT, "docs", "sdlc", "templates", "claude-settings.json")
+            with open(template, encoding="utf-8") as f:
+                want = f.read()
+            self.assertEqual(got, want)
+            for hook in ("protect-paths.sh", "block-secrets.sh", "require-plan.sh",
+                         "protect-tests.sh", "production-gate.sh", "stop-verify-reminder.sh"):
+                self.assertIn(hook, got, "template does not wire %s" % hook)
+
     def test_without_with_hooks_hooks_are_absent(self):
         with tempfile.TemporaryDirectory() as root:
             target = os.path.join(root, "target")

@@ -39,8 +39,9 @@ same hole covered `>>` appends into `.claude/hooks/_lib.sh`, `sed -i` on `.sdlc/
    `[.tool_input.edits[]?.new_string] | join("\n")` and `.tool_input.command`, so MultiEdit
    payloads and Bash heredoc bodies go through the same credential patterns. Exit codes are
    unchanged.
-3. `.claude/settings.json` registers `protect-paths.sh` then `block-secrets.sh` then
-   `production-gate.sh` on the `Bash` matcher.
+3. The kit's settings template (`docs/sdlc/templates/claude-settings.json`, installed as
+   `.claude/settings.json` by `adopt.sh --with-hooks`) registers `protect-paths.sh` then
+   `block-secrets.sh` then `production-gate.sh` on the `Bash` matcher.
 4. A human-only unlock: if `SDLC_CONTROL_PLANE_UNLOCK=1` is set in the environment, the Bash branch
    prints `SDLC: control plane unlocked by human env (SDLC_CONTROL_PLANE_UNLOCK=1)` to stderr and
    allows the command.

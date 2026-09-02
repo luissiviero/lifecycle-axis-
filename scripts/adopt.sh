@@ -6,7 +6,10 @@
 #   --force       overwrite files that already exist in the target (default: skip them)
 #   --dry-run     print what would be copied/skipped; write nothing
 #   --with-hooks  also install .claude/hooks/ and .claude/settings.json (the deterministic
-#                 gates). Without this flag only CI enforces the eight hard rules locally
+#                 gates). The settings file is written from the kit's template
+#                 docs/sdlc/templates/claude-settings.json: the kit repo does not wire the
+#                 hooks on itself (knowledge/decisions/self-enforcement-off.md). Without this
+#                 flag only CI enforces the eight hard rules locally
 #                 -- see knowledge/decisions/plugin-distribution.md.
 #   --no-create   fail instead of creating <target-dir> when it does not exist
 #
@@ -81,10 +84,13 @@ if [ -d "$TARGET" ]; then
 fi
 
 # --- copy machinery -----------------------------------------------------
-# copy_file <path relative to both KIT and TARGET>
+# copy_file <path relative to both KIT and TARGET> [<destination path relative to TARGET>]
+# The optional second argument installs a kit file under a different name in the target
+# (used for the settings template, which must not be live in the kit repo itself).
 copy_file() {
-  rel="$1"
-  src="$KIT/$rel"
+  src_rel="$1"
+  rel="${2:-$1}"
+  src="$KIT/$src_rel"
   dst="$TARGET/$rel"
   [ -e "$src" ] || return 0
   if [ -e "$dst" ] && [ "$FORCE" != true ]; then
@@ -143,7 +149,7 @@ copy_tree ".claude/skills"
 copy_tree ".claude/agents"
 
 if [ "$WITH_HOOKS" = true ]; then
-  copy_file ".claude/settings.json"
+  copy_file "docs/sdlc/templates/claude-settings.json" ".claude/settings.json"
   copy_tree ".claude/hooks"
 else
   echo "note: hooks not installed -- .claude/hooks/ and .claude/settings.json were skipped." \
