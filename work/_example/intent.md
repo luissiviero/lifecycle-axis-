@@ -1,12 +1,15 @@
 ---
 type: sdlc/intent
 id: _example
+title: Example work item
+description: Always-green example so hooks and CI can be exercised end to end.
 stage: plan
 status: approved
 originator: repo maintainer
 approved-by: luissiviero
 approved-on: 2026-09-02
 source: docs/sdlc/README.md
+timestamp: 2026-09-02T14:18:00Z
 ---
 # Intent: keep an always-green example so hooks and CI can be exercised
 

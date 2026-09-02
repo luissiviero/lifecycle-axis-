@@ -6,6 +6,7 @@
 # note otherwise, per docs/sdlc/spikes/plugin-packaging.md.
 set -u
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+[ -f "$ROOT/.claude-plugin/plugin.json" ] || { echo "PLUGIN: no manifest (not a plugin repo); skipped"; exit 0; }
 python3 "$ROOT/scripts/check_plugin_manifest.py" --root "$ROOT"
 rc=$?
 

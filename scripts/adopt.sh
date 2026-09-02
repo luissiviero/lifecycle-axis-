@@ -197,7 +197,7 @@ fi
 
 if [ "$FORCE" = true ] || [ "$CONFIG_ENV_PREEXISTED" = false ]; then
   if [ -e "$TARGET/.sdlc/config.env" ]; then
-    NEW_VERIFY_LINE="VERIFY_CMDS=\"echo 'TODO(adopter): set VERIFY_CMDS in .sdlc/config.env (e.g. npm test; pytest; make lint)'\""
+    NEW_VERIFY_LINE="VERIFY_CMDS=\"echo 'TODO(adopter): set VERIFY_CMDS in .sdlc/config.env (e.g. npm test, pytest, make lint)'\""
     CONFIG_FILE="$TARGET/.sdlc/config.env"
     TMP_CONFIG="$(mktemp "${CONFIG_FILE}.XXXXXX")"
     replaced=false
@@ -222,6 +222,8 @@ fi
 
 echo
 python3 "$KIT/scripts/gen_context_files.py" --root "$TARGET"
+# Generate work/index.md and per-item indexes so the index-drift check is clean on day one.
+python3 "$KIT/scripts/gen_index.py" --root "$TARGET" >/dev/null
 
 cat <<STEPS
 
