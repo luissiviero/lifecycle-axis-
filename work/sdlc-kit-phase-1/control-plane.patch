@@ -305,8 +305,8 @@ diff -ruN a/.github/workflows/pr-review.yml b/.github/workflows/pr-review.yml
 +          claude_args: '--disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch"'
 diff -ruN a/.github/workflows/sdlc-gate.yml b/.github/workflows/sdlc-gate.yml
 --- a/.github/workflows/sdlc-gate.yml	2026-09-02 16:57:47.286332081 +0000
-+++ b/.github/workflows/sdlc-gate.yml	2026-09-02 17:00:16.202069249 +0000
-@@ -9,8 +9,10 @@
++++ b/.github/workflows/sdlc-gate.yml	2026-09-02 17:37:20.950201495 +0000
+@@ -9,20 +9,28 @@
    artifact-chain:
      runs-on: ubuntu-latest
      env:
@@ -319,7 +319,9 @@ diff -ruN a/.github/workflows/sdlc-gate.yml b/.github/workflows/sdlc-gate.yml
      steps:
        - uses: actions/checkout@v4
          with: { fetch-depth: 0 }
-@@ -19,10 +21,16 @@
+-      - name: Resolve work item from PR body ("Work-Item: <slug>")
++      - name: "Resolve work item from the PR body's Work-Item line"
+         id: wi
          env: { BODY: "${{ github.event.pull_request.body }}" }
          run: |
            slug="$(printf '%s' "$BODY" | sed -n 's/^Work-Item:[[:space:]]*\([A-Za-z0-9._-]*\).*/\1/p' | head -1)"
