@@ -18,3 +18,4 @@ decisions land here as their task ships; this index is regenerated to add each o
 - [One rule source renders CLAUDE.md, GEMINI.md and AGENTS.md](one-rule-source.md)
 - [Plugin distribution for the SDLC kit](plugin-distribution.md)
 - [bash-write-guard.md](bash-write-guard.md) — hook heuristic and CI job together close the Bash heredoc bypass; human unlock env var
+- [The kit repo does not wire its own hooks](self-enforcement-off.md) — hook wiring lives in a template installed by adopt.sh; this repo has no .claude/settings.json

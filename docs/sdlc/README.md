@@ -71,7 +71,8 @@ scripts/adopt.sh                 installs this kit into another repo without ove
 .claude/skills/sdlc-*            /sdlc-intent /sdlc-spec /sdlc-plan /sdlc-review /sdlc-incident
 .claude/skills/security-standards        policy-as-skill, backed by hooks and the review pass
 .claude/agents/                  explorer, plan-reviewer, security-reviewer, verifier (all read-only)
-.claude/hooks/ + settings.json   protect-paths, block-secrets, require-plan, protect-tests, production-gate, post-edit-format, stop-verify-reminder
+.claude/hooks/                   protect-paths, block-secrets, require-plan, protect-tests, production-gate, post-edit-format, stop-verify-reminder
+docs/sdlc/templates/claude-settings.json   the hook wiring adopters get as .claude/settings.json (this repo does not wire the hooks on itself)
 scripts/verify.sh                the single pass/fail signal; also runs every scripts/checks/*.sh
 scripts/checks/                  self-registering verify.sh checks: okf, index-drift, context-drift, workflow-permissions, plugin-manifest
 scripts/check_artifact_chain.py  artifacts approved by a valid approver with a log.md entry; diff ⊆ "Files that change"; release-gated paths have an owner
@@ -123,8 +124,9 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
   bounded tools, exactly as the playbook's `agent-evals.yml` does.
 
 ## 3. Using it in a project
-1. Run `scripts/adopt.sh <target>` (add `--with-hooks` to also install `.claude/hooks/` and `settings.json`; it copies
-   without overwriting and lists what it skipped). Or install as a Claude Code plugin — `claude --plugin-dir .` from
+1. Run `scripts/adopt.sh <target>` (add `--with-hooks` to also install `.claude/hooks/` and, from
+   `docs/sdlc/templates/claude-settings.json`, the target's `.claude/settings.json`; it copies without overwriting and
+   lists what it skipped). Or install as a Claude Code plugin — `claude --plugin-dir .` from
    this repo, or add it to a marketplace via `.claude-plugin/marketplace.json` — for the skills, agents, and templates
    without the repo-local hooks. Either way, set `VERIFY_CMDS`, `FORMAT_CMD`, and the path classes in `.sdlc/config.env`.
 2. Rewrite `CLAUDE.md`: commands with healthy output, architecture in ten lines, the mistakes the team sees most. One page.
