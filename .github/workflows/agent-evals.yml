@@ -28,12 +28,15 @@ jobs:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     env:
+      # run_evals.sh accepts either credential: an API key, or a subscription OAuth token
+      # (`claude setup-token`, Pro/Max).
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       SDLC_UNATTENDED: "1"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install Claude Code (only needed for prompt-driven cases)
-        if: env.ANTHROPIC_API_KEY != ''
+        if: env.ANTHROPIC_API_KEY != '' || env.CLAUDE_CODE_OAUTH_TOKEN != ''
         run: npm install -g @anthropic-ai/claude-code@2.1.258
       - name: Run full eval suite
         run: scripts/run_evals.sh

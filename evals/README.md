@@ -21,10 +21,11 @@ source: incident id or PR that motivated the case
 ## Running cases
 
 `scripts/run_evals.sh` runs `hook` cases anywhere — they need no model, only the deterministic `check`. `skill` and
-`e2e` cases carry a `prompt`: when `claude` and `ANTHROPIC_API_KEY` are both available it runs the prompt
+`e2e` cases carry a `prompt`: when `claude` and a credential (`ANTHROPIC_API_KEY`, or `CLAUDE_CODE_OAUTH_TOKEN`
+from `claude setup-token` on a Pro/Max plan) are both available it runs the prompt
 non-interactively with `--allowedTools` (bounded to `allowed_tools`, default
 `Read,Grep,Glob,Bash(scripts/verify.sh)`) before running `check`; without a key, prompt cases are skipped and
-counted, not run. That is how CI drives this: `agent-evals.yml` sets `ANTHROPIC_API_KEY` so prompt cases run for
+counted, not run. That is how CI drives this: `agent-evals.yml` passes whichever secret is set so prompt cases run for
 real there; locally, without the key, only hook cases execute and prompt cases show as skipped.
 
 Selectors:

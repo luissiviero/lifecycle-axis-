@@ -65,10 +65,11 @@ def _add_synthetic_cases(root):
 def _run(root, args=(), env=None):
     run_env = dict(os.environ)
     # Force the "no claude runner" path regardless of the host environment:
-    # strip ANTHROPIC_API_KEY and use a PATH made only of standard system
+    # strip both Claude credentials and use a PATH made only of standard system
     # directories, which still has bash/git/awk/etc but never a `claude`
     # binary (installers commonly put it in a language-toolchain bin dir).
     run_env.pop("ANTHROPIC_API_KEY", None)
+    run_env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
     run_env["PATH"] = "/usr/bin:/bin"
     if env:
         run_env.update(env)

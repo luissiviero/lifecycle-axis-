@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Eval runner (Test play). Each evals/cases/<name>.yaml has:
 #   kind: hook | skill | e2e
-#   prompt: "..."            optional; when present and `claude` + ANTHROPIC_API_KEY are available,
+#   prompt: "..."            optional; when present and `claude` plus ANTHROPIC_API_KEY or
+#                            CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`) are available,
 #                            the prompt runs non-interactively with bounded tools before `check`.
 #   allowed_tools: "..."     optional; default "Read,Grep,Glob,Bash(scripts/verify.sh)"
 #   check: <cmd> | block     deterministic oracle; exit 0 = pass
@@ -45,7 +46,7 @@ while [ $# -gt 0 ]; do
 done
 
 pass=0; fail=0; skip=0
-have_claude=0; command -v claude >/dev/null 2>&1 && [ -n "${ANTHROPIC_API_KEY:-}" ] && have_claude=1
+have_claude=0; command -v claude >/dev/null 2>&1 && { [ -n "${ANTHROPIC_API_KEY:-}" ] || [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; } && have_claude=1
 for f in evals/cases/*.yaml; do
   [ -e "$f" ] || continue
   name="$(basename "$f" .yaml)"

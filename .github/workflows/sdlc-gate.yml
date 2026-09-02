@@ -9,10 +9,11 @@ jobs:
   artifact-chain:
     runs-on: ubuntu-latest
     env:
-      # Boolean only. The secret itself is scoped to the triage step, which runs read-only tools;
-      # it is never in the environment of steps that execute PR-head code such as verify.sh
-      # (security review, finding 3 and 4).
-      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+      # Boolean only. The secrets themselves are scoped to the triage step, which runs read-only
+      # tools; they are never in the environment of steps that execute PR-head code such as
+      # verify.sh (security review, finding 3 and 4). Either an API key or a subscription OAuth
+      # token (`claude setup-token`, Pro/Max) satisfies the guard.
+      HAS_CLAUDE_AUTH: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with: { fetch-depth: 0 }
@@ -41,10 +42,12 @@ jobs:
           SDLC_PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check_control_plane.sh "origin/$BASE_REF" | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Triage failure (read-only judgment step; runs only when a Claude key is configured)
-        if: failure() && env.HAS_ANTHROPIC_KEY == 'true'
+      - name: Triage failure (read-only judgment step; runs only when a Claude credential is configured)
+        if: failure() && env.HAS_CLAUDE_AUTH == 'true'
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # step-scoped; only Read/Grep/Glob tools below
+          # step-scoped; only Read/Grep/Glob tools below. `claude -p` reads whichever is set.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           npm install -g @anthropic-ai/claude-code@2.1.258
           claude -p "Read the job log context in this checkout and the last failing step. Say whether the failure looks flaky or real, the most likely cause with file:line, and a three-line summary for the PR thread." \
