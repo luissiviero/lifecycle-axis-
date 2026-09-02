@@ -11,7 +11,7 @@ if python3 -c "import yaml" 2>/dev/null; then
   for f in "$ROOT"/.github/workflows/*.yml "$ROOT"/.github/workflows/*.yaml; do
     [ -e "$f" ] || continue
     if ! python3 -c "import sys, yaml; yaml.safe_load(open(sys.argv[1]))" "$f" 2>/tmp/wf-yaml-err.$$; then
-      echo "YAML ERROR: ${f#"$ROOT"/}: $(tr '\n' ' ' < /tmp/wf-yaml-err.$$)"; status=1
+      echo "YAML ERROR: ${f#"$ROOT"/}: $(grep -v '^\s' /tmp/wf-yaml-err.$$ | tail -1) $(grep -E '^\s+in ' /tmp/wf-yaml-err.$$ | tail -1 | sed 's/^\s*//')"; status=1
     fi
   done
   rm -f /tmp/wf-yaml-err.$$
