@@ -1,7 +1,4 @@
-# Lessons (version-controlled, append-only)
+# Lessons (moved)
 
-The playbook's Claude Tag play writes each post-mortem to a lessons file future investigations read. `/sdlc-incident`
-appends one line per incident here; anything that changes how the agent should behave also goes to `CLAUDE.md` or a skill.
-
-| Date | Incident | Lesson | Where encoded |
-|---|---|---|---|
+Lessons now live as individual OKF documents in `../../knowledge/lessons/`, one file per incident.
+See `knowledge/lessons/index.md` for the index and the file-naming rule.

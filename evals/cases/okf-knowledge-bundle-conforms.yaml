@@ -1,0 +1,6 @@
+name: okf-knowledge-bundle-conforms
+kind: hook
+source: work/sdlc-kit-phase-1/plan.md (T15a acceptance)
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"
+  cd "$R" && python3 scripts/check_okf.py --strict knowledge
