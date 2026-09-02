@@ -1,0 +1,81 @@
+name: pr-review
+# T20 (docs/sdlc/spikes/pr-review-identity.md, decisions 1-3): advisory-only PR review.
+# The action posts as claude[bot] (Claude GitHub App via anthropic_api_key) and never
+# approves -- findings are advisory, and approval stays a human act recorded in
+# work/<slug>/log.md (validated by scripts/check_artifact_chain.py). Two triggers: a normal
+# PR review pass, and an on-demand re-review via an "@claude" comment on the PR.
+#
+# Security review fixes: the on-demand trigger requires the commenter to be an owner, member
+# or collaborator (finding 5); the checkout targets the PR head on both triggers; and the
+# reviewer executes no PR-head code at all (no Bash), because the action's process holds the
+# API key and an eval case or script from the PR could exfiltrate it (finding 4). The
+# Chain/Verify evidence comes from the sdlc-gate workflow's check run instead.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+  issue_comment:
+    types: [created]
+
+# Minimum permissions for a review-only job (spike section 1): read the diff, comment on
+# the PR, read issues (needed to resolve issue_comment's parent PR), and id-token for the
+# action's default GitHub App auth path. Never contents: write -- the bot edits nothing.
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Skip draft PRs outright. For an issue_comment trigger (which fires for both issues
+    # and PR conversations), only run when the comment is on a pull request, mentions
+    # "@claude", and comes from someone with write-level standing in this repository.
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '@claude') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    # Secrets cannot be read directly in a job-level `if:`, so the guard lives here as an
+    # env indirection and gates every step below: without a configured key the job still
+    # "runs" (its own if: above passed) but does nothing.
+    env:
+      HAVE_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Checkout the PR head (on both triggers)
+        if: env.HAVE_ANTHROPIC_KEY == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      # claude-code-action restores .claude/, CLAUDE.md, etc. from the base branch on
+      # pull_request events, but NOT REVIEW.md (spike finding 1b) -- left alone, a PR diff
+      # could rewrite the very policy the reviewer is meant to follow. Pin it ourselves.
+      # On issue_comment the base ref is not in the event payload; the default branch is used.
+      - name: Pin review policy from base branch
+        if: env.HAVE_ANTHROPIC_KEY == 'true'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+        run: |
+          git show "origin/$BASE_REF:REVIEW.md" > /tmp/REVIEW.base.md
+
+      - name: Claude review
+        if: env.HAVE_ANTHROPIC_KEY == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Read /tmp/REVIEW.base.md and follow it verbatim: run all four passes (Bugs,
+            Security, Compliance, Memory) tagged per finding, apply the Important-vs-Nit
+            distinction exactly as defined there, cap nits at five and summarize the rest
+            as a count, and skip anything on its do-not-report list. Use its exact output
+            format, including the trailing Chain/Verify/Human-approver lines.
+
+            Do not run any command. For the Chain and Verify lines, quote the status of the
+            "sdlc-gate" check run on this pull request (its step summary carries the
+            CHAIN: and VERIFY: lines); if it has not completed, write "pending".
+
+            Never approve this PR -- your findings are advisory only; approval is a
+            separate human act. Post exactly one review comment with your findings.
+          claude_args: '--disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch"'

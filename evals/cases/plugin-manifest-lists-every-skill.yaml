@@ -1,0 +1,11 @@
+name: plugin-manifest-lists-every-skill
+kind: hook
+source: docs/sdlc/spikes/plugin-packaging.md (T21)
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"
+  cp -r "$R/.claude" "$d/.claude"
+  cp -r "$R/.claude-plugin" "$d/.claude-plugin"
+  python3 -c "import json, os; p='$d/.claude-plugin/plugin.json'; m = json.load(open(p)); base = os.path.join('$d', '.claude', 'skills'); m['skills'] = sorted('./.claude/skills/' + n for n in os.listdir(base)); json.dump(m, open(p, 'w'), indent=2)"
+  mkdir -p "$d/.claude/skills/new-skill"
+  printf -- '---\nname: new-skill\ndescription: d\n---\nbody\n' > "$d/.claude/skills/new-skill/SKILL.md"
+  ! python3 "$R/scripts/check_plugin_manifest.py" --root "$d"

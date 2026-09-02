@@ -1,0 +1,132 @@
+import os, sys, tempfile, textwrap, unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import approvers
+from approvers import load
+
+
+class ApproversRepoFile(unittest.TestCase):
+    """Exercises the real .sdlc/approvers.yaml via the default resolution
+    path (config() -> APPROVERS_FILE -> git root)."""
+
+    def setUp(self):
+        self.a = load()
+
+    def test_valid_handle_per_artifact(self):
+        for artifact, role in [
+            ("intent.md", "product-owner"),
+            ("spec.md", "product-owner"),
+            ("plan.md", "tech-lead"),
+            ("incident.md", "service-owner"),
+        ]:
+            self.assertEqual(self.a.role_for(artifact), role)
+            ok, reason = self.a.is_valid(artifact, "luissiviero")
+            self.assertTrue(ok, reason)
+            self.assertEqual(reason, "ok")
+
+    def test_at_prefix_normalizes(self):
+        ok, reason = self.a.is_valid("plan.md", "@luissiviero")
+        self.assertTrue(ok, reason)
+
+    def test_trailing_annotation_normalizes(self):
+        ok, reason = self.a.is_valid("intent.md", "luissiviero (product owner)")
+        self.assertTrue(ok, reason)
+
+    def test_normalize_matches_expectations(self):
+        self.assertEqual(approvers.Approvers.normalize("@luissiviero"), "luissiviero")
+        self.assertEqual(
+            approvers.Approvers.normalize("luissiviero (product owner)"), "luissiviero"
+        )
+        self.assertEqual(approvers.Approvers.normalize('"LuisSiviero"'), "luissiviero")
+        self.assertEqual(approvers.Approvers.normalize(""), "")
+
+    def test_bot_handle_rejected(self):
+        for bot in ("claude[bot]", "github-actions[bot]", "claude", "@claude"):
+            ok, reason = self.a.is_valid("plan.md", bot)
+            self.assertFalse(ok)
+            self.assertEqual(reason, "agent identities cannot approve")
+
+    def test_unknown_handle_names_role(self):
+        ok, reason = self.a.is_valid("plan.md", "someone-else")
+        self.assertFalse(ok)
+        self.assertIn("tech-lead", reason)
+
+    def test_unknown_artifact_rejected(self):
+        self.assertIsNone(self.a.role_for("readme.md"))
+        ok, reason = self.a.is_valid("readme.md", "luissiviero")
+        self.assertFalse(ok)
+        self.assertIn("readme.md", reason)
+
+    def test_empty_handle_rejected(self):
+        ok, reason = self.a.is_valid("plan.md", "")
+        self.assertFalse(ok)
+        self.assertEqual(reason, "empty approver")
+
+
+class ApproversMissingFile(unittest.TestCase):
+    def test_missing_file_fails_closed(self):
+        with tempfile.TemporaryDirectory() as d:
+            missing = os.path.join(d, "nope.yaml")
+            a = load(missing)
+            self.assertFalse(a.exists)
+            ok, reason = a.is_valid("plan.md", "luissiviero")
+            self.assertFalse(ok)
+            self.assertIn(missing, reason)
+            self.assertIn("no approvers file", reason)
+
+
+class ApproversMalformed(unittest.TestCase):
+    def _write(self, d, content):
+        path = os.path.join(d, "approvers.yaml")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return path
+
+    def test_tab_indentation_raises_with_line_number(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = self._write(d, "roles:\n\tproduct-owner: [x]\n")
+            with self.assertRaises(ValueError) as cm:
+                load(path)
+            self.assertIn(f"{path}:2:", str(cm.exception))
+
+    def test_missing_colon_raises_with_line_number(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = self._write(d, "roles\n  product-owner: [x]\n")
+            with self.assertRaises(ValueError) as cm:
+                load(path)
+            self.assertIn(f"{path}:1:", str(cm.exception))
+
+    def test_unknown_top_level_key_raises_with_line_number(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = self._write(d, "teams:\n  x: [y]\n")
+            with self.assertRaises(ValueError) as cm:
+                load(path)
+            self.assertIn(f"{path}:1:", str(cm.exception))
+            self.assertIn("teams", str(cm.exception))
+
+
+class ApproversTempFileDifferentOwner(unittest.TestCase):
+    def test_temp_file_with_different_owner_works(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "approvers.yaml")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(
+                    textwrap.dedent(
+                        """\
+                        roles:
+                          product-owner: [alice]
+                        artifacts:
+                          intent.md: product-owner
+                        never-approve: ["claude"]
+                        """
+                    )
+                )
+            a = load(path)
+            ok, reason = a.is_valid("intent.md", "alice")
+            self.assertTrue(ok, reason)
+            ok, reason = a.is_valid("intent.md", "luissiviero")
+            self.assertFalse(ok)
+
+
+if __name__ == "__main__":
+    unittest.main()

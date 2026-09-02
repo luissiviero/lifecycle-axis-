@@ -1,0 +1,8 @@
+name: adopt-is-idempotent
+kind: hook
+source: docs/sdlc/README.md (Using it in a project, step 1) and scripts/adopt.sh
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"; T="$(mktemp -d)"
+  "$R/scripts/adopt.sh" "$T" --with-hooks >/dev/null
+  OUT="$("$R/scripts/adopt.sh" "$T" --with-hooks)"
+  ! printf '%s\n' "$OUT" | grep -q '^copy:'

@@ -1,0 +1,12 @@
+name: okf-warns-on-missing-type
+kind: hook
+source: docs/sdlc/okf-pairing.md (OKF: the only required field is `type`)
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"
+  printf 'no front matter here\n' > "$d/a.md"
+  ! python3 "$R/scripts/check_okf.py" --root "$d" --strict "$d" >/dev/null 2>&1
+  rm -f "$d"/*.md
+  printf -- '---\ntype: doc\ntitle: T\ndescription: D\ntimestamp: 2026-01-01T00:00:00Z\n---\nbody\n' > "$d/a.md"
+  printf -- '---\ntype: doc\ntitle: I\ndescription: D\ntimestamp: 2026-01-01T00:00:00Z\n---\nbody\n' > "$d/index.md"
+  python3 "$R/scripts/check_okf.py" --root "$d" --strict "$d" >/dev/null 2>&1
+  rm -rf "$d"

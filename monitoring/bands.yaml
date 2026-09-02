@@ -1,19 +1,27 @@
-# Control bands. A detector compares each metric with its baseline and acts by tier.
-# 1σ → log. 2σ → invoke /sdlc-incident to diagnose and propose. 3σ → propose rollback/fix; a human authorizes.
-baseline_window: 14d
+# Control bands (Maintain play). Detection is deterministic; Claude is invoked only when a band is breached,
+# and the tier sets what it may do. Baseline: mean and standard deviation over a rolling window.
 metrics:
-  - name: error_rate_5xx
-    source: "<your metrics query>"
-    tiers: { log: 1, diagnose: 2, act: 3 }
-  - name: p95_latency_ms
-    source: "<your metrics query>"
-    tiers: { log: 1, diagnose: 2, act: 3 }
-  - name: ci_failure_rate
-    source: "GitHub Actions"
-    tiers: { log: 1, diagnose: 2, act: 3 }
-  - name: pr_cycle_time_hours
-    source: "GitHub"
-    tiers: { log: 1, diagnose: 2, act: 3 }
-  - name: agent_cost_per_merged_pr_usd
-    source: "usage export"
-    tiers: { log: 1, diagnose: 2, act: 3 }
+  - metric: ci_test_failure_rate
+    source: "scripts/github_metrics.py ci_test_failure_rate --days 30"
+    baseline: rolling_30d
+    rules: western_electric
+    tiers:
+      1sigma: { action: log }
+      2sigma: { action: diagnose, tools: "Read,Grep,Bash(gh run view *)" }
+      3sigma: { action: propose,  routes: [pull_request, runbook:rollback-deploy] }
+  - metric: post_deploy_5xx_rate
+    source: "(none — no metrics store yet; tier actions are inert until one exists, see decisions.md Q7)"
+    baseline: rolling_14d
+    rules: western_electric
+    tiers:
+      1sigma: { action: log }
+      2sigma: { action: diagnose, tools: "Read,Grep,Bash(kubectl logs *)" }
+      3sigma: { action: propose,  routes: [runbook:rollback-deploy] }
+  - metric: pr_cycle_time_hours
+    source: "scripts/github_metrics.py pr_cycle_time_hours --days 30"
+    baseline: rolling_30d
+    rules: western_electric
+    tiers:
+      1sigma: { action: log }
+      2sigma: { action: diagnose, tools: "Read,Grep" }
+      3sigma: { action: propose,  routes: [report:engineering-leadership] }

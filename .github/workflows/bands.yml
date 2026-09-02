@@ -1,0 +1,126 @@
+name: bands
+
+# Maintain play: nightly deterministic control-band detection for the GitHub-only metrics
+# (ci_test_failure_rate, pr_cycle_time_hours -- see monitoring/bands.yaml `source:`). Detection
+# itself is a pure numeric check (scripts/detect_bands.py, no model). A breach at 2sigma or
+# 3sigma triggers a read-only Claude diagnosis -- only if ANTHROPIC_API_KEY is configured, and
+# only with the tools that metric's tier grants in monitoring/bands.yaml -- and either way ends
+# in a filed GitHub issue. This workflow never opens a pull request.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    env:
+      # job-level so step `if:` expressions can test it (a step's own env is not visible to its if)
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    strategy:
+      fail-fast: false
+      # One run per GitHub-sourced metric in monitoring/bands.yaml. `source` mirrors that file's
+      # `source:` command for the metric; `tools` mirrors its 2sigma `tools:` allowlist, reused
+      # for 3sigma too since bands.yaml defines no separate tool list for that tier and this
+      # workflow only ever diagnoses (never files the 3sigma `propose` route's pull_request).
+      matrix:
+        include:
+          - metric: ci_test_failure_rate
+            source: "scripts/github_metrics.py ci_test_failure_rate --days 30"
+            tools: "Read,Grep,Bash(gh run view *)"
+          - metric: pr_cycle_time_hours
+            source: "scripts/github_metrics.py pr_cycle_time_hours --days 30"
+            tools: "Read,Grep"
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1) Collect: run the metric's bands.yaml `source:` command, saving the series in the
+      #    exact one-float-per-line, oldest-first shape detect_bands.py --file expects.
+      - name: Collect series for ${{ matrix.metric }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p monitoring/series
+          python3 ${{ matrix.source }} > "monitoring/series/${{ matrix.metric }}.txt"
+
+      # 2) Detect: deterministic Western-Electric band check against a 14-point rolling baseline.
+      #    Exit code 3 means a breach; either way the JSON tier decides what happens next.
+      - name: Detect band for ${{ matrix.metric }}
+        id: detect
+        run: |
+          set +e
+          result="$(python3 scripts/detect_bands.py --file "monitoring/series/${{ matrix.metric }}.txt" --window 14)"
+          rc=$?
+          set -e
+          if [ "$rc" != 0 ]; then echo "breach=$rc"; fi
+          tier="$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('tier') or '')" "$result")"
+          {
+            echo "result<<BANDS_RESULT_EOF"
+            echo "$result"
+            echo "BANDS_RESULT_EOF"
+            echo "tier=$tier"
+          } >> "$GITHUB_OUTPUT"
+
+      # 3) Diagnose (2sigma/3sigma only, and only when a Claude key is configured): a read-only
+      #    investigation using exactly this metric's tier tools, drafting the durable-fix intent.
+      - name: Install Claude Code
+        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.ANTHROPIC_API_KEY != ''
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Diagnose breach (read-only) and draft an intent
+        id: diagnose
+        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.ANTHROPIC_API_KEY != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          METRIC: ${{ matrix.metric }}
+          TIER: ${{ steps.detect.outputs.tier }}
+          DETECTOR_JSON: ${{ steps.detect.outputs.result }}
+        run: |
+          intent_file="$(mktemp)"
+          claude -p "The control band '$METRIC' breached tier $TIER.
+          Detector output: $DETECTOR_JSON
+          Diagnose read-only: look at recent commits, workflow runs, and the series in monitoring/series/$METRIC.txt.
+          State your confidence and the most likely cause with file:line or run evidence.
+          Then write a draft work item in the exact format of docs/sdlc/templates/intent.md (front matter and all),
+          proposing the durable fix, with resource: pointing at this breach. Do not edit any files. Do not open a PR." \
+            --allowedTools "${{ matrix.tools }}" > "$intent_file" || true
+          echo "intent_file=$intent_file" >> "$GITHUB_OUTPUT"
+
+      # 4) File the issue -- diagnosis body when Claude ran, raw detector JSON otherwise. Either
+      #    way, only an issue: this workflow never opens a pull request (said again in a comment).
+      - name: Open GitHub issue (diagnosis)
+        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.ANTHROPIC_API_KEY != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url="$(gh issue create \
+            --title "[band] ${{ matrix.metric }} breached ${{ steps.detect.outputs.tier }}" \
+            --body-file "${{ steps.diagnose.outputs.intent_file }}")"
+          echo "$url"
+          gh issue comment "$url" --body "Filed automatically by the bands workflow. This workflow only ever opens issues, never pull requests -- a human turns the drafted intent.md above into an approved work item."
+
+      - name: Open GitHub issue (detector output only, no key configured)
+        if: (steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma') && env.ANTHROPIC_API_KEY == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          METRIC: ${{ matrix.metric }}
+          TIER: ${{ steps.detect.outputs.tier }}
+          DETECTOR_JSON: ${{ steps.detect.outputs.result }}
+        run: |
+          body_file="$(mktemp)"
+          {
+            echo "No ANTHROPIC_API_KEY is configured, so no automated diagnosis ran. Detector output:"
+            echo
+            echo '```json'
+            echo "$DETECTOR_JSON"
+            echo '```'
+            echo
+            echo "A human should diagnose this breach and, if a durable fix is needed, write work/<slug>/intent.md by hand."
+            echo "This workflow only ever opens issues, never pull requests."
+          } > "$body_file"
+          gh issue create --title "[band] $METRIC breached $TIER" --body-file "$body_file"

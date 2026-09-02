@@ -1,0 +1,5 @@
+name: deploy-refuses-without-approval
+kind: hook
+source: work/sdlc-kit-phase-1/decisions.md Q5
+check: |
+  ! CI= RELEASE_APPROVAL="$(git rev-parse HEAD)" scripts/deploy.sh staging 2>/dev/null

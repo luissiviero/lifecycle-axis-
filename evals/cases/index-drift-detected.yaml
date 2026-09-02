@@ -1,0 +1,11 @@
+name: index-drift-detected
+kind: hook
+source: work item index generation (scripts/gen_index.py)
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"
+  mkdir -p "$d/work/demo"
+  printf -- '---\ntype: sdlc/intent\nid: demo\ntitle: Demo item\nstatus: draft\n---\n# Intent: demo\n' > "$d/work/demo/intent.md"
+  python3 "$R/scripts/gen_index.py" --root "$d" >/dev/null
+  python3 "$R/scripts/gen_index.py" --check --root "$d" >/dev/null
+  echo 'tampered' >> "$d/work/index.md"
+  ! python3 "$R/scripts/gen_index.py" --check --root "$d" >/dev/null 2>&1

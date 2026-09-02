@@ -1,0 +1,28 @@
+name: review-workflow-is-read-only
+kind: hook
+source: docs/sdlc/spikes/pr-review-identity.md (decision 2; T20 workflow-permissions check)
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"; mkdir -p "$d/.github/workflows"
+  cat > "$d/.github/workflows/bad.yml" <<'YAML'
+  name: bad
+  on:
+    push: {}
+  permissions:
+    contents: write
+  jobs:
+    b:
+      runs-on: ubuntu-latest
+  YAML
+  ! python3 "$R/scripts/check_workflow_permissions.py" --root "$d"
+  cat > "$d/.github/workflows/good.yml" <<'YAML'
+  name: good
+  on:
+    push: {}
+  permissions:
+    contents: read
+  jobs:
+    b:
+      runs-on: ubuntu-latest
+  YAML
+  rm "$d/.github/workflows/bad.yml"
+  python3 "$R/scripts/check_workflow_permissions.py" --root "$d"

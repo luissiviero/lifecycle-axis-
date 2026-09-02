@@ -1,0 +1,56 @@
+name: deploy
+# Q5 (work/sdlc-kit-phase-1/decisions.md): deploy only from CI via a GitHub Environment
+# with required reviewers. Agents never run deploy commands -- scripts/deploy.sh refuses
+# to run outside CI and refuses without RELEASE_APPROVAL bound to the exact commit; the
+# production-gate hook (.claude/hooks/production-gate.sh) stays as defence in depth for
+# the (disallowed) case an agent tries to run a deploy command in a session anyway.
+# Required reviewers for each environment are configured on the GitHub Environment itself
+# (Settings -> Environments), not here -- that gate fires before this job's steps start.
+# See the owner checklist: docs/sdlc/spikes/pr-review-identity.md#branch-protection-checklist-owner-clicks-these-on-main
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [development, staging, production]
+        required: true
+      sha:
+        description: Commit SHA to deploy (defaults to the triggering ref)
+        type: string
+        required: false
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'production' }}
+    concurrency:
+      group: deploy-${{ inputs.environment || 'production' }}
+      cancel-in-progress: false
+    env:
+      ENVIRONMENT: ${{ inputs.environment || 'production' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify
+        run: scripts/verify.sh
+
+      - name: Artifact chain (intent -> spec -> plan -> diff)
+        run: python3 scripts/check_artifact_chain.py --base origin/main
+
+      - name: Deploy
+        run: scripts/deploy.sh "$ENVIRONMENT"
+        env:
+          # bound to the commit that was checked out (the reviewer saw this sha as the run input)
+          RELEASE_APPROVAL: ${{ inputs.sha || github.sha }}
+          CI: "true"

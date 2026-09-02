@@ -1,0 +1,251 @@
+import importlib.util
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+SCRIPT = os.path.join(HERE, "check_workflow_permissions.py")
+
+spec = importlib.util.spec_from_file_location("check_workflow_permissions", SCRIPT)
+cwp = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(cwp)
+
+
+def _write(root, name, body):
+    path = os.path.join(root, name)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(body)
+    return path
+
+
+def _run(args, cwd=None):
+    return subprocess.run(
+        [sys.executable, SCRIPT] + args,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _last_line(text):
+    lines = [l for l in text.splitlines() if l.strip()]
+    return lines[-1] if lines else ""
+
+
+CONFORMING = """\
+name: example
+on:
+  pull_request:
+    types: [opened]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+"""
+
+
+class CheckFile(unittest.TestCase):
+    """Direct check_file() tests -- one violating / one conforming fixture per rule."""
+
+    def test_missing_top_level_permissions_is_a_violation(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "bad.yml", "name: x\non:\n  push: {}\njobs:\n  b:\n    runs-on: ubuntu-latest\n")
+            violations = cwp.check_file(path)
+            rules = [r for _, r, _ in violations]
+            self.assertIn("missing-permissions", rules)
+
+    def test_conforming_workflow_has_no_violations(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "good.yml", CONFORMING)
+            self.assertEqual(cwp.check_file(path), [])
+
+    def test_permissions_read_all_is_accepted(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "good.yml", "name: x\non:\n  push: {}\npermissions: read-all\njobs:\n  b:\n    runs-on: ubuntu-latest\n")
+            self.assertEqual(cwp.check_file(path), [])
+
+    def test_permissions_empty_map_is_accepted(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "good.yml", "name: x\non:\n  push: {}\npermissions: {}\njobs:\n  b:\n    runs-on: ubuntu-latest\n")
+            self.assertEqual(cwp.check_file(path), [])
+
+    def test_permissions_write_all_is_a_violation(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "bad.yml", "name: x\non:\n  push: {}\npermissions: write-all\njobs:\n  b:\n    runs-on: ubuntu-latest\n")
+            violations = cwp.check_file(path)
+            rules = [r for _, r, _ in violations]
+            self.assertIn("permissions-write-all", rules)
+
+    def test_contents_write_at_workflow_level_is_a_violation(self):
+        body = "name: x\non:\n  push: {}\npermissions:\n  contents: write\njobs:\n  b:\n    runs-on: ubuntu-latest\n"
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "bad.yml", body)
+            violations = cwp.check_file(path)
+            rules = [r for _, r, _ in violations]
+            self.assertIn("contents-write", rules)
+
+    def test_contents_write_at_job_level_is_a_violation(self):
+        body = (
+            "name: x\non:\n  push: {}\npermissions:\n  contents: read\n"
+            "jobs:\n  b:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "bad.yml", body)
+            violations = cwp.check_file(path)
+            rules = [r for _, r, _ in violations]
+            self.assertIn("contents-write", rules)
+
+    def test_contents_read_is_not_flagged(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "good.yml", CONFORMING)
+            rules = [r for _, r, _ in cwp.check_file(path)]
+            self.assertNotIn("contents-write", rules)
+
+    def test_pull_request_target_is_a_violation(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(
+                d, "bad.yml",
+                "name: x\non:\n  pull_request_target:\n    types: [opened]\npermissions:\n  contents: read\njobs:\n  b:\n    runs-on: ubuntu-latest\n",
+            )
+            violations = cwp.check_file(path)
+            rules = [r for _, r, _ in violations]
+            self.assertIn("pull-request-target", rules)
+
+    def test_pull_request_is_not_flagged(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "good.yml", CONFORMING)
+            rules = [r for _, r, _ in cwp.check_file(path)]
+            self.assertNotIn("pull-request-target", rules)
+
+    def test_anchor_definition_is_a_violation(self):
+        body = "name: x\non:\n  push: {}\npermissions:\n  contents: read\ndefaults: &defaults\n  run:\n    shell: bash\njobs:\n  b:\n    runs-on: ubuntu-latest\n"
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "bad.yml", body)
+            violations = cwp.check_file(path)
+            rules = [r for _, r, _ in violations]
+            self.assertIn("unsupported-yaml-feature", rules)
+
+    def test_alias_reference_is_a_violation(self):
+        body = "name: x\non:\n  push: {}\npermissions: *shared_perms\njobs:\n  b:\n    runs-on: ubuntu-latest\n"
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "bad.yml", body)
+            violations = cwp.check_file(path)
+            rules = [r for _, r, _ in violations]
+            self.assertIn("unsupported-yaml-feature", rules)
+
+    def test_quoted_glob_starting_with_star_is_not_an_alias(self):
+        # `paths: ['*.md']` and `- cron: '0 2 * * *'` must not be mistaken for aliases.
+        body = (
+            "name: x\non:\n  pull_request:\n    paths: ['*.md']\n  schedule:\n"
+            "    - cron: '0 2 * * *'\npermissions:\n  contents: read\njobs:\n  b:\n    runs-on: ubuntu-latest\n"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "good.yml", body)
+            self.assertEqual(cwp.check_file(path), [])
+
+    def test_comment_with_contents_write_is_ignored(self):
+        body = (
+            "name: x\n# example: contents: write is not allowed here\non:\n  push: {}\n"
+            "permissions:\n  contents: read # not contents: write\njobs:\n  b:\n    runs-on: ubuntu-latest\n"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "good.yml", body)
+            self.assertEqual(cwp.check_file(path), [])
+
+    def test_comment_with_pull_request_target_is_ignored(self):
+        body = "name: x\n# do not use pull_request_target\non:\n  push: {}\npermissions:\n  contents: read\njobs:\n  b:\n    runs-on: ubuntu-latest\n"
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "good.yml", body)
+            self.assertEqual(cwp.check_file(path), [])
+
+    def test_violation_message_names_file_and_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = _write(d, "bad.yml", "name: x\non:\n  push: {}\npermissions: write-all\njobs:\n  b:\n    runs-on: ubuntu-latest\n")
+            violations = cwp.check_file(path)
+            lineno, rule, detail = violations[0]
+            self.assertEqual(lineno, 4)
+            self.assertEqual(rule, "permissions-write-all")
+            self.assertTrue(detail)
+
+
+class CLI(unittest.TestCase):
+    def test_conforming_dir_exits_zero(self):
+        with tempfile.TemporaryDirectory() as d:
+            wf = os.path.join(d, ".github", "workflows")
+            os.makedirs(wf)
+            _write(d, os.path.join(".github", "workflows", "good.yml"), CONFORMING)
+            result = _run(["--root", d])
+            self.assertEqual(result.returncode, 0)
+            self.assertRegex(_last_line(result.stdout), r"^WORKFLOWS: 1 files, 0 violations$")
+
+    def test_violating_dir_exits_nonzero_and_prints_violation_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            wf = os.path.join(d, ".github", "workflows")
+            os.makedirs(wf)
+            _write(
+                d, os.path.join(".github", "workflows", "bad.yml"),
+                "name: x\non:\n  push: {}\npermissions:\n  contents: write\njobs:\n  b:\n    runs-on: ubuntu-latest\n",
+            )
+            result = _run(["--root", d])
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("VIOLATION", result.stdout)
+            self.assertIn("bad.yml:5 contents-write", result.stdout)
+            self.assertRegex(_last_line(result.stdout), r"^WORKFLOWS: 1 files, 1 violations$")
+
+    def test_empty_workflows_dir_exits_zero(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, ".github", "workflows"))
+            result = _run(["--root", d])
+            self.assertEqual(result.returncode, 0)
+            self.assertRegex(_last_line(result.stdout), r"^WORKFLOWS: 0 files, 0 violations$")
+
+    def test_explicit_file_arguments_override_default_glob(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, ".github", "workflows"))
+            good = _write(d, os.path.join(".github", "workflows", "good.yml"), CONFORMING)
+            _write(
+                d, os.path.join(".github", "workflows", "bad.yml"),
+                "name: x\non:\n  push: {}\npermissions: write-all\njobs:\n  b:\n    runs-on: ubuntu-latest\n",
+            )
+            result = _run([good])
+            self.assertEqual(result.returncode, 0)
+            self.assertRegex(_last_line(result.stdout), r"^WORKFLOWS: 1 files, 0 violations$")
+
+
+class RealRepo(unittest.TestCase):
+    """This task's own file (pr-review.yml) must be clean. Violations found
+    elsewhere in .github/workflows/ are reported (stderr), not asserted here --
+    those files may belong to another task's in-progress work (see T20 spec)."""
+
+    def test_pr_review_workflow_is_clean(self):
+        path = os.path.join(ROOT, ".github", "workflows", "pr-review.yml")
+        self.assertTrue(os.path.exists(path), "pr-review.yml must exist")
+        violations = cwp.check_file(path)
+        self.assertEqual(violations, [], f"pr-review.yml violations: {violations}")
+
+    def test_real_workflows_directory(self):
+        owned = os.path.join(ROOT, ".github", "workflows", "pr-review.yml")
+        reported = []
+        for path in cwp.default_files(ROOT):
+            for lineno, rule, detail in cwp.check_file(path):
+                if path == owned:
+                    self.fail(f"{path}:{lineno} {rule} {detail}")
+                reported.append(f"{path}:{lineno} {rule} {detail}")
+        if reported:
+            print(
+                "NOTE: .github/workflows/ has violations outside this task's file "
+                "(likely another task's in-progress workflow -- not edited here):",
+                file=sys.stderr,
+            )
+            for line in reported:
+                print(f"  {line}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()

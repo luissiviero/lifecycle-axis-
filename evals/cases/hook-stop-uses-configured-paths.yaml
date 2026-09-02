@@ -1,0 +1,10 @@
+name: hook-stop-uses-configured-paths
+kind: hook
+source: scripts/test_stop_verify_reminder.py (test_dirty_unconfigured_path_is_silent)
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"; mkdir -p "$d/src" "$d/.sdlc"
+  awk '{ if ($0 ~ /^PLAN_REQUIRED_PATHS=/) print "PLAN_REQUIRED_PATHS=\"engine\""; else print }' "$R/.sdlc/config.env" > "$d/.sdlc/config.env"
+  printf 'let x = 1;\n' > "$d/src/a.ts"
+  git init -q "$d"; git -C "$d" add -A
+  out="$(printf '%s' '{"session_id":"s"}' | CLAUDE_PROJECT_DIR="$d" "$R/.claude/hooks/stop-verify-reminder.sh")"
+  [ -z "$out" ]

@@ -1,1 +1,4 @@
 .sdlc/.last-verify
+evals/.last-*.json
+__pycache__/
+*.pyc

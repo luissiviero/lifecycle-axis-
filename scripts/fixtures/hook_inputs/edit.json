@@ -1,0 +1,10 @@
+{
+  "session_id": "test-session",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "src/example.ts",
+    "old_string": "old",
+    "new_string": "new"
+  }
+}

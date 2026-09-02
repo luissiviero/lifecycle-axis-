@@ -1,26 +1,52 @@
 name: sdlc-gate
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+permissions:
+  contents: read   # read-only token: this workflow only checks and reports
+
 jobs:
   artifact-chain:
     runs-on: ubuntu-latest
+    env:
+      # Boolean only. The secret itself is scoped to the triage step, which runs read-only tools;
+      # it is never in the environment of steps that execute PR-head code such as verify.sh
+      # (security review, finding 3 and 4).
+      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - name: Resolve work item from PR body ("Work-Item: <slug>")
+      - name: "Resolve work item from the PR body's Work-Item line"
         id: wi
         env: { BODY: "${{ github.event.pull_request.body }}" }
         run: |
           slug="$(printf '%s' "$BODY" | sed -n 's/^Work-Item:[[:space:]]*\([A-Za-z0-9._-]*\).*/\1/p' | head -1)"
-          [ -z "$slug" ] && slug="$(cat .sdlc/active)"
+          # The fallback is read from the PR head checkout, i.e. untrusted input: keep only safe characters.
+          [ -z "$slug" ] && slug="$(tr -cd 'A-Za-z0-9._-' < .sdlc/active | head -c 100)"
           echo "slug=$slug" >> "$GITHUB_OUTPUT"
       - name: Artifact chain (intent → spec → plan → diff)
-        run: python3 scripts/check_artifact_chain.py --base "origin/${{ github.base_ref }}" --slug "${{ steps.wi.outputs.slug }}"
+        env:
+          # values pass through env, never interpolated into the script (branch names and the
+          # slug are attacker-influenced)
+          BASE_REF: ${{ github.base_ref }}
+          SLUG: ${{ steps.wi.outputs.slug }}
+        run: python3 scripts/check_artifact_chain.py --base "origin/$BASE_REF" --slug "$SLUG"
       - name: Verify
         run: scripts/verify.sh
       - name: Control plane untouched by non-humans
-        if: github.event.pull_request.user.type == 'Bot' || startsWith(github.head_ref, 'claude/')
+        shell: bash   # bash sets -o pipefail, so the script's exit code survives the tee
+        env:
+          SDLC_PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          SDLC_PR_HEAD_REF: ${{ github.head_ref }}
+          SDLC_PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check_control_plane.sh "origin/$BASE_REF" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Triage failure (read-only judgment step; runs only when a Claude key is configured)
+        if: failure() && env.HAS_ANTHROPIC_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # step-scoped; only Read/Grep/Glob tools below
         run: |
-          if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -E '^(\.claude/hooks/|\.github/workflows/|\.sdlc/)'; then
-            echo "Agent-authored PR touches the control plane."; exit 1; fi
+          npm install -g @anthropic-ai/claude-code
+          claude -p "Read the job log context in this checkout and the last failing step. Say whether the failure looks flaky or real, the most likely cause with file:line, and a three-line summary for the PR thread." \
+            --allowedTools "Read,Grep,Glob" >> triage.md || true
+          cat triage.md >> "$GITHUB_STEP_SUMMARY"

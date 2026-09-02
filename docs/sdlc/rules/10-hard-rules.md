@@ -1,0 +1,25 @@
+---
+type: sdlc/rule-fragment
+title: The eight hard rules
+description: The eight hard rules; byte-identical in CLAUDE.md, GEMINI.md and AGENTS.md.
+targets: [claude, gemini, agents]
+order: 10
+tags: [rules, hooks, ci, enforcement]
+timestamp: 2026-09-02T00:00:00Z
+---
+## Hard rules (enforced by hooks and CI, not by good intentions)
+1. No code edits under the paths in `.sdlc/config.env` (`PLAN_REQUIRED_PATHS`)
+   unless the active work item has an **approved** `plan.md`. A plan with `kind: fix`
+   also locks test files: reproduce the bug as a failing test first, then fix the code.
+2. If implementation deviates from `plan.md`, update `plan.md` in the same commit.
+   CI fails a PR whose diff touches files not listed in the plan.
+3. Never edit `.claude/hooks/`, `.github/workflows/`, `.sdlc/`, or secret files.
+   Propose the change in the PR description instead.
+4. Never deploy, publish, or push to a protected branch. The production gate hook
+   stops you; a human authorizes releases.
+5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.
+6. Review findings cite `file:line` and evidence. Max five minor comments per review.
+7. A mistake made twice becomes a line in this file or a skill, in the same PR.
+8. Subagents have a named role in the agent directory (`.claude/agents/`,
+   `.gemini/agents/`), bounded tools, and must return evidence (paths, commands,
+   outputs), not opinions.

@@ -1,0 +1,13 @@
+name: ci-control-plane-label-exempts
+kind: hook
+source: docs/sdlc/spikes/pr-review-identity.md; scripts/check_control_plane.sh
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"
+  cd "$d" && git init -q -b main && git config user.email t@e.com && git config user.name t
+  mkdir .sdlc && cp "$R/.sdlc/config.env" .sdlc/
+  echo base > README.md && git add -A && git commit -q -m base
+  git checkout -q -b head
+  printf '# agent edit\n' >> .sdlc/config.env && git add -A && git commit -q -m touch
+  ! SDLC_PR_AUTHOR_TYPE=User SDLC_PR_HEAD_REF=claude/foo SDLC_PR_LABELS='[]' "$R/scripts/check_control_plane.sh" main >/tmp/blocked.out 2>&1
+  grep -q BLOCKED /tmp/blocked.out
+  SDLC_PR_AUTHOR_TYPE=User SDLC_PR_HEAD_REF=claude/foo SDLC_PR_LABELS='["control-plane-approved"]' "$R/scripts/check_control_plane.sh" main | grep -q EXEMPT
