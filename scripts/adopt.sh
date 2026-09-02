@@ -232,8 +232,10 @@ Next steps:
   2. Edit CLAUDE.md: cut it to one page and start the "Lessons learned" section for this project.
   3. Protect the main branch: require the sdlc-gate check (and agent-evals) before merge.
   4. Add an ANTHROPIC_API_KEY secret so prompt-based evals and PR review run in CI.
-  5. Run the loop by hand once: /sdlc-intent -> /sdlc-spec -> /sdlc-plan -> implement -> /sdlc-review.
-  6. Read docs/sdlc/README.md for the full picture.
+  5. Approve the example work item as yourself (the chain check refuses agent-authored approvals):
+       python3 scripts/approve.py _example intent.md spec.md plan.md   # then commit as yourself
+  6. Run the loop by hand once: /sdlc-intent -> /sdlc-spec -> /sdlc-plan -> implement -> /sdlc-review.
+  7. Read docs/sdlc/README.md for the full picture.
 STEPS
 
 exit 0

@@ -15,3 +15,6 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>` (
 - 2026-09-02T12:15:00Z | spec.md | draft -> approved | luissiviero | 372801f | approved as product-owner per .sdlc/approvers.yaml
 - 2026-09-02T12:20:00Z | plan.md | (none) -> draft | luissiviero | 372801f | file list and steps drafted from the approved spec
 - 2026-09-02T12:25:00Z | plan.md | draft -> approved | luissiviero | 372801f | approved as tech-lead per .sdlc/approvers.yaml
+- 2026-09-02T22:30:00Z | intent.md | approved -> in-review | claude[bot] | a539384 | the approving commit was agent-authored; the chain check now rejects that, so a human re-approves with scripts/approve.py
+- 2026-09-02T22:30:00Z | spec.md | approved -> in-review | claude[bot] | a539384 | same
+- 2026-09-02T22:30:00Z | plan.md | approved -> in-review | claude[bot] | a539384 | same

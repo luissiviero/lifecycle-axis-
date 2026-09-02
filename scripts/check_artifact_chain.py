@@ -25,12 +25,9 @@ ROOT = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=Tr
 # so a new case must appear in the approved plan's file list (security review, finding 4).
 EXEMPT = ("work/", "docs/", "monitoring/", "knowledge/", "CLAUDE.md", "REVIEW.md", "README.md")
 
-def front_matter(path):
+def front_matter_text(text):
     fm = {}
-    try:
-        lines = open(path, encoding="utf-8").read().splitlines()
-    except FileNotFoundError:
-        return None
+    lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return fm
     for line in lines[1:]:
@@ -40,6 +37,13 @@ def front_matter(path):
             k, v = line.split(":", 1)
             fm[k.strip()] = v.strip()
     return fm
+
+def front_matter(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return front_matter_text(f.read())
+    except FileNotFoundError:
+        return None
 
 def section(path, title):
     out, on = [], False
@@ -62,6 +66,19 @@ def config():
             if m:
                 cfg[m.group(1)] = m.group(2).split()
     return cfg
+
+AGENT_EMAIL_PATTERNS = (r"@anthropic\.com$", r"\[bot\]@", r"^noreply@")
+
+
+def is_agent_identity(author_name, author_email, av):
+    """True when a commit author looks like an agent: a never-approve handle or an agent email."""
+    handle = av.normalize(author_name) if hasattr(av, "normalize") else author_name.casefold()
+    never = {str(x).casefold() for x in getattr(av, "never_approve", [])}
+    if handle in never:
+        return True
+    email = (author_email or "").casefold()
+    return any(re.search(p, email) for p in AGENT_EMAIL_PATTERNS)
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -144,6 +161,26 @@ def main():
                     errors.append(
                         f"work/{slug}/log.md has no entry recording {name} approved by "
                         f"'{approved_by}'; append: {line}"
+                    )
+            # The commit that introduced `status: approved` must not be authored by an agent identity.
+            # scripts/approve.py refuses to run inside an agent session, but an environment variable is
+            # not a gate; the commit author is what CI can verify.
+            rel = os.path.join("work", slug, name)
+            head_text = subprocess.run(["git", "show", f"HEAD:{rel}"], capture_output=True, text=True, cwd=ROOT).stdout
+            who = ""
+            if front_matter_text(head_text).get("status") == "approved":
+                who = subprocess.run(
+                    ["git", "log", "-n1", "--format=%an%x00%ae", "-S", "status: approved", "--", rel],
+                    capture_output=True, text=True, cwd=ROOT,
+                ).stdout.strip()
+            if not who:
+                notes.append(f"work/{slug}/{name}: approval not committed yet (author check skipped)")
+            else:
+                an, _, ae = who.partition("\x00")
+                if is_agent_identity(an, ae, av):
+                    errors.append(
+                        f"work/{slug}/{name}: the commit that set status: approved is authored by an agent "
+                        f"identity ({an} <{ae}>); a human must approve and commit"
                     )
 
     if not a.no_approvers:
