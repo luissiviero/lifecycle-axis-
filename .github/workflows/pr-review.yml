@@ -10,6 +10,13 @@ name: pr-review
 # reviewer executes no PR-head code at all (no Bash), because the action's process holds the
 # API key and an eval case or script from the PR could exfiltrate it (finding 4). The
 # Chain/Verify evidence comes from the sdlc-gate workflow's check run instead.
+#
+# How the findings reach the PR without Bash: `track_progress: true` makes the action open a
+# tracking comment as claude[bot] before Claude starts and hands Claude the
+# `mcp__github_comment__update_claude_comment` tool, so the final report replaces that comment;
+# `mcp__github_inline_comment__create_inline_comment` is allowed for file:line findings. The
+# first live run (PR #6) finished with a permission denial and posted nothing, because the
+# only posting route the action documents besides these tools is `gh pr comment`, i.e. Bash.
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -67,6 +74,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          track_progress: true
           prompt: |
             Read /tmp/REVIEW.base.md and follow it verbatim: run all four passes (Bugs,
             Security, Compliance, Memory) tagged per finding, apply the Important-vs-Nit
@@ -79,5 +87,11 @@ jobs:
             CHAIN: and VERIFY: lines); if it has not completed, write "pending".
 
             Never approve this PR -- your findings are advisory only; approval is a
-            separate human act. Post exactly one review comment with your findings.
-          claude_args: '--disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch"'
+            separate human act. Deliver the whole report by updating your tracking
+            comment (mcp__github_comment__update_claude_comment), exactly once, at the
+            end. Use inline comments (mcp__github_inline_comment__create_inline_comment,
+            confirmed: true) only for findings that cite a specific file:line. Never
+            try `gh`, a shell, or a review submission: you have no Bash.
+          claude_args: |
+            --allowedTools "mcp__github_comment__update_claude_comment,mcp__github_inline_comment__create_inline_comment"
+            --disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch"
