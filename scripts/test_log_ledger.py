@@ -161,10 +161,11 @@ class RoundTrip(unittest.TestCase):
 
 
 class RealLedgers(unittest.TestCase):
-    def test_real_work_item_log_yields_four_entries_zero_malformed(self):
+    def test_real_work_item_log_parses_with_zero_malformed(self):
+        # The ledger is append-only and grows at every gate, so pin a floor, not an exact count.
         entries, malformed = log_ledger.parse(REAL_LOG)
         self.assertEqual(malformed, [])
-        self.assertEqual(len(entries), 4)
+        self.assertGreaterEqual(len(entries), 4)
 
     def test_example_log_has_zero_malformed(self):
         entries, malformed = log_ledger.parse(EXAMPLE_LOG)

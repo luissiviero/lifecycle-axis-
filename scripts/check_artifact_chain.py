@@ -21,7 +21,9 @@ import argparse, fnmatch, os, re, subprocess, sys
 from datetime import datetime, timezone
 
 ROOT = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip() or "."
-EXEMPT = ("work/", "docs/", "evals/", "monitoring/", "knowledge/", "CLAUDE.md", "REVIEW.md", "README.md")
+# evals/ is deliberately NOT exempt: run_evals.sh executes each case's `check:` block as shell in CI,
+# so a new case must appear in the approved plan's file list (security review, finding 4).
+EXEMPT = ("work/", "docs/", "monitoring/", "knowledge/", "CLAUDE.md", "REVIEW.md", "README.md")
 
 def front_matter(path):
     fm = {}

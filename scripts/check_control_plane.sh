@@ -88,7 +88,12 @@ fi
 # of [A-Za-z0-9._-]+ so any of those separators (and surrounding JSON punctuation/quotes) works.
 has_label=0
 label_lc="$(printf '%s' "$CONTROL_PLANE_LABEL" | tr '[:upper:]' '[:lower:]')"
+# Whole-label comparison: split on commas/newlines, strip JSON brackets, quotes and spaces, then
+# compare the complete label. A label that merely contains the token (e.g. "not
+# control-plane-approved") must not exempt (security review, nit 5).
 while IFS= read -r tok; do
+  tok="${tok#"${tok%%[![:space:]]*}"}"; tok="${tok%"${tok##*[![:space:]]}"}"
+  tok="${tok#\"}"; tok="${tok%\"}"; tok="${tok#\'}"; tok="${tok%\'}"
   [ -z "$tok" ] && continue
   tok_lc="$(printf '%s' "$tok" | tr '[:upper:]' '[:lower:]')"
   if [ "$tok_lc" = "$label_lc" ]; then
@@ -96,7 +101,7 @@ while IFS= read -r tok; do
     break
   fi
 done <<EOF
-$(printf '%s' "$SDLC_PR_LABELS" | grep -oE '[A-Za-z0-9._-]+')
+$(printf '%s' "$SDLC_PR_LABELS" | tr -d '[]' | tr ',' '\n')
 EOF
 
 if [ "$has_label" -eq 1 ]; then

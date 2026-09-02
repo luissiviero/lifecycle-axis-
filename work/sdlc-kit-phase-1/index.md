@@ -11,4 +11,4 @@ timestamp: 2026-09-02T18:00:00Z
 - [spec.md](spec.md) — status: in-review; approved-by: ; Requirements and design for turning the scaffold into a plugin-distributed kit with an OKF knowledge layer and model-neutral gates.
 - [plan.md](plan.md) — status: in-review; approved-by: ; Files, order of work, proof and risks for the phase-1 kit build; detailed task specs live in spec.md.
 
-Last gate: - 2026-09-02T18:00:00Z | plan.md | (none) -> in-review | claude[bot] | 76c05c8 | from the approved plan-mode plan
+Last gate: - 2026-09-02T21:45:00Z | plan.md | in-review -> in-review | claude[bot] | 0c6b26a | security review: five Important findings; fixes in control-plane.patch await the owner (rule 3)

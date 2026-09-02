@@ -80,6 +80,23 @@ Commit once per wave after `scripts/verify.sh` is green.
 - Spec rows → tests: R-T05 → test_verify.py; R-T06 → test_hooks_baseline.py; R-T07 → test_approvers.py; R-T08 → test_log_ledger.py; R-T09 → test_run_evals.py; R-T10 → test_stop_verify_reminder.py; R-T11 → test_protect_paths_bash.py; R-T12 → test_check_control_plane.py; R-T13 → test_check_artifact_chain.py; R-T14 → test_check_okf.py; R-T15a/b → check_okf --strict; R-T16 → test_gen_index.py; R-T17 → test_gen_context_files.py; R-T18 → test_github_metrics.py; R-T19 → test_deploy_guard.py; R-T20 → test_check_workflow_permissions.py; R-T21 → test_check_plugin_manifest.py; R-T22 → test_adopt.py
 - Manual: adopt into a temp dir and run its verify.sh; a Bash heredoc into `.sdlc/x` is blocked; CI green on PR #1 after the owner applies `control-plane-approved`.
 
+## Control-plane changes for the owner (rule 3: agents propose, a human applies)
+The Bash-write guard (T11) now blocks the agent from editing `.claude/hooks/`, `.claude/settings.json`,
+`.github/workflows/` and `.sdlc/` by any route, including the Bash heredocs used earlier in this work item.
+The security review of the PR found five Important issues in those files; the fixes are in
+`work/sdlc-kit-phase-1/control-plane.patch`, validated in a throwaway clone (59 hook tests, full verify green).
+1. `git apply work/sdlc-kit-phase-1/control-plane.patch` on this branch, then `scripts/verify.sh`. It touches:
+   `_lib.sh` (canonical paths; switches read from the process env before the config is sourced),
+   `protect-paths.sh` (canonicalised candidates, `cd`/`pushd`-relative targets, `ln`), `production-gate.sh`
+   (comment only; relies on `_lib.sh`), `settings.json` (`NotebookEdit` in both matchers), `sdlc-gate.yml`
+   (slug and refs via env, sanitised fallback, key scoped to the triage step only), `agent-evals.yml` (PR job
+   runs hook cases without the key; nightly job runs everything with it), `pr-review.yml` (commenter must be
+   owner/member/collaborator; PR-head checkout on both triggers; reviewer has no Bash at all), and adds
+   `scripts/test_control_plane_hardening.py`.
+2. In `.sdlc/config.env` set `GENERATED_PATHS="src/gen CLAUDE.md GEMINI.md AGENTS.md work/index.md work/*/index.md"`
+   (plan review finding; REVIEW.md's do-not-report list depends on it).
+3. Apply the `control-plane-approved` label to PR #1 after reading its control-plane diff (the gate re-runs on label).
+
 ## Rollback
 - Revert the wave's commit; nothing outside this repo is affected.
 
@@ -92,3 +109,4 @@ Commit once per wave after `scripts/verify.sh` is green.
 - 2026-09-02: every workflow hoists `ANTHROPIC_API_KEY` to job-level env so step `if:` expressions can test it; the control-plane step uses `shell: bash` for pipefail (found in T12/T18 review).
 - 2026-09-02: `knowledge/decisions/adopt-script.md` added by T22 (covered by `knowledge/**`).
 - 2026-09-02: plan review found `GENERATED_PATHS` in `.sdlc/config.env` still reads `src/gen` while the kit now generates `CLAUDE.md`, `GEMINI.md`, `AGENTS.md`, `work/index.md` and `work/*/index.md`. The Bash-write guard (T11) now blocks the agent from editing `.sdlc/`, so per rule 3 the change is proposed in the PR body for the owner to apply.
+- 2026-09-02: security review (five Important findings) → fixes delivered as `control-plane.patch` for the owner to apply (see the section above); `evals/` removed from the chain check's exempt list so a new eval case needs a plan entry; `check_control_plane.sh` compares whole labels. The review's other nits (unpinned action refs; the plan's wildcard file list) are accepted for phase 1 and noted in the roadmap.

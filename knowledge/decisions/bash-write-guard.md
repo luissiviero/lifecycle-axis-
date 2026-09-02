@@ -63,13 +63,20 @@ same hole covered `>>` appends into `.claude/hooks/_lib.sh`, `sed -i` on `.sdlc/
   negative costs the control plane. The heuristic is therefore tuned to over-match: candidates that
   are not paths at all (a `sed` script, a `tee` operand) are simply tested against the protected
   prefixes and discarded.
-- **The unlock is auditable and cannot be self-granted.** `SDLC_CONTROL_PLANE_UNLOCK` is read from
-  the hook process's own environment, which is inherited from the process that launched Claude
-  Code. A command the agent runs sets variables in *its own* shell, not in the hook's, so an agent
-  cannot turn the guard off from inside a session. Every allow prints the audit line above to
-  stderr, where it appears in the transcript, so a session that ran with the unlock is visible in
-  review. `BASH_WRITE_GUARD=0` is the other off switch, and it lives in `.sdlc/config.env` — a
-  protected path, so only a human can set it.
+- **The unlock is auditable and cannot be self-granted, once the hardening patch is applied.** The
+  first version of this guard had two holes, found by the security review of PR #1 and fixed in
+  `work/sdlc-kit-phase-1/control-plane.patch` (the guard blocks agents from editing the hooks, so a
+  human applies it): (1) candidates were matched without canonicalisation, so `cd .sdlc && … >>
+  config.env`, `work/../.sdlc/config.env` and a symlink into the control plane passed; (2)
+  `SDLC_CONTROL_PLANE_UNLOCK` and `RELEASE_APPROVAL` were read *after* `_lib.sh` sourced
+  `.sdlc/config.env`, so a line planted there granted them. After the patch, every candidate is
+  canonicalised (`canon` in `_lib.sh`, also relative to any `cd`/`pushd` target in the command,
+  `ln` targets included) and both switches are captured from the process environment before the
+  config is sourced. A command the agent runs sets variables in *its own* shell, not in the hook's,
+  so an agent cannot turn the guard off from inside a session. Every allow prints the audit line
+  above to stderr, where it appears in the transcript. `BASH_WRITE_GUARD=0` is the other off switch,
+  and it lives in `.sdlc/config.env`, which the canonicalised guard keeps agents out of.
+  Regression tests: `scripts/test_control_plane_hardening.py`.
 
 ## What is covered
 

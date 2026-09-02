@@ -52,6 +52,10 @@ are what remains once all of that is built. Ordered by how soon a complex projec
     Edit/Write/MultiEdit; a Bash redirection into `src/` skips the plan requirement locally (the chain check catches it
     at PR time). Reuse `bash_write_targets()` from `protect-paths.sh` in both hooks.
 
+18. **Pin CI dependencies and tighten the file contract.** Pin `actions/checkout`, `claude-code-action` and the
+    `claude-code` npm install to exact versions or SHAs; replace the wildcard entries in `plan.md` file lists with
+    explicit paths once the kit is stable (security review nits on PR #1).
+
 ## Phase 3 — scale across agents and repos
 7. **Multi-repo intent and orchestration.** One `intent.md` fanning out to several `plan.md`; worktree-per-work-item
    convention; an orchestration skill that assigns plan steps to subagents with per-step verification.

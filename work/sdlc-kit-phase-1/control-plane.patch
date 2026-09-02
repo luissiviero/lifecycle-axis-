@@ -1,0 +1,460 @@
+diff -ruN a/.claude/hooks/_lib.sh b/.claude/hooks/_lib.sh
+--- a/.claude/hooks/_lib.sh	2026-09-02 16:57:47.277736908 +0000
++++ b/.claude/hooks/_lib.sh	2026-09-02 16:59:14.878065604 +0000
+@@ -1,15 +1,49 @@
+ #!/usr/bin/env bash
+ # Shared helpers for hooks. Hooks read one JSON object on stdin (Claude Code hook input).
+ # Exit 0 = allow, exit 2 = block (stderr is shown to the agent), JSON on stdout for "ask".
++#
++# Human-only switches are captured from the process environment BEFORE the repo config is
++# sourced, so a line planted in .sdlc/config.env can never grant them (security review,
++# findings 1 and 2). A command an agent runs sets variables in its own shell, never in this
++# hook process's environment.
++_ENV_UNLOCK="${SDLC_CONTROL_PLANE_UNLOCK:-}"
++_ENV_RELEASE="${RELEASE_APPROVAL:-}"
++_ENV_UNATTENDED="${SDLC_UNATTENDED:-}"
+ ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
++ROOT="$(realpath -m -- "$ROOT" 2>/dev/null || printf '%s' "$ROOT")"
+ # shellcheck disable=SC1091
+ [ -f "$ROOT/.sdlc/config.env" ] && . "$ROOT/.sdlc/config.env"
++SDLC_CONTROL_PLANE_UNLOCK="$_ENV_UNLOCK"
++RELEASE_APPROVAL="$_ENV_RELEASE"
++SDLC_UNATTENDED="$_ENV_UNATTENDED"
+ INPUT="$(cat)"
+ TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')"
+ FILE="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty')"
+ CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
++# canon <path> [<dir>] -> repo-relative canonical path with `..`, `.` and symlinks resolved, or
++# the absolute path when it lies outside ROOT. <dir> is the directory the path is relative to
++# (a `cd` target inside a Bash command); default: the repo root. Prefix matching on anything
++# less than a canonical path is bypassable (security review, finding 1).
++canon() {
++  local p="$1" base="${2:-}" abs
++  case "$p" in
++    /*) abs="$p";;
++    *) case "$base" in
++         /*) abs="$base/$p";;
++         '') abs="$ROOT/$p";;
++         *)  abs="$ROOT/$base/$p";;
++       esac;;
++  esac
++  abs="$(realpath -m -- "$abs" 2>/dev/null)" \
++    || abs="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$abs" 2>/dev/null || printf '%s' "$abs")"
++  case "$abs" in
++    "$ROOT") printf '.';;
++    "$ROOT"/*) printf '%s' "${abs#"$ROOT"/}";;
++    *) printf '%s' "$abs";;
++  esac
++}
+ # Path relative to repo root, for matching.
+-rel() { local p="$1"; p="${p#"$ROOT"/}"; printf '%s' "${p#./}"; }
++rel() { canon "$1"; }
+ under_any() { # under_any <relpath> <space-separated prefixes>
+   local p="$1" prefix; for prefix in $2; do
+     case "$p" in "$prefix"|"$prefix"/*) return 0;; esac; done; return 1; }
+diff -ruN a/.claude/hooks/production-gate.sh b/.claude/hooks/production-gate.sh
+--- a/.claude/hooks/production-gate.sh	2026-09-02 16:57:47.281931314 +0000
++++ b/.claude/hooks/production-gate.sh	2026-09-02 16:59:58.798068215 +0000
+@@ -1,5 +1,8 @@
+ #!/usr/bin/env bash
+ # Release gate: an agent may prepare a release but never cross into production without a named human.
++# RELEASE_APPROVAL and SDLC_UNATTENDED are taken from the hook process's environment only
++# (captured in _lib.sh before .sdlc/config.env is sourced), so a value planted in the repo
++# config cannot satisfy the gate (security review, finding 2).
+ . "$(dirname "$0")/_lib.sh"
+ [ -z "$CMD" ] && exit 0
+ DEPLOY_RE='(^|[;&| ])(kubectl[[:space:]]+(apply|rollout|delete)|helm[[:space:]]+(install|upgrade|rollback)|terraform[[:space:]]+(apply|destroy)|pulumi[[:space:]]+up|aws[[:space:]]+(cloudformation|lambda|ecs|s3[[:space:]]+sync)|gcloud[[:space:]]+(run|app|functions)[[:space:]]+deploy|az[[:space:]]+webapp|npm[[:space:]]+publish|twine[[:space:]]+upload|docker[[:space:]]+push|flyctl[[:space:]]+deploy|fly[[:space:]]+deploy|vercel[[:space:]]+(--prod|deploy)|serverless[[:space:]]+deploy|cap[[:space:]]+production|git[[:space:]]+push[^;&|]*[[:space:]](main|master|prod|production|release)([[:space:]]|$))'
+@@ -11,10 +14,10 @@
+   SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
+   AUTH="$ROOT/.sdlc/release-authorizations/$SHA"
+   if [ -f "$AUTH" ] && grep -q '^approved-by:' "$AUTH"; then
+-    exit 0   # a human authorized exactly this commit (file written by the release manager)
++    exit 0   # a human authorized exactly this commit (file written by the release manager; the path is protected from agents)
+   fi
+   if [ -n "${RELEASE_APPROVAL:-}" ] && [ "$RELEASE_APPROVAL" = "$SHA" ]; then
+-    exit 0   # playbook convention: RELEASE_APPROVAL set by the release pipeline, bound to this commit
++    exit 0   # playbook convention: RELEASE_APPROVAL set by the release pipeline's environment, bound to this commit
+   fi
+   [ -n "$SDLC_UNATTENDED" ] && block "deploy command in an unattended session with no release authorization for $SHA."
+   ask "Release gate: '$CMD' looks like a deploy. No human authorization exists for HEAD ($SHA). Route to approval: the release manager writes .sdlc/release-authorizations/$SHA (approved-by: <name>) or the pipeline sets RELEASE_APPROVAL=$SHA. Approve here only if you are that person."
+diff -ruN a/.claude/hooks/protect-paths.sh b/.claude/hooks/protect-paths.sh
+--- a/.claude/hooks/protect-paths.sh	2026-09-02 16:57:47.279673969 +0000
++++ b/.claude/hooks/protect-paths.sh	2026-09-02 16:59:47.706067555 +0000
+@@ -2,28 +2,34 @@
+ # Red line: agents never edit the control plane or secret material.
+ #
+ # Two branches:
+-#   $FILE set   -> Edit/Write/MultiEdit: match the declared file_path (original behaviour).
++#   $FILE set   -> Edit/Write/MultiEdit/NotebookEdit: match the declared file_path.
+ #   $FILE empty -> Bash: extract likely write targets from the command text and match those.
+ #                  Defect 4: the edit hooks matched only Edit|Write|MultiEdit, so a heredoc
+ #                  redirect into .sdlc/config.env bypassed every one of them.
+ #                  Rationale, coverage and limits: knowledge/decisions/bash-write-guard.md.
++# Every candidate is canonicalised (canon in _lib.sh) before matching, so `work/../.sdlc/x`,
++# a symlink into the control plane, or `cd .sdlc && ... >> config.env` are all seen as writes
++# under `.sdlc` (security review, finding 1).
+ . "$(dirname "$0")/_lib.sh"
+ 
+-if [ -n "$FILE" ]; then
+-  R="$(rel "$FILE")"
+-  under_any "$R" "$PROTECTED_PATHS" && block "'$R' is a protected path ($PROTECTED_PATHS). Describe the change you want in the PR body; a human applies it."
++check_target() { # check_target <repo-relative canonical path> <where>
++  local R="$1" where="$2"
++  under_any "$R" "$PROTECTED_PATHS" && block "'$R' is a protected path ($PROTECTED_PATHS)$where. Describe the change you want in the PR body; a human applies it."
+   case "$R" in
+-    .env|.env.*|*.pem|*.key|*.p12|*id_rsa*|*.keystore) block "'$R' looks like secret material. Never write secrets to the repo.";;
++    .env|.env.*|*.pem|*.key|*.p12|*id_rsa*|*.keystore) block "'$R' looks like secret material. Never write secrets to the repo$where.";;
+   esac
++}
++
++if [ -n "$FILE" ]; then
++  check_target "$(canon "$FILE")" ""
+   exit 0
+ fi
+ 
+ [ -z "$CMD" ] && exit 0
+ [ "${BASH_WRITE_GUARD:-1}" = 1 ] || exit 0
+ 
+-# Human-only escape hatch: set in the environment that launches Claude Code. A command an agent
+-# runs sets variables in its own shell, never in this hook process's environment, so an agent
+-# cannot grant itself the unlock. Every allow leaves this line in the transcript.
++# Human-only escape hatch: read from the environment that launched Claude Code (captured in
++# _lib.sh before the repo config is sourced). Every allow leaves this line in the transcript.
+ if [ "${SDLC_CONTROL_PLANE_UNLOCK:-}" = 1 ]; then
+   printf 'SDLC: control plane unlocked by human env (SDLC_CONTROL_PLANE_UNLOCK=1)\n' >&2
+   exit 0
+@@ -95,6 +101,11 @@
+       cp|mv|install|rsync)                        # destination is the last argument
+         q="${toks[e-1]}"
+         case "$q" in -*|'<'*|'>'*) ;; *) out+=("$q");; esac ;;
++      ln)                                         # a symlink into the control plane is a write there
++        for ((j=i+1; j<e; j++)); do
++          case "${toks[j]}" in -*) continue;; esac
++          out+=("${toks[j]}")
++        done ;;
+       truncate)                                   # truncate [-s N] <path>
+         for ((j=i+1; j<e; j++)); do
+           case "${toks[j]}" in -*|[0-9]*|'<'*|'>'*) continue;; esac
+@@ -135,11 +146,20 @@
+   done
+ }
+ 
++# Directories the command changes into: a relative target written after `cd`/`pushd` resolves
++# against them, so every candidate is also tested relative to each such directory.
++CD_DIRS="$(printf '%s' "${CMD:0:16384}" | grep -Eo '(^|[;&|[:space:]()])(cd|pushd)[[:space:]]+[^[:space:];&|)]+' \
++  | sed -E 's/^[^[:alnum:]]*(cd|pushd)[[:space:]]+//' | tr -d '"'"'"'')"
++
++WHERE=" (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body)"
+ while IFS= read -r CAND; do
+-  R="$(rel "$CAND")"
+-  under_any "$R" "$PROTECTED_PATHS" && block "'$R' is a protected path ($PROTECTED_PATHS) (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body)."
+-  case "$R" in
+-    .env|.env.*|*.pem|*.key|*.p12|*id_rsa*|*.keystore) block "'$R' looks like secret material. Never write secrets to the repo (detected in a Bash command).";;
+-  esac
++  check_target "$(canon "$CAND")" "$WHERE"
++  while IFS= read -r D; do
++    [ -z "$D" ] && continue
++    case "$D" in \$*|*'${'*) continue;; esac
++    check_target "$(canon "$CAND" "$(canon "$D")")" "$WHERE"
++  done <<EOF
++$CD_DIRS
++EOF
+ done < <(bash_write_targets "$CMD")
+ exit 0
+diff -ruN a/.claude/settings.json b/.claude/settings.json
+--- a/.claude/settings.json	2026-09-02 16:57:47.284356638 +0000
++++ b/.claude/settings.json	2026-09-02 17:00:07.614068739 +0000
+@@ -2,7 +2,7 @@
+   "hooks": {
+     "PreToolUse": [
+       {
+-        "matcher": "Edit|Write|MultiEdit",
++        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+         "hooks": [
+           { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-paths.sh" },
+           { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-secrets.sh" },
+@@ -21,7 +21,7 @@
+     ],
+     "PostToolUse": [
+       {
+-        "matcher": "Edit|Write|MultiEdit",
++        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+         "hooks": [
+           { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-format.sh" }
+         ]
+diff -ruN a/.github/workflows/agent-evals.yml b/.github/workflows/agent-evals.yml
+--- a/.github/workflows/agent-evals.yml	2026-09-02 16:57:47.288225555 +0000
++++ b/.github/workflows/agent-evals.yml	2026-09-02 17:00:22.950069650 +0000
+@@ -1,18 +1,33 @@
+ name: agent-evals
+ # Runs whenever the configuration that steers the agent changes, and nightly (Test play: continuous evals).
++# Two jobs on purpose (security review, finding 4): eval cases are shell executed from the PR head, so the
++# PR-time job holds no secret and runs only the deterministic hook cases; the nightly job runs on the
++# default branch with the key and covers the prompt cases too.
+ on:
+   pull_request:
+-    paths: ['CLAUDE.md', 'REVIEW.md', '.claude/**', 'evals/**', '.sdlc/**']
++    paths: ['CLAUDE.md', 'REVIEW.md', '.claude/**', 'evals/**', '.sdlc/**', 'scripts/**']
+   schedule:
+     - cron: '0 2 * * *'
+ permissions:
+   contents: read   # read-only token: this workflow only checks and reports
+ 
+ jobs:
+-  evals:
++  hook-cases:
++    # PR time: no secret in this job; PR-head code runs here.
++    if: github.event_name == 'pull_request'
++    runs-on: ubuntu-latest
++    env:
++      SDLC_UNATTENDED: "1"
++    steps:
++      - uses: actions/checkout@v4
++      - name: Run deterministic eval cases
++        run: scripts/run_evals.sh --kind hook
++
++  full-suite:
++    # Nightly on the default branch only: prompt cases need the key.
++    if: github.event_name == 'schedule'
+     runs-on: ubuntu-latest
+     env:
+-      # job-level so step `if:` expressions can test it
+       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+       SDLC_UNATTENDED: "1"
+     steps:
+@@ -20,5 +35,5 @@
+       - name: Install Claude Code (only needed for prompt-driven cases)
+         if: env.ANTHROPIC_API_KEY != ''
+         run: npm install -g @anthropic-ai/claude-code
+-      - name: Run eval suite
++      - name: Run full eval suite
+         run: scripts/run_evals.sh
+diff -ruN a/.github/workflows/pr-review.yml b/.github/workflows/pr-review.yml
+--- a/.github/workflows/pr-review.yml	2026-09-02 16:57:47.290116444 +0000
++++ b/.github/workflows/pr-review.yml	2026-09-02 17:00:51.462071345 +0000
+@@ -4,6 +4,12 @@
+ # approves -- findings are advisory, and approval stays a human act recorded in
+ # work/<slug>/log.md (validated by scripts/check_artifact_chain.py). Two triggers: a normal
+ # PR review pass, and an on-demand re-review via an "@claude" comment on the PR.
++#
++# Security review fixes: the on-demand trigger requires the commenter to be an owner, member
++# or collaborator (finding 5); the checkout targets the PR head on both triggers; and the
++# reviewer executes no PR-head code at all (no Bash), because the action's process holds the
++# API key and an eval case or script from the PR could exfiltrate it (finding 4). The
++# Chain/Verify evidence comes from the sdlc-gate workflow's check run instead.
+ on:
+   pull_request:
+     types: [opened, synchronize, ready_for_review]
+@@ -23,31 +29,36 @@
+   review:
+     runs-on: ubuntu-latest
+     # Skip draft PRs outright. For an issue_comment trigger (which fires for both issues
+-    # and PR conversations), only run when the comment is on a pull request and mentions
+-    # "@claude" -- an ordinary PR comment should not re-trigger a full review.
++    # and PR conversations), only run when the comment is on a pull request, mentions
++    # "@claude", and comes from someone with write-level standing in this repository.
+     if: >-
+       (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+       (github.event_name == 'issue_comment' && github.event.issue.pull_request != null &&
+-       contains(github.event.comment.body, '@claude'))
++       contains(github.event.comment.body, '@claude') &&
++       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+     # Secrets cannot be read directly in a job-level `if:`, so the guard lives here as an
+     # env indirection and gates every step below: without a configured key the job still
+     # "runs" (its own if: above passed) but does nothing.
+     env:
+       HAVE_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+     steps:
+-      - name: Checkout
++      - name: Checkout the PR head (on both triggers)
+         if: env.HAVE_ANTHROPIC_KEY == 'true'
+         uses: actions/checkout@v4
+         with:
++          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.event.pull_request.head.sha }}
+           fetch-depth: 0
+ 
+       # claude-code-action restores .claude/, CLAUDE.md, etc. from the base branch on
+       # pull_request events, but NOT REVIEW.md (spike finding 1b) -- left alone, a PR diff
+       # could rewrite the very policy the reviewer is meant to follow. Pin it ourselves.
++      # On issue_comment the base ref is not in the event payload; the default branch is used.
+       - name: Pin review policy from base branch
+         if: env.HAVE_ANTHROPIC_KEY == 'true'
++        env:
++          BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+         run: |
+-          git show "origin/${{ github.event.pull_request.base.ref || 'main' }}:REVIEW.md" > /tmp/REVIEW.base.md
++          git show "origin/$BASE_REF:REVIEW.md" > /tmp/REVIEW.base.md
+ 
+       - name: Claude review
+         if: env.HAVE_ANTHROPIC_KEY == 'true'
+@@ -61,11 +72,10 @@
+             as a count, and skip anything on its do-not-report list. Use its exact output
+             format, including the trailing Chain/Verify/Human-approver lines.
+ 
+-            Before writing findings, run these two commands and quote the last line of
+-            each verbatim in the Chain/Verify lines:
+-              scripts/verify.sh
+-              python3 scripts/check_artifact_chain.py --base origin/${{ github.event.pull_request.base.ref || 'main' }}
++            Do not run any command. For the Chain and Verify lines, quote the status of the
++            "sdlc-gate" check run on this pull request (its step summary carries the
++            CHAIN: and VERIFY: lines); if it has not completed, write "pending".
+ 
+             Never approve this PR -- your findings are advisory only; approval is a
+             separate human act. Post exactly one review comment with your findings.
+-          claude_args: '--disallowedTools "Edit,Write,MultiEdit,NotebookEdit" --allowedTools "Bash(scripts/verify.sh),Bash(python3 scripts/check_artifact_chain.py *)"'
++          claude_args: '--disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch"'
+diff -ruN a/.github/workflows/sdlc-gate.yml b/.github/workflows/sdlc-gate.yml
+--- a/.github/workflows/sdlc-gate.yml	2026-09-02 16:57:47.286332081 +0000
++++ b/.github/workflows/sdlc-gate.yml	2026-09-02 17:00:16.202069249 +0000
+@@ -9,8 +9,10 @@
+   artifact-chain:
+     runs-on: ubuntu-latest
+     env:
+-      # job-level so step `if:` expressions can test it (a step's own env is not visible to its if)
+-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
++      # Boolean only. The secret itself is scoped to the triage step, which runs read-only tools;
++      # it is never in the environment of steps that execute PR-head code such as verify.sh
++      # (security review, finding 3 and 4).
++      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+     steps:
+       - uses: actions/checkout@v4
+         with: { fetch-depth: 0 }
+@@ -19,10 +21,16 @@
+         env: { BODY: "${{ github.event.pull_request.body }}" }
+         run: |
+           slug="$(printf '%s' "$BODY" | sed -n 's/^Work-Item:[[:space:]]*\([A-Za-z0-9._-]*\).*/\1/p' | head -1)"
+-          [ -z "$slug" ] && slug="$(cat .sdlc/active)"
++          # The fallback is read from the PR head checkout, i.e. untrusted input: keep only safe characters.
++          [ -z "$slug" ] && slug="$(tr -cd 'A-Za-z0-9._-' < .sdlc/active | head -c 100)"
+           echo "slug=$slug" >> "$GITHUB_OUTPUT"
+       - name: Artifact chain (intent → spec → plan → diff)
+-        run: python3 scripts/check_artifact_chain.py --base "origin/${{ github.base_ref }}" --slug "${{ steps.wi.outputs.slug }}"
++        env:
++          # values pass through env, never interpolated into the script (branch names and the
++          # slug are attacker-influenced)
++          BASE_REF: ${{ github.base_ref }}
++          SLUG: ${{ steps.wi.outputs.slug }}
++        run: python3 scripts/check_artifact_chain.py --base "origin/$BASE_REF" --slug "$SLUG"
+       - name: Verify
+         run: scripts/verify.sh
+       - name: Control plane untouched by non-humans
+@@ -31,9 +39,12 @@
+           SDLC_PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+           SDLC_PR_HEAD_REF: ${{ github.head_ref }}
+           SDLC_PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+-        run: scripts/check_control_plane.sh "origin/${{ github.base_ref }}" | tee -a "$GITHUB_STEP_SUMMARY"
++          BASE_REF: ${{ github.base_ref }}
++        run: scripts/check_control_plane.sh "origin/$BASE_REF" | tee -a "$GITHUB_STEP_SUMMARY"
+       - name: Triage failure (read-only judgment step; runs only when a Claude key is configured)
+-        if: failure() && env.ANTHROPIC_API_KEY != ''
++        if: failure() && env.HAS_ANTHROPIC_KEY == 'true'
++        env:
++          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # step-scoped; only Read/Grep/Glob tools below
+         run: |
+           npm install -g @anthropic-ai/claude-code
+           claude -p "Read the job log context in this checkout and the last failing step. Say whether the failure looks flaky or real, the most likely cause with file:line, and a three-line summary for the PR thread." \
+diff -ruN a/scripts/test_control_plane_hardening.py b/scripts/test_control_plane_hardening.py
+--- a/scripts/test_control_plane_hardening.py	1970-01-01 00:00:00.000000000 +0000
++++ b/scripts/test_control_plane_hardening.py	2026-09-02 17:02:14.682076292 +0000
+@@ -0,0 +1,101 @@
++"""Regression tests for the security-review findings on the control-plane hooks.
++
++Finding 1: candidates were matched without canonicalisation, so `cd .sdlc && ... >> config.env`,
++`work/../.sdlc/config.env` and a symlink into the control plane were allowed.
++Finding 1 escalation / finding 2: SDLC_CONTROL_PLANE_UNLOCK and RELEASE_APPROVAL were read after
++sourcing .sdlc/config.env, so a line planted there granted them. They are now captured from the
++process environment before the config is sourced.
++"""
++import os
++import subprocess
++import sys
++import unittest
++
++sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
++from hooktest import REAL_ROOT, fake_repo, run_hook  # noqa: E402
++
++
++def real_config() -> str:
++    with open(os.path.join(REAL_ROOT, ".sdlc", "config.env"), encoding="utf-8") as f:
++        return f.read()
++
++
++def bash(command: str) -> dict:
++    return {"tool_name": "Bash", "tool_input": {"command": command}}
++
++
++def write(path: str) -> dict:
++    return {"tool_name": "Write", "tool_input": {"file_path": path, "content": "x"}}
++
++
++class Traversal(unittest.TestCase):
++    def test_cd_then_relative_write_is_blocked(self):
++        with fake_repo() as root:
++            r = run_hook("protect-paths.sh", bash("cd .sdlc && echo BASH_WRITE_GUARD=0 >> config.env"), root)
++            self.assertEqual(r.returncode, 2, r.stderr)
++            self.assertIn(".sdlc", r.stderr)
++
++    def test_dotdot_in_bash_redirection_is_blocked(self):
++        with fake_repo() as root:
++            r = run_hook("protect-paths.sh", bash("echo x >> work/../.sdlc/config.env"), root)
++            self.assertEqual(r.returncode, 2, r.stderr)
++
++    def test_dotdot_in_write_tool_path_is_blocked(self):
++        with fake_repo() as root:
++            r = run_hook("protect-paths.sh", write(os.path.join(root, "work", "..", ".sdlc", "config.env")), root)
++            self.assertEqual(r.returncode, 2, r.stderr)
++
++    def test_symlink_into_control_plane_is_blocked(self):
++        with fake_repo() as root:
++            os.makedirs(os.path.join(root, "work"), exist_ok=True)
++            os.symlink(os.path.join(root, ".sdlc"), os.path.join(root, "work", "link"))
++            r = run_hook("protect-paths.sh", bash("echo x > work/link/config.env"), root)
++            self.assertEqual(r.returncode, 2, r.stderr)
++
++    def test_creating_a_symlink_to_the_control_plane_is_blocked(self):
++        with fake_repo() as root:
++            r = run_hook("protect-paths.sh", bash("ln -s .sdlc work/link"), root)
++            self.assertEqual(r.returncode, 2, r.stderr)
++
++    def test_reads_and_unrelated_writes_still_allowed(self):
++        with fake_repo() as root:
++            for cmd in ("cat .sdlc/config.env", "cd docs && echo x > notes.md", "ls > /tmp/out"):
++                r = run_hook("protect-paths.sh", bash(cmd), root)
++                self.assertEqual(r.returncode, 0, (cmd, r.stderr))
++
++
++class SwitchesAreEnvironmentOnly(unittest.TestCase):
++    def test_unlock_planted_in_config_is_ignored(self):
++        cfg = real_config() + "\nSDLC_CONTROL_PLANE_UNLOCK=1\n"
++        with fake_repo(config_env=cfg) as root:
++            r = run_hook("protect-paths.sh", bash("cat > .sdlc/x <<'EOF'\nhi\nEOF"), root)
++            self.assertEqual(r.returncode, 2, r.stderr)
++            self.assertNotIn("unlocked", r.stderr)
++
++    def test_unlock_from_process_env_still_works(self):
++        with fake_repo() as root:
++            r = run_hook("protect-paths.sh", bash("cat > .sdlc/x <<'EOF'\nhi\nEOF"), root,
++                         env={"SDLC_CONTROL_PLANE_UNLOCK": "1"})
++            self.assertEqual(r.returncode, 0, r.stderr)
++            self.assertIn("unlocked", r.stderr)
++
++    def test_release_approval_planted_in_config_is_ignored(self):
++        with fake_repo() as root:
++            subprocess.run(["git", "-C", root, "commit", "-q", "--allow-empty", "-m", "init"], check=True)
++            sha = subprocess.run(["git", "-C", root, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
++            with open(os.path.join(root, ".sdlc", "config.env"), "a", encoding="utf-8") as f:
++                f.write(f"\nRELEASE_APPROVAL={sha}\n")
++            r = run_hook("production-gate.sh", bash("kubectl apply -f prod.yaml"), root, env={"SDLC_UNATTENDED": "1"})
++            self.assertEqual(r.returncode, 2, r.stderr)
++
++    def test_release_approval_from_process_env_still_works(self):
++        with fake_repo() as root:
++            subprocess.run(["git", "-C", root, "commit", "-q", "--allow-empty", "-m", "init"], check=True)
++            sha = subprocess.run(["git", "-C", root, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
++            r = run_hook("production-gate.sh", bash("kubectl apply -f prod.yaml"), root,
++                         env={"SDLC_UNATTENDED": "1", "RELEASE_APPROVAL": sha})
++            self.assertEqual(r.returncode, 0, r.stderr)
++
++
++if __name__ == "__main__":
++    unittest.main()
