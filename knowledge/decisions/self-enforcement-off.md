@@ -8,6 +8,10 @@ timestamp: 2026-09-02T00:00:00Z
 
 # The kit repo does not wire its own hooks
 
+> **Superseded on 2026-09-02 by [`self-hooks-on.md`](self-hooks-on.md).** The owner reinstated the hooks on
+> this repo with the control-plane unlock set in `.claude/settings.json`; the template and `adopt.sh`
+> behaviour described below still hold for adopters.
+
 ## Context
 
 Until PR #1 this repo dogfooded its own hooks: `.claude/settings.json` registered every script in

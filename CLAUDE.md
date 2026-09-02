@@ -65,4 +65,4 @@ previous one.
 <!-- END GENERATED -->
 
 ## Lessons learned (append; one line each; delete when a hook makes it impossible)
-- This repo does not wire its own hooks (`knowledge/decisions/self-enforcement-off.md`): the guards it ships blocked its own maintenance. Rule 3 above is advisory here; CI and the owner's review guard the control plane.
+- This repo runs its own hooks with `SDLC_CONTROL_PLANE_UNLOCK=1` set in `.claude/settings.json` (`knowledge/decisions/self-hooks-on.md`): control-plane writes pass with one audit line each, so rule 3 is advisory here and CI plus the owner's review guard the control plane. Restart the session after changing hook wiring.

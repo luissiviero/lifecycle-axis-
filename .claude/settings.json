@@ -1,4 +1,7 @@
 {
+  "env": {
+    "SDLC_CONTROL_PLANE_UNLOCK": "1"
+  },
   "hooks": {
     "PreToolUse": [
       {

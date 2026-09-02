@@ -113,10 +113,10 @@ executing the command, and guessing would produce noisy blocks on ordinary scrip
   a shell parser. `echo "a > b"` offers `b` as a candidate (harmless), and two commands joined by a
   pipe with no surrounding spaces form one token, so a command-position rule such as `tee` may be
   missed there.
-- **The other three edit hooks.** `require-plan.sh` and `protect-tests.sh` are still registered on
-  `Edit|Write|MultiEdit` only. A Bash write to `src/` therefore does not require an approved plan.
-  That is a smaller hole than the control-plane one closed here (CI's chain check compares the PR
-  diff against `plan.md` regardless of which tool produced it) and is left for a follow-up.
+- ~~**The other two plan hooks.**~~ Closed on 2026-09-02 (`self-hooks-on.md`): `bash_write_targets()` and
+  `bash_write_candidates()` now live in `_lib.sh`, and `require-plan.sh` and `protect-tests.sh` walk the same
+  candidates on the `Bash` matcher, so a Bash write to `src/` needs the approved plan an Edit needs. The same
+  change made the human unlock apply on the Edit/Write branch as well, never to the secret-material check.
 
 ## Consequences
 

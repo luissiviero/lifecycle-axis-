@@ -45,6 +45,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# The kit repo sets SDLC_CONTROL_PLANE_UNLOCK in its own .claude/settings.json so agents can
+# maintain the control plane here (knowledge/decisions/self-hooks-on.md). Hook oracles must see
+# the guards locked, as an adopter's session would; scripts/hooktest.py strips it the same way.
+unset SDLC_CONTROL_PLANE_UNLOCK
 pass=0; fail=0; skip=0
 have_claude=0; command -v claude >/dev/null 2>&1 && { [ -n "${ANTHROPIC_API_KEY:-}" ] || [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; } && have_claude=1
 for f in evals/cases/*.yaml; do

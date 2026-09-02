@@ -48,9 +48,10 @@ are what remains once all of that is built. Ordered by how soon a complex projec
    [`knowledge/decisions/plugin-distribution.md`](../../knowledge/decisions/plugin-distribution.md). Hooks stay
    repo-local, installed via `scripts/adopt.sh --with-hooks` rather than shipped inside the plugin.
 
-17. **Bash writes to plan-required and test paths.** `require-plan.sh` and `protect-tests.sh` still match only
-    Edit/Write/MultiEdit; a Bash redirection into `src/` skips the plan requirement locally (the chain check catches it
-    at PR time). Reuse `bash_write_targets()` from `protect-paths.sh` in both hooks.
+17. **Bash writes to plan-required and test paths.** `require-plan.sh` and `protect-tests.sh` used to match only
+    Edit/Write/MultiEdit; a Bash redirection into `src/` skipped the plan requirement locally (the chain check caught it
+    at PR time). **Done:** `bash_write_targets()` and `bash_write_candidates()` moved into `_lib.sh`; both hooks walk
+    the candidates on the `Bash` matcher (`knowledge/decisions/self-hooks-on.md`, `scripts/test_bash_plan_gates.py`).
 
 18. **Pin CI dependencies and tighten the file contract.** Pin `actions/checkout`, `claude-code-action` and the
     `claude-code` npm install to exact versions or SHAs; replace the wildcard entries in `plan.md` file lists with
