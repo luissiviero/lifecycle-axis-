@@ -1,0 +1,19 @@
+name: chain-rejects-unknown-approver
+kind: hook
+source: scripts/check_artifact_chain.py (approvers.is_valid)
+check: |
+  R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"
+  git init -q "$d" && ( cd "$d" && git checkout -q -b main )
+  mkdir -p "$d/.sdlc" "$d/work/tmp"
+  cp "$R/.sdlc/config.env" "$R/.sdlc/approvers.yaml" "$d/.sdlc/"
+  printf 'tmp\n' > "$d/.sdlc/active"
+  for f in intent spec plan; do
+    printf -- '---\nstatus: approved\napproved-by: claude[bot]\n---\n# %s\n' "$f" > "$d/work/tmp/$f.md"
+  done
+  printf -- '\n## Files that change\n- src/**\n' >> "$d/work/tmp/plan.md"
+  printf -- '- 2026-01-01T00:00:00Z | intent.md | in-review -> approved | claude[bot] | abc1234 |\n- 2026-01-01T00:00:00Z | spec.md | in-review -> approved | claude[bot] | abc1234 |\n- 2026-01-01T00:00:00Z | plan.md | in-review -> approved | claude[bot] | abc1234 |\n' > "$d/work/tmp/log.md"
+  ( cd "$d" && git add -A && git -c user.email=t@t -c user.name=t commit -q -m init ) >/dev/null 2>&1
+  ( cd "$d" && python3 "$R/scripts/check_artifact_chain.py" --slug tmp --base HEAD ) >/dev/null 2>&1
+  rc=$?
+  rm -rf "$d"
+  [ "$rc" -eq 1 ]
