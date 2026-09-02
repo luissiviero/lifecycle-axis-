@@ -1,0 +1,12 @@
+{
+  "_note": "MultiEdit tool_input shape (file_path + edits[].{old_string,new_string}) is taken from the Claude Code hooks reference as of 2026-09 and should be re-verified against a live session.",
+  "session_id": "test-session",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "MultiEdit",
+  "tool_input": {
+    "file_path": "src/example.ts",
+    "edits": [
+      { "old_string": "old", "new_string": "new" }
+    ]
+  }
+}

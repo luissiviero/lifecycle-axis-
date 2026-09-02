@@ -1,0 +1,220 @@
+"""Characterisation tests: lock in today's behaviour of every hook in .claude/hooks/.
+
+One class per hook. These tests exercise the hooks as external processes via
+scripts/hooktest.py (fake_repo + run_hook) -- see that module's docstring for
+the allow/block/ask contract. Fixtures in scripts/fixtures/hook_inputs/ supply
+the PreToolUse payload shape per tool; tests load a fixture and override the
+fields under test so a shape drift in the harness fixtures shows up as one
+place to fix, not many.
+"""
+import json
+import os
+import subprocess
+import sys
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from hooktest import fake_repo, run_hook  # noqa: E402
+
+FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "hook_inputs")
+
+# Built at runtime (not as one literal) so this test file itself does not
+# contain a string block-secrets.sh would flag when Claude Code writes it.
+FAKE_AWS_KEY = "AKIA" + "ABCDEFGHIJKLMNOP"
+
+
+def load_fixture(name, **tool_input_overrides):
+    with open(os.path.join(FIXTURES, f"{name}.json"), encoding="utf-8") as f:
+        payload = json.load(f)
+    payload["tool_input"].update(tool_input_overrides)
+    return payload
+
+
+class ProtectPathsHook(unittest.TestCase):
+    HOOK = "protect-paths.sh"
+
+    def _block(self, path):
+        with fake_repo() as root:
+            payload = load_fixture("edit", file_path=path)
+            result = run_hook(self.HOOK, payload, root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn(path, result.stderr)
+
+    def test_blocks_sdlc_config(self):
+        self._block(".sdlc/x")
+
+    def test_blocks_github_workflow(self):
+        self._block(".github/workflows/y.yml")
+
+    def test_blocks_claude_hook(self):
+        self._block(".claude/hooks/z.sh")
+
+    def test_blocks_id_rsa(self):
+        self._block("id_rsa")
+
+    def test_blocks_dotenv(self):
+        self._block(".env")
+
+    def test_allows_source_file(self):
+        with fake_repo() as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class BlockSecretsHook(unittest.TestCase):
+    HOOK = "block-secrets.sh"
+
+    def test_blocks_akia_key_in_write_content(self):
+        with fake_repo() as root:
+            payload = load_fixture("write", content=FAKE_AWS_KEY)
+            result = run_hook(self.HOOK, payload, root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("credential", result.stderr)
+
+    def test_blocks_akia_key_in_edit_new_string(self):
+        with fake_repo() as root:
+            payload = load_fixture("edit", new_string=FAKE_AWS_KEY)
+            result = run_hook(self.HOOK, payload, root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_allows_env_var_reference(self):
+        with fake_repo() as root:
+            payload = load_fixture("edit", new_string="process.env.API_KEY")
+            result = run_hook(self.HOOK, payload, root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class RequirePlanHook(unittest.TestCase):
+    HOOK = "require-plan.sh"
+
+    def test_blocks_when_work_item_missing(self):
+        with fake_repo() as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "nope"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("does not exist", result.stderr)
+
+    def test_blocks_when_plan_in_review(self):
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: in-review\n---\n"}) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("in-review", result.stderr)
+
+    def test_allows_when_plan_approved(self):
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\n---\n"}) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_allows_path_outside_plan_required_paths(self):
+        with fake_repo() as root:
+            payload = load_fixture("edit", file_path="docs/readme.md")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "nope"})
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class ProtectTestsHook(unittest.TestCase):
+    HOOK = "protect-tests.sh"
+
+    def test_blocks_test_file_when_kind_fix(self):
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\nkind: fix\n---\n"}) as root:
+            payload = load_fixture("edit", file_path="src/foo.test.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("kind: fix", result.stderr)
+
+    def test_allows_non_test_file_when_kind_fix(self):
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\nkind: fix\n---\n"}) as root:
+            payload = load_fixture("edit", file_path="src/foo.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_allows_test_file_when_kind_feature(self):
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\nkind: feature\n---\n"}) as root:
+            payload = load_fixture("edit", file_path="src/foo.test.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class ProductionGateHook(unittest.TestCase):
+    HOOK = "production-gate.sh"
+
+    def _head_sha(self, root):
+        with open(os.path.join(root, "f.txt"), "w", encoding="utf-8") as f:
+            f.write("x")
+        subprocess.run(["git", "-C", root, "add", "."], check=True)
+        subprocess.run(["git", "-C", root, "commit", "-q", "-m", "init"], check=True)
+        return subprocess.run(
+            ["git", "-C", root, "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    def test_blocks_rm_rf_root(self):
+        with fake_repo() as root:
+            payload = load_fixture("bash", command="rm -rf /")
+            result = run_hook(self.HOOK, payload, root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("destructive", result.stderr)
+
+    def test_asks_on_terraform_apply(self):
+        with fake_repo() as root:
+            self._head_sha(root)
+            payload = load_fixture("bash", command="terraform apply")
+            result = run_hook(self.HOOK, payload, root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            out = json.loads(result.stdout)
+            self.assertEqual(
+                out["hookSpecificOutput"]["permissionDecision"], "ask"
+            )
+
+    def test_blocks_terraform_apply_when_unattended(self):
+        with fake_repo() as root:
+            self._head_sha(root)
+            payload = load_fixture("bash", command="terraform apply")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_UNATTENDED": "1"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_allows_terraform_apply_with_matching_release_approval(self):
+        with fake_repo() as root:
+            sha = self._head_sha(root)
+            payload = load_fixture("bash", command="terraform apply")
+            result = run_hook(self.HOOK, payload, root, env={"RELEASE_APPROVAL": sha})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "")
+
+    def test_allows_plain_command(self):
+        with fake_repo() as root:
+            payload = load_fixture("bash", command="ls -la")
+            result = run_hook(self.HOOK, payload, root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class PostEditFormatHook(unittest.TestCase):
+    HOOK = "post-edit-format.sh"
+
+    def test_noop_with_empty_format_cmd(self):
+        with fake_repo() as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class StopVerifyReminderHook(unittest.TestCase):
+    HOOK = "stop-verify-reminder.sh"
+
+    def test_clean_tree_is_silent(self):
+        with fake_repo() as root:
+            result = run_hook(self.HOOK, {"session_id": "s"}, root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "")
+
+    def test_stop_hook_active_short_circuits(self):
+        with fake_repo() as root:
+            result = run_hook(self.HOOK, {"session_id": "s", "stop_hook_active": True}, root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "")
+
+
+if __name__ == "__main__":
+    unittest.main()
