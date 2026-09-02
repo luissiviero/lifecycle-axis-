@@ -44,7 +44,7 @@ jobs:
     steps:
       - name: Checkout the PR head (on both triggers)
         if: env.HAVE_ANTHROPIC_KEY == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -62,7 +62,7 @@ jobs:
 
       - name: Claude review
         if: env.HAVE_ANTHROPIC_KEY == 'true'
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@8251c103ac8c1d761882c86aba1412c7f583c844 # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |

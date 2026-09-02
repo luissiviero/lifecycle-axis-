@@ -1,0 +1,15 @@
+# Keeps the pinned action SHAs in .github/workflows/*.yml current. Every `uses:` line is pinned
+# to a full commit SHA (a tag is mutable; whoever controls the action can move it to code that
+# runs with this repo's secrets). Dependabot opens a PR when a pinned action publishes a new
+# release and rewrites the SHA plus the version comment; a human reviews and merges it.
+# The `npm install -g @anthropic-ai/claude-code@<version>` lines are pinned by hand and are not
+# covered here (Dependabot does not read `run:` steps).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies]
+    commit-message:
+      prefix: "ci"

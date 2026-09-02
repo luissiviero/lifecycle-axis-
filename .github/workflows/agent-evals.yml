@@ -19,7 +19,7 @@ jobs:
     env:
       SDLC_UNATTENDED: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Run deterministic eval cases
         run: scripts/run_evals.sh --kind hook
 
@@ -31,9 +31,9 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       SDLC_UNATTENDED: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install Claude Code (only needed for prompt-driven cases)
         if: env.ANTHROPIC_API_KEY != ''
-        run: npm install -g @anthropic-ai/claude-code
+        run: npm install -g @anthropic-ai/claude-code@2.1.258
       - name: Run full eval suite
         run: scripts/run_evals.sh

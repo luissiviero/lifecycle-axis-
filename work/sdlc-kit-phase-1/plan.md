@@ -32,6 +32,7 @@ Detailed per-task specs, tests and model tiers: `spec.md` § "Design detail per 
 - .github/workflows/bands.yml — daily metrics → detector → read-only diagnosis (T18)
 - .github/workflows/deploy.yml — deploy only from CI via Environment (T19)
 - .github/workflows/pr-review.yml — claude-code-action review from REVIEW.md (T20)
+- .github/dependabot.yml — weekly SHA bumps for the pinned actions (security review nit, roadmap item 18)
 - .claude/hooks/stop-verify-reminder.sh — read PLAN_REQUIRED_PATHS (T10)
 - .claude/hooks/_lib.sh — canonical paths; human-only switches captured from the process env (security hardening)
 - .claude/hooks/protect-paths.sh — Bash write guard + human unlock (T11)
@@ -117,3 +118,4 @@ The security review of the PR found five Important issues in those files; the fi
 - 2026-09-02: on the owner's explicit instruction, the control-plane hardening and the `GENERATED_PATHS` change were pushed through the owner's GitHub connector (commit fff489a, under the owner's identity) because the local guard blocks the agent from those paths by any route; the owner had also applied the `control-plane-approved` label via the same connector. The chain check then flagged `_lib.sh` as unlisted; added above.
 - 2026-09-02: the connector push had also dropped the executable bit on `_lib.sh`, `protect-paths.sh` and `production-gate.sh` (37 hook tests red in CI); restored from the owner's desktop (99b0541, mode-only change).
 - 2026-09-02: owner decision after PR #1 went green: the kit no longer wires its own hooks on this repo. The `hooks` block moves from `.claude/settings.json` to `docs/sdlc/templates/claude-settings.json`, which `adopt.sh --with-hooks` installs as the target's `.claude/settings.json`; hook scripts, tests, evals and CI are unchanged. Rationale and consequences: `knowledge/decisions/self-enforcement-off.md`.
+- 2026-09-02: security review nit closed after merge: every `uses:` in `.github/workflows/` is pinned to a full commit SHA (`actions/checkout` v4.4.0, `anthropics/claude-code-action` v1) with the version as a trailing comment, the `claude-code` npm install names an exact version, and `.github/dependabot.yml` keeps the SHAs current via weekly PRs. Roadmap item 18 updated; the wildcard file lists stay open.
