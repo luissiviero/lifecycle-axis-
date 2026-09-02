@@ -73,6 +73,10 @@ No context or env var names the environment approver; the job simply does not st
       approvals when new commits are pushed - **on**
 - [ ] Require review from Code Owners - **on** (needs `.github/CODEOWNERS`, T07)
 - [ ] Require approval of the most recent reviewable push - **off** while there is one human
+- [ ] **Plan check first.** Branch protection, rulesets and environment protection rules return HTTP 403
+      ("Upgrade to GitHub Pro or make this repository public") on a private repo under the Free plan. This
+      repo runs that way on purpose: see `knowledge/decisions/merge-click-is-the-gate.md`. The items below
+      apply once the repo is public or on a paid plan.
 - [ ] Require status checks: `sdlc-gate / artifact-chain`, `agent-evals`, later `pr-review`; require
       branches up to date - **on**; require conversation resolution - **on**
 - [ ] Do not allow bypassing the above settings - **off** (the admin-merge escape hatch)
@@ -86,9 +90,12 @@ No context or env var names the environment approver; the job simply does not st
   never be *required* to equal `Bot`, or the guard silently stops firing.
 - **T20** - `permissions: {contents: read, pull-requests: write, id-token: write}`; prompt = read
   `REVIEW.md` from the base ref and run `/sdlc-review`; `claude_args` with **both** a narrow
-  `--allowedTools` (`Bash(scripts/verify.sh)`, `Bash(python3 scripts/check_artifact_chain.py:*)`,
-  `Bash(gh pr comment:*)`, `mcp__github_inline_comment__create_inline_comment`) and
-  `--disallowedTools "Edit,Write,MultiEdit,NotebookEdit"`; `allowed_bots` empty; skip drafts.
+  `--allowedTools` and a `--disallowedTools`; `allowed_bots` empty; skip drafts. **As shipped** (security
+  review finding 4, then the first live run on PR #6): the reviewer has **no Bash at all**, so the
+  Chain/Verify lines are quoted from the `sdlc-gate` check run, and the report is delivered through
+  `track_progress: true` + `mcp__github_comment__update_claude_comment` (the action's own tracking
+  comment), with `mcp__github_inline_comment__create_inline_comment` for file:line findings. Without
+  those two tools the run ends with a permission denial and posts nothing.
   `check_workflow_permissions.py` also rejects `contents: write` and `pull_request_target`.
 - **T19** - environment approval is invisible in-job, so keep `RELEASE_APPROVAL == HEAD` + `CI` as the
   assertion; optionally record the approver afterwards via `.../actions/runs/$GITHUB_RUN_ID/approvals`.

@@ -83,7 +83,7 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
 .github/workflows/agent-evals.yml runs on CLAUDE.md / .claude/** / evals changes and nightly
 .github/workflows/bands.yml      daily: collect GitHub metrics, run the band detector, file an issue on a breach
 .github/workflows/deploy.yml     workflow_dispatch behind a GitHub Environment; the only place scripts/deploy.sh runs
-.github/workflows/pr-review.yml  runs /sdlc-review against REVIEW.md on PR open, read-only tools plus verify/chain
+.github/workflows/pr-review.yml  reviews against REVIEW.md on PR open with no Bash; quotes Chain/Verify from the gate run; posts via the action's tracking comment
 ```
 
 ### Enforcement matrix

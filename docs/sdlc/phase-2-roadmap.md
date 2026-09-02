@@ -61,6 +61,17 @@ are what remains once all of that is built. Ordered by how soon a complex projec
     proposes SHA bumps as PRs for a human to merge. **Open:** the wildcard file lists; new work items list
     exact paths, and the phase-1 plan keeps its wildcards as a record of what shipped.
 
+19. **Windows portability of the kit's own tooling.** Found on the owner's Windows 10 PC (Git Bash, Python 3.12/3.13,
+    `core.autocrlf=true`); CI on Linux is green throughout, so none of these are product defects, but a Windows
+    developer cannot run the suite locally: (a) every script calls `python3`, which resolves to the Microsoft Store
+    stub — use `sys.executable`/`python` fallbacks or document the shim; (b) `hooktest.py`, `test_run_evals.py` and
+    the eval oracles exec `.sh` files directly and force `PATH=/usr/bin:/bin` — invoke them through `bash`;
+    (c) `adopt.sh` treats `C:\...` as a relative path and writes a junk tree into the repo root; (d)
+    `check_artifact_chain.py` builds `HEAD:work\<slug>\<file>` with `os.path.join`, so `git show` fails and the
+    approval-author check is silently skipped locally ("approval not committed yet"); (e) the autocrlf checkout
+    turned the hook scripts into CRLF files that bash cannot run — **done:** `.gitattributes` now forces LF for
+    `*.sh`. One symlink test also needs Developer Mode. The rest is a `kind: fix` work item.
+
 ## Phase 3 — scale across agents and repos
 7. **Multi-repo intent and orchestration.** One `intent.md` fanning out to several `plan.md`; worktree-per-work-item
    convention; an orchestration skill that assigns plan steps to subagents with per-step verification.
