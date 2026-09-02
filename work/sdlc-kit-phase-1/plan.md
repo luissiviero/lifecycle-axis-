@@ -36,6 +36,9 @@ Detailed per-task specs, tests and model tiers: `spec.md` § "Design detail per 
 - .claude/hooks/protect-paths.sh — Bash write guard + human unlock (T11)
 - .claude/hooks/block-secrets.sh — scan edits[] and command (T11)
 - .claude/settings.json — Bash matcher gains the two hooks (T11)
+- .claude/hooks/post-edit-format.sh — added by the alignment commit that precedes this work item in PR #1; listed so the PR-level chain check covers the whole diff
+- .claude/hooks/production-gate.sh — same
+- .claude/hooks/protect-tests.sh — same
 - .claude-plugin/** — plugin.json, marketplace.json (T21)
 - scripts/** — verify.sh, checks/*, hooktest.py, fixtures/*, approvers.py, log_ledger.py, run_evals.sh, check_artifact_chain.py, check_okf.py, gen_index.py, gen_context_files.py, github_metrics.py, deploy.sh, check_control_plane.sh, check_workflow_permissions.py, check_plugin_manifest.py, adopt.sh, and one test_*.py per script
 - knowledge/** — OKF bundle (T15a, decisions, runbook, metrics)
@@ -81,3 +84,9 @@ Commit once per wave after `scripts/verify.sh` is green.
 
 ## Deviations log (append during implementation; same commit as the deviation)
 - 2026-09-02: `.sdlc/active` stays `_example` until the owner approves intent/spec/plan, so `scripts/verify.sh` (which runs the chain check on the active item) stays green during the build; CI resolves the slug from the PR body and correctly fails until approval.
+- 2026-09-02: template files carry an example RFC3339 timestamp instead of a `<RFC3339>` placeholder, because the OKF checker scans docs/sdlc and must parse it (T15b).
+- 2026-09-02: `scripts/gen_context_files.py` skips `index.md` in the rules directory; `docs/sdlc/rules/index.md` is an OKF index, not a fragment (found in T23 review).
+- 2026-09-02: `docs/sdlc/lessons.md` kept its path as a pointer and gained front matter so the strict OKF check is clean across docs/sdlc and knowledge.
+- 2026-09-02: `RELEASE_APPROVAL` in deploy.yml is bound to the checked-out commit (`inputs.sha || github.sha`), not always `github.sha` (found in T19 review).
+- 2026-09-02: every workflow hoists `ANTHROPIC_API_KEY` to job-level env so step `if:` expressions can test it; the control-plane step uses `shell: bash` for pipefail (found in T12/T18 review).
+- 2026-09-02: `knowledge/decisions/adopt-script.md` added by T22 (covered by `knowledge/**`).
