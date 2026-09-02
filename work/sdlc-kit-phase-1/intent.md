@@ -58,3 +58,6 @@ low — process and documentation, plus scripts with unit tests. No production s
   A: None yet. Start a `knowledge/` bundle per repo, conformance check as a warning, both models read it.
 - Q: Distribution? (template repo, plugin, or both)
   A: Both: a Claude Code plugin (skills, agents, hooks, templates) plus this repo as the thin template with `scripts/adopt.sh`.
+status: approved
+approved-by: luissiviero
+approved-on: 2026-09-02
