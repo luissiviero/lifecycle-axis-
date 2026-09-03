@@ -11,3 +11,5 @@ timestamp: 2026-09-02T20:00:00Z
 [plugin-packaging.md](plugin-packaging.md) — Design spike for plugin packaging and distribution.
 
 [pr-review-identity.md](pr-review-identity.md) — Analysis of PR review identity and approval mechanisms.
+
+[red-team-pass.md](red-team-pass.md) — Evaluation of an adversarial red-team pass as an opt-in step in `/sdlc-spec`; open, nothing implemented.
