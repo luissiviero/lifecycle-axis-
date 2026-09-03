@@ -236,7 +236,7 @@ python3 "$KIT/scripts/gen_context_files.py" --root "$TARGET"
 # Generate work/index.md and per-item indexes so the index-drift check is clean on day one.
 python3 "$KIT/scripts/gen_index.py" --root "$TARGET" >/dev/null
 
-cat <<STEPS
+cat <<'STEPS'
 
 Next steps:
   1. Fill in VERIFY_CMDS in .sdlc/config.env (it currently holds a TODO placeholder).
