@@ -6,6 +6,8 @@ tags: [sdlc, spikes, design]
 timestamp: 2026-09-02T20:00:00Z
 ---
 
+[build-stage-from-claude-agents.md](build-stage-from-claude-agents.md) — What to borrow from the retired claude-agents repo for the Build stage (/sdlc-build skill, plan-template lines, review caps, hand-off file) and what to leave behind.
+
 [gemini-parity.md](gemini-parity.md) — Investigation into achieving parity between Claude and Gemini SDLC enforcement.
 
 [plugin-packaging.md](plugin-packaging.md) — Design spike for plugin packaging and distribution.
