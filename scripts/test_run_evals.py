@@ -62,6 +62,27 @@ def _add_synthetic_cases(root):
     )
 
 
+def _no_claude_path():
+    """A PATH that still has the tools run_evals.sh needs, but never a `claude` binary.
+
+    On POSIX the standard system directories are exactly that. Git Bash on Windows keeps
+    git in .../mingw64/bin, not /usr/bin, so that pair left run_evals.sh without git
+    ("git: command not found") and all of these tests failed on empty output rather than
+    testing anything (roadmap item 19b). There, keep the real PATH and drop only the
+    directories that actually hold a claude executable, which preserves the point of the
+    sanitised value.
+    """
+    if os.name != "nt":
+        return "/usr/bin:/bin"
+    names = ("claude", "claude.exe", "claude.cmd", "claude.bat", "claude.ps1")
+    keep = [
+        d
+        for d in os.environ.get("PATH", "").split(os.pathsep)
+        if d and not any(os.path.exists(os.path.join(d, n)) for n in names)
+    ]
+    return os.pathsep.join(keep)
+
+
 def _run(root, args=(), env=None):
     run_env = dict(os.environ)
     # Force the "no claude runner" path regardless of the host environment:
@@ -70,7 +91,7 @@ def _run(root, args=(), env=None):
     # binary (installers commonly put it in a language-toolchain bin dir).
     run_env.pop("ANTHROPIC_API_KEY", None)
     run_env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
-    run_env["PATH"] = "/usr/bin:/bin"
+    run_env["PATH"] = _no_claude_path()
     if env:
         run_env.update(env)
     return subprocess.run(

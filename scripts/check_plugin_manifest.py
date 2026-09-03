@@ -199,7 +199,9 @@ def check_agents(plugin, root, real_files):
 def check_skill_names(root, real_dirs):
     problems = []
     for d in real_dirs:
-        skill_path = os.path.join(root, ".claude", "skills", d, "SKILL.md")
+        # Forward slashes on every platform: this string is reported to a human and quoted in
+        # tests, and os.path.join gives backslashes on Windows for the same repo path.
+        skill_path = "/".join((root.replace(os.sep, "/"), ".claude", "skills", d, "SKILL.md"))
         fm = cac.front_matter(skill_path) or {}
         name = fm.get("name")
         if name != d:

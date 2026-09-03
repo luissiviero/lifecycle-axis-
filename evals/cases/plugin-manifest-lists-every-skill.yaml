@@ -5,7 +5,10 @@ check: |
   set -e; R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"
   cp -r "$R/.claude" "$d/.claude"
   cp -r "$R/.claude-plugin" "$d/.claude-plugin"
-  python3 -c "import json, os; p='$d/.claude-plugin/plugin.json'; m = json.load(open(p)); base = os.path.join('$d', '.claude', 'skills'); m['skills'] = sorted('./.claude/skills/' + n for n in os.listdir(base)); json.dump(m, open(p, 'w'), indent=2)"
+  # mktemp gives an MSYS path like /tmp/tmp.X, which a native Windows python3 cannot open.
+  # Hand python the same directory in a spelling it can open; cygpath is a no-op elsewhere.
+  dw="$(cygpath -m -- "$d" 2>/dev/null || printf '%s' "$d")"
+  python3 -c "import json, os; p='$dw/.claude-plugin/plugin.json'; m = json.load(open(p)); base = os.path.join('$dw', '.claude', 'skills'); m['skills'] = sorted('./.claude/skills/' + n for n in os.listdir(base)); json.dump(m, open(p, 'w'), indent=2)"
   mkdir -p "$d/.claude/skills/new-skill"
   printf -- '---\nname: new-skill\ndescription: d\n---\nbody\n' > "$d/.claude/skills/new-skill/SKILL.md"
-  ! python3 "$R/scripts/check_plugin_manifest.py" --root "$d"
+  ! python3 "$R/scripts/check_plugin_manifest.py" --root "$dw"
