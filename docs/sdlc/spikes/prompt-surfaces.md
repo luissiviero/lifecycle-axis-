@@ -4,7 +4,7 @@ title: Prompt surfaces - encoding the Claude platform best practices where they 
 description: How the Claude platform prompting and guardrail docs become one standard, one lint, templates, evals and a review pass that fire on their own, with the ideas that were considered and set aside.
 tags: [prompting, agents, skills, evals, review, guardrails, sdlc]
 timestamp: 2026-09-03T00:00:00Z
-status: proposed
+status: accepted
 ---
 
 # Spike - prompt surfaces
@@ -15,6 +15,24 @@ status: proposed
 > consistency*, *Reduce latency*, *Reduce prompt leak*, *Define success criteria and build evaluations*, the prompt
 > engineering overview and the glossary. Nobody on the team will read those fourteen pages, and the model-specific ones
 > change every release. This spike decides how their advice gets applied without anyone reading them.
+>
+> Accepted by the owner on 2026-09-03 as a design; implementation is a separate decision, to be taken as work item
+> `prompt-surfaces` when scheduled. Revision 2 adds per-role model routing (2.6) after the owner's question on how far
+> to steer the session agent's delegation.
+
+## Summary
+
+| # | Piece | What it is | Where it lives | Layer | Its failure mode | What catches it |
+|---|---|---|---|---|---|---|
+| 2.1 | Canonical prompt blocks | the few sentences that must be verbatim: untrusted content is data, cite evidence or say "not found", the autonomy block, the concrete review bar | `docs/sdlc/prompt-blocks/` | source of truth | wording goes stale | one OKF doc each with a source URL; re-read in the upgrade runbook |
+| 2.2 | `prompting-standards` skill | one-page digest, the lint rules with reasons, doc links with a verified-on date; triggers on file paths | `.claude/skills/prompting-standards/` | advisory | does not fire, or fires on unrelated work | nothing depends on it; lint and review pass hold without it |
+| 2.3 | Prompt-surface lint | eight reasoned rules in `verify.sh`: injection block present, no recall-suppressing or reasoning-extraction wording, no deprecated API mechanics, no hard-coded model ids, blocks byte-identical | `scripts/check_prompt_surfaces.py`, `scripts/checks/prompt-lint.sh` | deterministic | false positives, "fixed" by rewording | visible reasoned `allow`; fuzzy rules start as warnings; each rule cites a doc and ships a case |
+| 2.4 | Templates | starter agent, skill and CI-prompt files with the blocks embedded | `docs/sdlc/templates/{agent,skill,ci-prompt}.md` | advisory, linted | copied blindly, spreads a bad line | the templates are surfaces: PL8 pins their blocks to the canonical text |
+| 2.5 | Review pass 5 | reviewer judges prompt-surface diffs only, excluding what the lint enforces | `REVIEW.md` | human judgment at the gate | noise | conditional on the diff; lint-enforced findings are on the do-not-report list |
+| 2.6 | Roles, pins, delegation policy, caps | each subagent role carries a model and effort pin; one policy paragraph for the lead; depth and concurrency caps in settings; a five-item upgrade runbook | `.claude/agents/*.md` front matter, `.sdlc/config.env`, a rule fragment, `.claude/settings.json`, `knowledge/runbooks/model-upgrade.md` | deterministic caps + advisory policy | routing fixed by guesswork; runbook rubber-stamped | routing is a measured hypothesis revised by the cost ledger; each runbook item produces a pasted line |
+| 2.7 | Evals | one hook case per lint rule at PR time; three nightly behaviour cases (injection, recall, not-found) | `evals/cases/` | deterministic | flaky prompt cases | prompt cases run nightly, not at PR time |
+| 4 | Phasing | A: standard and checks, no behaviour change. B: apply to live surfaces, measured. C: roles, pins, runbook, adoption | `work/prompt-surfaces/` | - | - | - |
+| 6 | Set aside | keyword hook, fetch-on-every-reply, vendoring the pages, pin-change log gate, "delegate as much as possible", fixed per-task routing, mandatory verifier subagent; deferred: drift watcher, structured review output | this document | - | - | - |
 
 ## 1. The problem in one paragraph
 
@@ -41,11 +59,14 @@ docs/sdlc/prompt-blocks/*.md        the canonical text (untrusted-content, evide
         ├─ embedded by docs/sdlc/templates/{agent,skill,ci-prompt}.md (new surfaces start correct)
         ├─ embedded by the live surfaces (agents, REVIEW.md, workflow prompts)
         │
-        └─ checked by  scripts/check_prompt_surfaces.py + scripts/checks/prompt-lint.sh   (deterministic, in verify.sh)
-                       │
-                       ├─ each lint rule ships an evals/cases/*.yaml hook case      (the lint itself is tested)
-                       ├─ three prompt cases test the *behaviour* the blocks buy    (nightly, with a key)
-                       └─ REVIEW.md pass 5 judges prompt-surface diffs, excluding what the lint already enforces
+        ├─ checked by  scripts/check_prompt_surfaces.py + scripts/checks/prompt-lint.sh   (deterministic, in verify.sh)
+        │              │
+        │              ├─ each lint rule ships an evals/cases/*.yaml hook case      (the lint itself is tested)
+        │              ├─ three prompt cases test the *behaviour* the blocks buy    (nightly, with a key)
+        │              └─ REVIEW.md pass 5 judges prompt-surface diffs, excluding what the lint already enforces
+        │
+        └─ run by      roles in .claude/agents/*.md, each with a model + effort pin from .sdlc/config.env,
+                       one delegation-policy fragment for the lead, depth/concurrency caps in settings   (2.6)
 ```
 
 Enforcement follows the repo's three layers (`docs/sdlc/README.md`): the skill and templates are advisory, the lint
@@ -146,25 +167,84 @@ and prompt-surface findings on PRs whose diff does not touch a surface. The pass
 percent of PRs that never touch a prompt, and on the rest it does the judgment work the regexes cannot - a missing
 reason, a block embedded in the wrong place, an allow whose reason is thin.
 
-### 2.6 Model pins and the upgrade runbook
+### 2.6 Roles, model pins, delegation policy, caps and the upgrade runbook
 
-`.sdlc/config.env` gains one pin per job:
+The owner's intent is to keep Fable 5.1 as the session agent and hand execution to subagents so that the lead spends
+tokens on judgment, gates and conversation. The question was how far to steer that delegation before steering
+becomes micromanagement. The answer this spike takes: **route by role, not by model; the model is a pin on the
+role; the per-task decision stays with the lead.** Control sits at exactly three points and everything else is
+left to the session agent.
+
+**Point 1 - roles, as the existing agent files.** Rule 8 already gives every subagent a named role, bounded tools and
+an evidence contract. Each agent file gains a `model:` and an effort pin in its front matter, read from
+`.sdlc/config.env` so a model change is one line in the control plane, not an edit to a prompt:
 
 ```
-MODEL_REVIEW="…"   EFFORT_REVIEW="high"
-MODEL_TRIAGE="…"   EFFORT_TRIAGE="low"      # a fast model; the triage step is a classifier
-MODEL_EVALS="…"    EFFORT_EVALS="high"
+MODEL_LEAD="…"          EFFORT_LEAD="high"
+MODEL_EXPLORER="…"      EFFORT_EXPLORER="low"
+MODEL_VERIFIER="…"      EFFORT_VERIFIER="low"
+MODEL_REVIEWER="…"      EFFORT_REVIEWER="medium"
+MODEL_IMPLEMENTER="…"   EFFORT_IMPLEMENTER="high"
+MODEL_SCREEN="…"        EFFORT_SCREEN="low"
 ```
 
-The workflows and `run_evals.sh` read them and pass them as flags; PL6 fails any hard-coded id elsewhere. The exact
-flag names are verified against the installed CLI and action version at implementation time and recorded, the way
-`knowledge/decisions/gemini-hooks.md` recorded the hook payload keys - not assumed from memory.
+The CI jobs map onto the same roles (triage is `SCREEN`, the PR review is `REVIEWER`, the nightly evals run the role
+each case names), so there is one table, not one for sessions and one for CI. PL6 fails any hard-coded model id
+outside `config.env`. The exact front-matter keys and CLI flags are verified against the installed version at
+implementation time and recorded, the way `knowledge/decisions/gemini-hooks.md` recorded the hook payload keys.
 
-`knowledge/runbooks/model-upgrade.md` is a five-item checklist that fires when a pin changes: read the new model's
-prompting page and diff its section list against the previous one; re-run the effort sweep on the nightly suite;
-run the lint with warnings promoted to failures once; re-read the four blocks against the page; run the three
-behaviour cases (2.7) before and after and paste both `EVALS:` lines into the PR. Five items, each producing a
-pasted line, so it cannot be rubber-stamped without leaving a visible gap.
+The starting routing is a **hypothesis to measure**, not a decision. It follows what the model pages say about
+each model, and two of those pages cut against the cost premise, so they are stated here rather than assumed away:
+
+- Delegating a small edit does not save money. The Opus 5 and Fable pages both say to delegate independent,
+  sizeable tracks and never a handful of tool calls; a subagent editing one file costs its own context load, the
+  handoff, and the lead re-reading the result. Delegation pays for wide searches, parallel reads and fresh-context
+  verification.
+- Effort is the first cost lever and the model the second. The Fable 5.1 page says that at `low` effort it is often
+  competitive on cost per task with Opus and Sonnet while scoring higher, and to include it wherever a smaller
+  model at higher effort would otherwise run. "Cheaper" may mean Fable at low effort, not a different model.
+
+| Role | Stays with the lead or delegated | First pin | Why (from the model pages) |
+|---|---|---|---|
+| lead (session agent) | stays | Fable 5.1, high | intent, spec and plan authoring, gate decisions, merging subagent results, anything said to a human |
+| explorer | delegated, in parallel | a fast model at low effort, or Fable 5.1 at low | wide reads returning paths and quotes; the cost comparison the Fable 5.1 page asks for |
+| verifier | delegated | the cheapest model, low | runs commands and returns output; no judgment in the role |
+| security-reviewer, plan-reviewer | delegated, fresh context | Opus 5 or Fable 5.1 at medium | recall is what matters; Opus 5 review accuracy holds at lower effort; a fresh-context verifier outperforms self-critique (Fable 5 §Scaffolding) |
+| implementer (new role) | delegated per `plan.md` step | Sonnet 5, high or xhigh | the coding workhorse of its page; a plan step with its acceptance test is already an "independently verifiable" unit, so the handoff is a step, never an edit |
+| screen (triage, injection and harmlessness classifiers) | delegated | Haiku 4.5, low | classifiers with structured output (Mitigate jailbreaks, Reduce latency) |
+
+The implementer row is the one that changes the workflow: the lead hands over a whole plan step with its
+acceptance test and gets back a diff plus the verifier's evidence. The plan-required-paths hook and the chain check
+apply to the subagent's edits exactly as to the lead's, because the hooks match on tool calls, not on who makes them.
+
+**Point 2 - one delegation-policy paragraph**, as a rule fragment targeted at `claude` (a Claude-only mechanism, like
+`40-claude-only.md`), built from the Fable and Opus 5 pages' own sentences and nothing more:
+
+> Delegate independent subtasks to subagents and keep working while they run; intervene if one goes off track or is
+> missing context. Do not delegate work you can finish yourself in a handful of tool calls, and do not use
+> subagents to double-check your own work. If one subagent can do the task, use one. Keep for yourself: writing
+> intent, spec and plan, decisions at a gate, merging results, and anything said to a human. A subagent gets a whole
+> plan step with its acceptance test, never a single edit.
+
+**Point 3 - deterministic caps.** Claude Code's subagent depth and concurrency variables in `.claude/settings.json`
+and, where the SDK is used, its spend cap. Overuse is bounded without a prompt, so the policy paragraph never has to
+say "at most N".
+
+Past those three points the lead is on its own, on purpose. The signs that steering has become micromanagement are
+concrete and all come from the docs: prescribing the order of tool calls; mandating a subagent for verification on
+every task (Opus 5 over-verifies when told to; Fable verifies well unprompted); forcing a progress report every N
+calls; and the phrase "delegate as much as possible", which asks for the behaviour the docs say these models
+already over-do and omits the instruction they need, which is when *not* to.
+
+The routing is revised by data, not by opinion: the Phase 2 cost ledger per work item (`phase-2-roadmap.md`, item 1)
+is the measurement that says whether a row is paying off, and the effort sweep in the runbook re-tests every row at
+each pin change. Until the ledger exists, the table stays as small as it is above.
+
+`knowledge/runbooks/model-upgrade.md` is a five-item checklist that fires when any pin changes: read the new
+model's prompting page and diff its section list against the previous one; re-run the effort sweep on the nightly
+suite for every role that uses the model; run the lint with warnings promoted to failures once; re-read the four
+blocks against the page; run the three behaviour cases (2.7) before and after and paste both `EVALS:` lines into the
+PR. Five items, each producing a pasted line, so it cannot be rubber-stamped without leaving a visible gap.
 
 ### 2.7 Evals - `evals/cases/`
 
@@ -197,7 +277,8 @@ free-text prompt no longer needs to describe a format (Increase consistency §St
 | Lint | false positives, "fixed" by rewording | visible, reasoned `allow`; fuzzy rules start as warnings; each rule cites a doc and ships a case with must-match and must-not-match phrases |
 | Templates | copied blindly, spread a bad line | they are surfaces themselves: PL8 pins their blocks to the canonical text, PL1 to PL7 lint them |
 | Review pass | noise on every PR | conditional on the diff touching a surface; excludes what the lint enforces |
-| Pins and runbook | rubber-stamped | each item produces a pasted line; the behaviour cases give a before/after number |
+| Roles and pins | routing fixed by guesswork, or the lead micromanaged into worse output | the table is a hypothesis revised by the cost ledger; control stops at roles, one policy paragraph and caps; per-task routing stays with the lead |
+| Runbook | rubber-stamped | each item produces a pasted line; the behaviour cases give a before/after number |
 | Evals | flaky prompt cases | prompt cases run nightly, not at PR time; hook cases are the ones that gate |
 
 ## 4. Phasing (one work item, three PRs)
@@ -215,8 +296,11 @@ Work item `work/prompt-surfaces/`, branch `work/prompt-surfaces`, PR titles `[pr
   cap); remove the phase-A allows. Ship the three prompt cases in the same PR and paste their before/after
   `EVALS:` lines - this is the PR that changes reviewer behaviour, so it carries the measurement. Promote PL2 to
   fail at the end.
-- **Phase C - currency.** Model pins, PL6, the runbook, the structured triage output, `adopt.sh` installing the
-  templates and the skill.
+- **Phase C - roles and currency.** The per-role pins in `config.env` and the agent front matter, the `implementer`
+  agent, the delegation-policy fragment, the caps in settings, PL6, the runbook, the structured triage output, and
+  `adopt.sh` installing the templates, the skill and the new agent. The pins land with the cost ledger from the
+  roadmap or, if that is not yet built, with a one-line per-work-item token count in `log.md` as its stand-in, so
+  the routing table has a number to be judged by from its first day.
 
 Every phase ends with `scripts/verify.sh`, `scripts/run_evals.sh` and `python3 scripts/check_okf.py` green, last
 lines pasted in the PR.
@@ -229,6 +313,8 @@ lines pasted in the PR.
 4. Building headless pipelines (spec on intent merge, review on PR open). `autonomy` block, structured outputs, pins.
 5. A recall drop or a failed nightly case - the doc gets opened from the case's `source:` line.
 6. Adopters of the kit - templates and the skill travel with `adopt.sh`.
+7. Deciding what the session agent delegates - the roles table and the policy paragraph decide once; the cost
+   ledger says whether the decision was right.
 
 It does nothing for ordinary coding in a product repo that never touches a prompt, by design.
 
@@ -250,6 +336,16 @@ Flagged **discarded** (not planned) or **deferred** (revisit on a named trigger)
 - **Discarded - a CI gate that a model-pin change requires a `log.md` entry.** A free-text log entry is the
   rubber-stamp failure mode. Replaced by the runbook's five pasted lines (2.6), which are harder to fake than an
   entry and easier to check in review.
+- **Discarded - "delegate as much as possible" as an instruction to the lead.** It asks for the behaviour the Fable
+  and Opus 5 pages say these models already over-do, and it omits the instruction they do need, which is when not
+  to delegate. Replaced by the policy paragraph in 2.6, which is built from the pages' own sentences.
+- **Discarded - a fixed per-task routing table maintained by us.** A list of "task X goes to model Y" is stale the
+  moment a task does not fit a row, and it moves the decision away from the agent that has the task in front of it.
+  Replaced by routing by role (2.6): the role carries the pin, the lead picks the role.
+- **Discarded - a mandatory verifier subagent on every task.** The Opus 5 page says verification instructions cause
+  over-verification, and the Fable pages say the model verifies well unprompted. Fresh-context verification stays
+  where it pays: the reviewer roles at the review gate and the long-run checkpoint the Fable 5 page describes,
+  invoked by the lead, not by rule.
 - **Deferred - upstream drift watcher.** A scheduled job that hashes the fourteen pages and opens an issue with a
   diff when one changes. Genuinely proactive, but it needs network egress from CI, will be noisy until the diff is
   limited to headings, and today nothing consumes it between model upgrades. Trigger to revisit: the first model

@@ -34,7 +34,14 @@ are what remains once all of that is built. Ordered by how soon a complex projec
 ## Phase 2 — measurable, safe to run unattended
 1. **Cost and budget attribution.** The playbook names "agent budget" and reads timings from git and OTel but never
    attributes spend. Add a per-work-item ledger (tokens, tool calls, retries, human review minutes, gate wait) and a
-   `cost_per_merged_pr` control band.
+   `cost_per_merged_pr` control band. The per-role model routing in
+   [`spikes/prompt-surfaces.md`](spikes/prompt-surfaces.md) §2.6 is judged by this ledger; until it exists, that
+   spike's Phase C uses a per-work-item token count in `log.md` as the stand-in.
+1b. **Prompt surfaces and model routing.** The Claude platform prompting, guardrail and eval docs encoded where they
+   run: canonical prompt blocks, a `prompting-standards` skill, a prompt-surface lint in `verify.sh`, templates, a
+   conditional review pass, per-role model and effort pins with a delegation policy and caps, and evals for each.
+   **Designed, not scheduled:** [`spikes/prompt-surfaces.md`](spikes/prompt-surfaces.md) (accepted 2026-09-03; the
+   set-aside alternatives are listed at its end). Becomes work item `prompt-surfaces` when scheduled.
 2. **Computed risk tiers.** "Routine vs higher risk" and "small blast radius" decide who approves and what auto-merges,
    yet the class is a field a human fills in. Derive it from touched paths, dependency graph, data classification, and
    diff size; CI attaches it; branch protection and `environments.yaml` key off it.

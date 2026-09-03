@@ -60,7 +60,7 @@ REVIEW.md                        review passes, Important vs Nit, five-nit cap, 
 work/<slug>/                     intent.md → spec.md → plan.md → incident.md (YAML status, approved-by, record, kind) + log.md gate ledger
 docs/sdlc/templates/             the four artifact templates plus log.md, sections named as in the playbook
 docs/sdlc/rules/                 one rule source: fragments rendered into CLAUDE.md / GEMINI.md / AGENTS.md by gen_context_files.py
-docs/sdlc/spikes/                design spikes that back a decision (plugin packaging, Gemini parity, PR review identity)
+docs/sdlc/spikes/                design spikes that back a decision (plugin packaging, Gemini parity, PR review identity, prompt surfaces and model routing)
 docs/sdlc/managed-settings.example.json   the playbook's regulated-enterprise settings, to tailor
 docs/sdlc/metrics.md             leading/lagging indicator per play and where to read it
 docs/sdlc/lessons.md             pointer file: lessons now live in knowledge/lessons/, one OKF doc per incident
