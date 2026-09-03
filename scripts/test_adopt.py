@@ -46,6 +46,8 @@ HOOK_ONLY_FILES = [
     ".claude/settings.json",
     ".claude/hooks/protect-paths.sh",
     ".claude/hooks/_lib.sh",
+    ".gemini/settings.json",
+    ".gemini/agents/explorer.md",
 ]
 
 # Cases that must NOT be copied: they assume this repo's own content.
