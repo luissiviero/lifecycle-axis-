@@ -15,7 +15,12 @@ ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}
 # every such path was taken as relative, landed outside ROOT and was silently allowed
 # (knowledge/decisions/gemini-hooks.md). winpath() gives one spelling for ROOT and every
 # candidate (cygpath exists only on MSYS/Cygwin; elsewhere it is a no-op).
-winpath() { case "$1" in [A-Za-z]:/*|/[a-z]/*) cygpath -m -- "$1" 2>/dev/null || printf '%s' "$1";; *) printf '%s' "$1";; esac; }
+# The pattern is `/*`, not `/[a-z]/*`: MSYS resolves a symlink into its own POSIX namespace
+# using the shortest mount, so realpath returns `/tmp/x/.sdlc` -- not `/c/users/.../.sdlc` --
+# for a repo under a named mount. `/[a-z]/*` did not match that, the path stayed POSIX while
+# ROOT was `C:/...`, the prefix test said "outside the repo", and a write through a symlink
+# into .sdlc was allowed. Found by running the symlink test with Windows Developer Mode on.
+winpath() { case "$1" in [A-Za-z]:/*|/*) cygpath -m -- "$1" 2>/dev/null || printf '%s' "$1";; *) printf '%s' "$1";; esac; }
 ROOT="${ROOT//\\//}"
 ROOT="$(realpath -m -- "$ROOT" 2>/dev/null || printf '%s' "$ROOT")"
 ROOT="$(winpath "$ROOT")"

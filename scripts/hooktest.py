@@ -25,8 +25,9 @@ Two helpers:
   run_hook(hook_name, payload, root, env=None)
       Runs .claude/hooks/<hook_name> from the real repo (hooks are read from
       THIS repo, not the fake one -- that's the point: the fake repo only
-      supplies the config/workspace the hook reads via CLAUDE_PROJECT_DIR)
-      with `payload` JSON-encoded and piped to stdin, CLAUDE_PROJECT_DIR set
+      supplies the config/workspace the hook reads via CLAUDE_PROJECT_DIR;
+      on Windows, through `bash`, which is the only way to run a shebang
+      script there) with `payload` JSON-encoded and piped to stdin, CLAUDE_PROJECT_DIR set
       to `root`, and returns the completed subprocess (stdout/stderr as
       text). The environment starts as a copy of os.environ with every
       SDLC_* var and RELEASE_APPROVAL stripped out first, so ambient
@@ -94,8 +95,12 @@ def run_hook(hook_name: str, payload: dict, root: str, env: dict | None = None) 
     base_env["CLAUDE_PROJECT_DIR"] = root
     if env:
         base_env.update(env)
+    # Windows cannot exec a shebang script: CreateProcess raises WinError 193 on a .sh file.
+    # Claude Code and Gemini CLI both run the hooks through a shell there, so the harness does
+    # the same and the suite becomes runnable on a Windows checkout (roadmap item 19b).
+    argv = ["bash", hook_path] if os.name == "nt" else [hook_path]
     return subprocess.run(
-        [hook_path],
+        argv,
         input=json.dumps(payload),
         capture_output=True,
         text=True,

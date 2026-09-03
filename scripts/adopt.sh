@@ -63,9 +63,35 @@ if [ -z "$TARGET_ARG" ]; then
   exit 2
 fi
 
+# `C:\Users\...\tmpX` is absolute, but it does not start with `/`. Fold backslashes and treat a
+# drive letter as absolute, the same way .claude/hooks/_lib.sh does; without this the target was
+# taken as relative and became `$PWD/C:\Users\...`, i.e. a directory named `C:` inside the kit
+# (roadmap item 19c).
+TARGET_ARG="${TARGET_ARG//\\//}"
 case "$TARGET_ARG" in
-  /*) TARGET="$TARGET_ARG" ;;
+  /*|[A-Za-z]:/*) TARGET="$TARGET_ARG" ;;
   *) TARGET="$PWD/$TARGET_ARG" ;;
+esac
+
+# _abs <path> -- canonical, and one spelling on Windows: `git rev-parse` hands back `C:/kit`
+# while `$PWD` is `/c/kit`, so realpath alone leaves the two incomparable (cygpath exists only
+# on MSYS/Cygwin; elsewhere this is a plain realpath, as in .claude/hooks/_lib.sh).
+_abs() {
+  _p="$(realpath -m -- "$1" 2>/dev/null || printf '%s' "$1")"
+  case "$_p" in
+    [A-Za-z]:/*|/[a-z]/*) cygpath -m -- "$_p" 2>/dev/null || printf '%s' "$_p" ;;
+    *) printf '%s' "$_p" ;;
+  esac
+}
+# A target inside the kit is always a mistake, and an expensive one: copy_tree walks the kit with
+# `find`, so each copy discovers what earlier copies wrote. That is what turned the drive-letter
+# bug above from a junk directory into a test suite that never finished. Refuse it outright.
+_kit_abs="$(_abs "$KIT")"
+_tgt_abs="$(_abs "$TARGET")"
+case "$_tgt_abs" in
+  "$_kit_abs"|"$_kit_abs"/*)
+    echo "adopt: refusing to adopt into the kit itself: $TARGET" >&2
+    exit 2 ;;
 esac
 
 if [ ! -d "$TARGET" ]; then
@@ -236,6 +262,10 @@ python3 "$KIT/scripts/gen_context_files.py" --root "$TARGET"
 # Generate work/index.md and per-item indexes so the index-drift check is clean on day one.
 python3 "$KIT/scripts/gen_index.py" --root "$TARGET" >/dev/null
 
+# Quoted delimiter: the body is literal help text, and it mentions `claude setup-token` in
+# backticks. Unquoted, bash read that as a command substitution and actually ran it -- an
+# interactive OAuth flow that never returns, so every adopt.sh run hung on any machine with
+# Claude Code installed. CI never saw it because `claude` is not on PATH there.
 cat <<'STEPS'
 
 Next steps:

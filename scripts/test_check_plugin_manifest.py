@@ -230,6 +230,14 @@ class HooksPathsCheck(unittest.TestCase):
                 any("does-not-exist.sh" in l for l in drift_lines), result.stdout
             )
 
+    @unittest.skipIf(
+        os.name == "nt",
+        "check_plugin_manifest asks os.access(path, os.X_OK), which on Windows is True for "
+        "every existing path -- chmod 0o000 and a read-only file included -- and False only "
+        "when the path does not exist. The drift under test therefore cannot be constructed "
+        "here at all. Reading st_mode instead would report every .sh (0o666 on NTFS) as "
+        "non-executable, so the check stays as it is and CI on Linux is what exercises it.",
+    )
     def test_hooks_command_referencing_non_executable_script_is_a_problem(self):
         with tempfile.TemporaryDirectory() as root:
             plugin = _default_plugin(

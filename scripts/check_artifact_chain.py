@@ -165,7 +165,11 @@ def main():
             # The commit that introduced `status: approved` must not be authored by an agent identity.
             # scripts/approve.py refuses to run inside an agent session, but an environment variable is
             # not a gate; the commit author is what CI can verify.
-            rel = os.path.join("work", slug, name)
+            # git pathspecs use forward slashes on every platform. os.path.join produced
+            # `HEAD:work\<slug>\<file>` on Windows, so `git show` failed, head_text came
+            # back empty and this whole approval-author check silently reported "not
+            # committed yet" instead of running (roadmap item 19d).
+            rel = "/".join(("work", slug, name))
             head_text = subprocess.run(["git", "show", f"HEAD:{rel}"], capture_output=True, text=True, cwd=ROOT).stdout
             who = ""
             if front_matter_text(head_text).get("status") == "approved":
