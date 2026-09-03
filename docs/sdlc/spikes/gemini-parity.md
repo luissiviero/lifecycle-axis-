@@ -4,7 +4,7 @@ title: Gemini CLI enforcement parity
 description: What Gemini CLI can enforce locally versus what must stay CI-only, so T17 can target rule fragments per model.
 tags: [gemini, hooks, context-files, enforcement, t03]
 timestamp: 2026-09-02T15:30:00Z
-status: in-review
+status: open
 ---
 # Spike: Gemini CLI parity (T03)
 
