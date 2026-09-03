@@ -68,4 +68,6 @@ previous one.
   satisfied only by `work/<slug>/plan.md` with `status: approved` set by a human.
 - Subagents live in `.gemini/agents/` (read-only mirrors of `.claude/agents/`); the
   `/sdlc-*` procedures are the SKILL.md files under `.claude/skills/`: read and follow them.
+- Antigravity (IDE and `agy`) reads this file but ignores `.gemini/settings.json`, so there
+  the rules above are advisory only and `sdlc-gate` plus the merge click are the gates.
 <!-- END GENERATED -->

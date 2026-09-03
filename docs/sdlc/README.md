@@ -131,7 +131,8 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
    lists what it skipped). Or install as a Claude Code plugin — `claude --plugin-dir .` from
    this repo, or add it to a marketplace via `.claude-plugin/marketplace.json` — for the skills, agents, and templates
    without the repo-local hooks. Either way, set `VERIFY_CMDS`, `FORMAT_CMD`, and the path classes in `.sdlc/config.env`.
-   For Gemini CLI, copy `.gemini/settings.json` and `.gemini/agents/` as well; the hooks need `bash` and `jq` on PATH.
+   `--with-hooks` also installs `.gemini/settings.json` and `.gemini/agents/` for Gemini CLI; the hooks need `bash`
+   and `jq` on PATH. Antigravity reads `GEMINI.md` but not those hooks (roadmap Phase 1.5).
 2. Rewrite `CLAUDE.md`: commands with healthy output, architecture in ten lines, the mistakes the team sees most. One page.
 3. Add standards as skills (security is included; add UX, API conventions, data classification) and list them in `/sdlc-spec`.
 4. Protect `main`: require `sdlc-gate` and `agent-evals`; CODEOWNERS for `RELEASE_GATED_PATHS`.

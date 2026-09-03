@@ -57,8 +57,9 @@ the enforcement layer, which stays in hooks (Claude), CI and branch protection (
 | `work/<slug>/log.md` | appended by `/sdlc-*` skills and by humans at approval | chain check verifies each `status: approved` has a matching log entry with a name |
 | `knowledge/` bundle | `index.md`, `services/`, `metrics/`, `runbooks/`, `decisions/`, `lessons/`; migrate `docs/sdlc/lessons.md` there | `scripts/check_okf.py`: every doc has `type`; links resolve; timestamps RFC3339 (warning first) |
 | `GEMINI.md` (and `AGENTS.md`) | one page, same eight hard rules, pointing at the same `knowledge/` and `work/` | reviewed like `CLAUDE.md`; both files' rule sections generated from one source to prevent drift |
-| Gemini enforcement parity | Gemini CLI does have a `BeforeTool` hook with the same stdin/stdout/exit-2 contract (see `docs/sdlc/spikes/gemini-parity.md`), but this repo has not wired it yet; until it is, the deterministic gates that must hold for both live in CI (`sdlc-gate`) and branch protection, not in hooks | CI is model-agnostic by construction |
+| Gemini enforcement parity | Gemini CLI's `BeforeTool` hook has the same stdin/stdout/exit-2 contract, and `.gemini/settings.json` now runs the same scripts (`knowledge/decisions/gemini-hooks.md`); Antigravity has a different hook contract and is not wired yet, so the deterministic gates that must hold for every model live in CI (`sdlc-gate`) and the merge gate, not only in hooks | CI is model-agnostic by construction |
 | Producers | optional: enrichment step that drafts OKF concept docs for new services/tables from the codebase, reviewed like code | PR review gate |
 
-Open questions for the plan: which Gemini surface is in use (Gemini CLI, Antigravity, Vertex agents), whether a Knowledge
-Catalog or any OKF consumer exists today, and whether `knowledge/` lives in each product repo or in one shared bundle.
+Answered 2026-09-03: the Gemini surface in use is Antigravity (IDE and `agy` CLI); Gemini CLI v0.58 refuses personal
+Google accounts. Still open: whether a Knowledge Catalog or any OKF consumer exists today, and whether `knowledge/`
+lives in each product repo or in one shared bundle.
