@@ -63,6 +63,26 @@ class Traversal(unittest.TestCase):
             r = run_hook("protect-paths.sh", bash("echo x > work/link/config.env"), root)
             self.assertEqual(r.returncode, 2, r.stderr)
 
+    def test_symlink_into_control_plane_is_blocked_for_the_write_tool(self):
+        """Same traversal, but through file_path rather than a Bash command."""
+        with fake_repo() as root:
+            os.makedirs(os.path.join(root, "work"), exist_ok=True)
+            try:
+                os.symlink(os.path.join(root, ".sdlc"), os.path.join(root, "work", "link"))
+            except OSError as exc:
+                if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+                    self.skipTest(
+                        "creating a symlink needs Windows Developer Mode "
+                        "(Settings > Privacy & security > For developers)"
+                    )
+                raise
+            r = run_hook(
+                "protect-paths.sh",
+                write(os.path.join(root, "work", "link", "config.env")),
+                root,
+            )
+            self.assertEqual(r.returncode, 2, r.stderr)
+
     def test_creating_a_symlink_to_the_control_plane_is_blocked(self):
         with fake_repo() as root:
             r = run_hook("protect-paths.sh", bash("ln -s .sdlc work/link"), root)

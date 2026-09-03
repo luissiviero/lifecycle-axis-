@@ -22,12 +22,24 @@ def _make_repo(root):
     os.chmod(os.path.join(root, "scripts", "verify.sh"), 0o755)
 
 
+SHEBANG = "#!/usr/bin/env bash"
+
+
 def _write_check(root, name, body, executable=True):
+    """Write scripts/checks/<name>. `executable=False` must mean it on both platforms.
+
+    chmod is what makes a file non-executable on POSIX, but Git Bash ignores the mode and
+    decides `[ -x ]` from the shebang: a `#!` line makes the file executable whatever the
+    mode says, and no shebang makes it non-executable whatever the mode says. So a
+    non-executable fixture drops the shebang as well as the mode, and verify.sh's
+    `[ -x "$check" ] || continue` is exercised on Windows and Linux alike.
+    """
     path = os.path.join(root, "scripts", "checks", name)
+    if not executable:
+        body = body.replace(SHEBANG + chr(10), "")
     with open(path, "w") as f:
         f.write(body)
-    mode = 0o755 if executable else 0o644
-    os.chmod(path, mode)
+    os.chmod(path, 0o755 if executable else 0o644)
     return path
 
 
@@ -61,11 +73,6 @@ class VerifyScript(unittest.TestCase):
             self.assertEqual(_last_line(result.stdout), "VERIFY: FAIL")
             self.assertEqual(result.returncode, 1)
 
-    @unittest.skipIf(
-        os.name == "nt",
-        "NTFS has no POSIX executable bit, so a check written with executable=False is "
-        "still -x and the behaviour under test cannot be produced (roadmap item 19)",
-    )
     def test_non_executable_check_is_skipped(self):
         with tempfile.TemporaryDirectory() as root:
             _make_repo(root)
