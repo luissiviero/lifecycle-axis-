@@ -6,7 +6,8 @@
 #   --force       overwrite files that already exist in the target (default: skip them)
 #   --dry-run     print what would be copied/skipped; write nothing
 #   --with-hooks  also install .claude/hooks/ and .claude/settings.json (the deterministic
-#                 gates). The settings file is written from the kit's template
+#                 gates), plus .gemini/settings.json and .gemini/agents/ so Gemini CLI runs
+#                 the same scripts. The settings file is written from the kit's template
 #                 docs/sdlc/templates/claude-settings.json, not from the kit's own
 #                 .claude/settings.json, which adds the control-plane unlock the kit needs to
 #                 maintain itself (knowledge/decisions/self-hooks-on.md). Without this
@@ -152,6 +153,9 @@ copy_tree ".claude/agents"
 if [ "$WITH_HOOKS" = true ]; then
   copy_file "docs/sdlc/templates/claude-settings.json" ".claude/settings.json"
   copy_tree ".claude/hooks"
+  # Gemini CLI runs the same scripts through its own wiring (knowledge/decisions/gemini-hooks.md).
+  copy_file ".gemini/settings.json"
+  copy_tree ".gemini/agents"
 else
   echo "note: hooks not installed -- .claude/hooks/ and .claude/settings.json were skipped." \
        " Only CI enforces the hard rules locally without them; rerun with --with-hooks to install."
@@ -245,7 +249,9 @@ Next steps:
   5. Approve the example work item as yourself (the chain check refuses agent-authored approvals):
        python3 scripts/approve.py _example intent.md spec.md plan.md   # then commit as yourself
   6. Run the loop by hand once: /sdlc-intent -> /sdlc-spec -> /sdlc-plan -> implement -> /sdlc-review.
-  7. Read docs/sdlc/README.md for the full picture.
+  7. Gemini CLI users: the hooks need bash and jq on PATH; Antigravity reads GEMINI.md but runs
+     no local hooks here yet (docs/sdlc/phase-2-roadmap.md, Phase 1.5).
+  8. Read docs/sdlc/README.md for the full picture.
 STEPS
 
 exit 0

@@ -87,5 +87,11 @@ Gemini did not cause but would have inherited:
 - Whether PowerShell forwards Gemini's stdin to `bash` end to end is verified only by the
   owner running a blocked write in a real Gemini session; the unit tests cover the scripts,
   not the spawn.
-- `scripts/adopt.sh --with-hooks` does not yet copy `.gemini/`; adopters running Gemini copy
-  it by hand until that follow-up lands (roadmap Phase 1.5).
+- `scripts/adopt.sh --with-hooks` also installs `.gemini/settings.json` and `.gemini/agents/`.
+- The owner's Gemini CLI login was accepted and then refused at first use
+  (`IneligibleTierError`, v0.58.0: personal accounts must move to Antigravity). Antigravity
+  reads `GEMINI.md` but not `.gemini/settings.json`; its hook contract differs
+  (`.agents/hooks.json`, a `toolCall` payload, a JSON `decision` on stdout), so this wiring
+  protects Gemini CLI only and an Antigravity adapter is the open roadmap item. Headless
+  `agy -p --mode plan` reads files and refuses shell commands, which is how Claude delegates
+  read-only reviews to it (global skill `agy-delegate`).

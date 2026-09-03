@@ -24,8 +24,12 @@ are what remains once all of that is built. Ordered by how soon a complex projec
    `AfterAgent`, `.gemini/agents/` mirrors the read-only agents, the release gate fails closed under Gemini, and the
    `tool_input` keys are verified against the installed CLI
    ([`knowledge/decisions/gemini-hooks.md`](../../knowledge/decisions/gemini-hooks.md)).
-   **Open:** `scripts/adopt.sh --with-hooks` should copy `.gemini/` too; an end-to-end check that PowerShell forwards
-   Gemini's stdin to `bash` on Windows (verified by hand only).
+   **Open:** Gemini CLI v0.58 refuses personal Google accounts ("migrate to Antigravity"), and Antigravity reads
+   `GEMINI.md` but not `.gemini/settings.json`: its hooks live in `.agents/hooks.json`, receive `toolCall.name` /
+   `toolCall.args` (`write_to_file`: `TargetFile`, `CodeContent`; `run_command`: `CommandLine`) and answer with a JSON
+   `decision` on stdout. Next step: an adapter under `.agents/` that maps that payload onto the existing scripts and
+   turns their exit 2 into `{"decision":"deny"}`, with `.agents` joining `PROTECTED_PATHS`. Also open: an end-to-end
+   check that PowerShell forwards Gemini CLI's stdin to `bash` on Windows (verified by simulation only).
 
 ## Phase 2 — measurable, safe to run unattended
 1. **Cost and budget attribution.** The playbook names "agent budget" and reads timings from git and OTel but never

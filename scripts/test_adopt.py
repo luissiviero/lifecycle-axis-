@@ -173,6 +173,9 @@ class AdoptScript(unittest.TestCase):
             self.assertTrue(os.path.exists(hook))
             mode = stat.S_IMODE(os.stat(hook).st_mode)
             self.assertTrue(mode & stat.S_IXUSR, "hook is not executable")
+            # The Gemini CLI wiring rides along with the hooks (knowledge/decisions/gemini-hooks.md).
+            self.assertTrue(os.path.exists(os.path.join(target, ".gemini", "settings.json")))
+            self.assertTrue(os.path.exists(os.path.join(target, ".gemini", "agents", "explorer.md")))
 
     def test_with_hooks_settings_is_the_kit_template(self):
         # Adopters get the wiring from the template, never from the kit's own .claude/settings.json,
