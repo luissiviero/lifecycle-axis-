@@ -8,6 +8,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 KIT = os.path.dirname(HERE)
 ADOPT_SH = os.path.join(HERE, "adopt.sh")
+KIT_ROOT = os.path.dirname(HERE)
 
 # A representative sample of what adopt.sh should place in a target, one path
 # per category from the spec -- not the exhaustive list.
@@ -59,6 +60,15 @@ EXCLUDED_EVAL_CASES = [
 ]
 
 
+# NTFS has no POSIX executable bit: Python reports 0o100666 even for a file git records as
+# 100755, so `cp -p` cannot preserve what the source does not have. Assert the bit where it
+# exists and fall back to "the file is there" on Windows, rather than skipping the whole test.
+def assert_executable(case, path, msg):
+    case.assertTrue(os.path.isfile(path), msg)
+    if os.name != "nt":
+        case.assertTrue(os.stat(path).st_mode & stat.S_IXUSR, msg)
+
+
 def run_adopt(target, *flags):
     return subprocess.run(
         ["bash", ADOPT_SH, target, *flags],
@@ -88,8 +98,7 @@ class AdoptScript(unittest.TestCase):
                     "missing after adopt: %s\n%s" % (rel, result.stdout),
                 )
             verify_sh = os.path.join(target, "scripts", "verify.sh")
-            mode = stat.S_IMODE(os.stat(verify_sh).st_mode)
-            self.assertTrue(mode & stat.S_IXUSR, "scripts/verify.sh is not executable")
+            assert_executable(self, verify_sh, "scripts/verify.sh is not executable")
             for name in ("CLAUDE.md", "GEMINI.md", "AGENTS.md"):
                 with open(os.path.join(target, name), encoding="utf-8") as f:
                     self.assertIn("BEGIN GENERATED", f.read(), name)
@@ -173,8 +182,7 @@ class AdoptScript(unittest.TestCase):
             hook = os.path.join(target, ".claude", "hooks", "protect-paths.sh")
             self.assertTrue(os.path.exists(settings))
             self.assertTrue(os.path.exists(hook))
-            mode = stat.S_IMODE(os.stat(hook).st_mode)
-            self.assertTrue(mode & stat.S_IXUSR, "hook is not executable")
+            assert_executable(self, hook, "hook is not executable")
             # The Gemini CLI wiring rides along with the hooks (knowledge/decisions/gemini-hooks.md).
             self.assertTrue(os.path.exists(os.path.join(target, ".gemini", "settings.json")))
             self.assertTrue(os.path.exists(os.path.join(target, ".gemini", "agents", "explorer.md")))
@@ -246,6 +254,35 @@ class AdoptScript(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             with open(os.path.join(target, ".sdlc", "config.env"), encoding="utf-8") as f:
                 self.assertEqual(f.read(), custom)
+
+    def test_next_steps_are_literal_text_not_shell_substitutions(self):
+        """The Next steps heredoc must not execute anything it merely mentions.
+
+        Its delimiter used to be unquoted, so the backticks around `claude setup-token`
+        in step 4 were a command substitution: adopt.sh ran the interactive OAuth flow
+        and never returned on any machine with Claude Code installed. CI missed it
+        because `claude` is not on PATH there.
+        """
+        with tempfile.TemporaryDirectory() as target:
+            result = run_adopt(target)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("`claude setup-token`", result.stdout)
+
+    def test_refuses_a_target_inside_the_kit(self):
+        result = run_adopt(os.path.join(KIT_ROOT, "adopt-into-self"))
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("refusing to adopt into the kit itself", result.stderr)
+        self.assertFalse(os.path.exists(os.path.join(KIT_ROOT, "adopt-into-self")))
+
+    def test_windows_style_absolute_target_is_not_treated_as_relative(self):
+        """A drive-letter path is absolute but does not start with a slash."""
+        with tempfile.TemporaryDirectory() as target:
+            win = os.path.join(target, "t")
+            result = run_adopt(win)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(os.path.isfile(os.path.join(win, ".sdlc", "config.env")))
+            stray = [n for n in os.listdir(KIT_ROOT) if n.startswith("C") and os.path.isdir(os.path.join(KIT_ROOT, n))]
+            self.assertEqual(stray, [], "adopt.sh wrote a drive-letter directory into the kit")
 
     def test_adopted_target_verify_sh_ends_with_contract_line(self):
         with tempfile.TemporaryDirectory() as target:

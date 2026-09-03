@@ -189,6 +189,96 @@ class ProductionGateHook(unittest.TestCase):
             result = run_hook(self.HOOK, payload, root)
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    # --- what the gate must see (review of PR #11) -------------------------------------------
+    # The deploy clause used to be one regex whose boundary was `(^|[;&| ])` with a literal
+    # space and whose push rule matched only a bare `main`-shaped word after `git push`. These
+    # cases are the bypasses and the false positives that found.
+
+    def _on_branch(self, root, branch):
+        """Commit once, then put the fake repo on <branch>: a bare `git push` reads HEAD."""
+        sha = self._head_sha(root)
+        subprocess.run(["git", "-C", root, "branch", "-M", branch], check=True)
+        return sha
+
+    def _decision(self, root, command, env=None):
+        """'allow' | 'ask' | 'block' for <command>, per the hook contract in hooktest.py."""
+        result = run_hook(self.HOOK, load_fixture("bash", command=command), root, env=env)
+        if result.returncode == 2:
+            return "block"
+        self.assertEqual(result.returncode, 0, result.stderr)
+        if not result.stdout.strip():
+            return "allow"
+        return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+
+    def test_asks_on_push_that_reaches_a_protected_branch(self):
+        with fake_repo() as root:
+            self._on_branch(root, "work/foo")
+            for command in (
+                "git push origin main",
+                "git push origin HEAD:main",          # refspec
+                "git push origin :main",              # deletes the remote branch
+                "git push origin refs/heads/main",    # fully qualified ref
+                "git push origin +main",              # forced refspec
+                "git push origin --delete production",
+                "git push --all origin",              # every local branch, main included
+                "git push --mirror origin",
+                "git -C /tmp/x push origin master",
+                "(git push origin main)",             # wrapped in a subshell
+            ):
+                with self.subTest(command=command):
+                    self.assertEqual(self._decision(root, command), "ask")
+
+    def test_asks_on_bare_push_when_head_is_protected(self):
+        with fake_repo() as root:
+            self._on_branch(root, "main")
+            # (a force push never reaches here: DANGER_RE blocks it outright)
+            for command in ("git push", "git push origin", "git push --quiet"):
+                with self.subTest(command=command):
+                    self.assertEqual(self._decision(root, command), "ask")
+
+    def test_allows_push_that_stays_on_a_feature_branch(self):
+        with fake_repo() as root:
+            self._on_branch(root, "work/foo")
+            for command in (
+                "git push",
+                "git push origin work/foo",
+                "git push -u origin HEAD:work/foo",
+                "git log --grep=push",
+            ):
+                with self.subTest(command=command):
+                    self.assertEqual(self._decision(root, command), "allow")
+
+    def test_asks_when_a_deploy_starts_after_a_tab_or_a_paren(self):
+        with fake_repo() as root:
+            self._head_sha(root)
+            for command in ("	terraform apply", "echo hi;	kubectl apply -f x.yaml", "(helm upgrade r c)"):
+                with self.subTest(command=command):
+                    self.assertEqual(self._decision(root, command), "ask")
+
+    def test_allows_read_only_cloud_subcommands(self):
+        with fake_repo() as root:
+            self._on_branch(root, "work/foo")
+            for command in (
+                "az webapp list",
+                "aws lambda list-functions",
+                "aws ecs describe-services --cluster c",
+                "aws cloudformation describe-stacks",
+            ):
+                with self.subTest(command=command):
+                    self.assertEqual(self._decision(root, command), "allow")
+
+    def test_asks_on_mutating_cloud_subcommands(self):
+        with fake_repo() as root:
+            self._head_sha(root)
+            for command in (
+                "aws lambda update-function-code --function-name f --zip-file x",
+                "aws ecs update-service --service s",
+                "aws cloudformation deploy --stack-name s",
+                "az webapp deployment source config-zip --src x.zip",
+            ):
+                with self.subTest(command=command):
+                    self.assertEqual(self._decision(root, command), "ask")
+
 
 class PostEditFormatHook(unittest.TestCase):
     HOOK = "post-edit-format.sh"

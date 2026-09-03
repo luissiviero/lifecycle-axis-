@@ -34,7 +34,14 @@ are what remains once all of that is built. Ordered by how soon a complex projec
 ## Phase 2 — measurable, safe to run unattended
 1. **Cost and budget attribution.** The playbook names "agent budget" and reads timings from git and OTel but never
    attributes spend. Add a per-work-item ledger (tokens, tool calls, retries, human review minutes, gate wait) and a
-   `cost_per_merged_pr` control band.
+   `cost_per_merged_pr` control band. The per-role model routing in
+   [`spikes/prompt-surfaces.md`](spikes/prompt-surfaces.md) §2.6 is judged by this ledger; until it exists, that
+   spike's Phase C uses a per-work-item token count in `log.md` as the stand-in.
+1b. **Prompt surfaces and model routing.** The Claude platform prompting, guardrail and eval docs encoded where they
+   run: canonical prompt blocks, a `prompting-standards` skill, a prompt-surface lint in `verify.sh`, templates, a
+   conditional review pass, per-role model and effort pins with a delegation policy and caps, and evals for each.
+   **Designed, not scheduled:** [`spikes/prompt-surfaces.md`](spikes/prompt-surfaces.md) (accepted 2026-09-03; the
+   set-aside alternatives are listed at its end). Becomes work item `prompt-surfaces` when scheduled.
 2. **Computed risk tiers.** "Routine vs higher risk" and "small blast radius" decide who approves and what auto-merges,
    yet the class is a field a human fills in. Derive it from touched paths, dependency graph, data classification, and
    diff size; CI attaches it; branch protection and `environments.yaml` key off it.
@@ -78,8 +85,16 @@ are what remains once all of that is built. Ordered by how soon a complex projec
     turned the hook scripts into CRLF files that bash cannot run — **done:** `.gitattributes` now forces LF for
     `*.sh`; (f) the hooks took `C:\...` paths as relative and allowed everything, and a missing `jq` made them allow
     blindly — **done:** `_lib.sh` handles drive-letter paths and fails closed without `jq`
-    (`knowledge/decisions/gemini-hooks.md`). One symlink test also needs Developer Mode. The rest (a–d) is a
-    `kind: fix` work item.
+    (`knowledge/decisions/gemini-hooks.md`). **Done 2026-09-03:** (b) `hooktest.py` and `test_run_evals.py` — hooks run
+    through `bash`, and the sanitised PATH keeps `git` on Windows; (c) `adopt.sh` handles drive letters and refuses a
+    target inside the kit, and its `Next steps` heredoc no longer executed `claude setup-token` through unquoted
+    backticks (a hang on any machine with Claude Code installed, not a Windows bug); (d) the git pathspec is
+    forward-slash, so the approval-author guard runs locally instead of silently skipping. `scripts/verify.sh` now ends
+    with `VERIFY: PASS` on Windows. Enabling Developer Mode then made the symlink test run and **fail**, exposing a real
+    bypass: `winpath()` matched only `/[a-z]/*`, so a path MSYS resolved under a named mount stayed POSIX and the guard
+    read it as outside the repo — fixed to `/*`. Still open: (a) bare `python3` (moot where it resolves, a shim
+    elsewhere), and one test that cannot run on Windows at all because `os.access(path, os.X_OK)` is True for every
+    existing path there.
 
 ## Phase 3 — scale across agents and repos
 7. **Multi-repo intent and orchestration.** One `intent.md` fanning out to several `plan.md`; worktree-per-work-item
