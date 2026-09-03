@@ -20,10 +20,12 @@ are what remains once all of that is built. Ordered by how soon a complex projec
    [`docs/sdlc/rules/`](rules/index.md) fragments rendered by
    [`scripts/gen_context_files.py`](../../scripts/gen_context_files.py), the `log.md` ledger (see
    `docs/sdlc/templates/log.md`), and [`scripts/check_okf.py`](../../scripts/check_okf.py) as a warning-only check.
-   Gemini hook wiring remains — see the item below.
-   - **New: Gemini `BeforeTool` hook wiring.** Wire `.gemini/settings.json` reusing the same hook scripts, after
-     verifying Gemini's `tool_input` keys (see the UNVERIFIED notes in
-     [`docs/sdlc/spikes/gemini-parity.md`](spikes/gemini-parity.md)).
+   **Done (Gemini hook wiring):** `.gemini/settings.json` runs the same hook scripts on `BeforeTool` /
+   `AfterAgent`, `.gemini/agents/` mirrors the read-only agents, the release gate fails closed under Gemini, and the
+   `tool_input` keys are verified against the installed CLI
+   ([`knowledge/decisions/gemini-hooks.md`](../../knowledge/decisions/gemini-hooks.md)).
+   **Open:** `scripts/adopt.sh --with-hooks` should copy `.gemini/` too; an end-to-end check that PowerShell forwards
+   Gemini's stdin to `bash` on Windows (verified by hand only).
 
 ## Phase 2 — measurable, safe to run unattended
 1. **Cost and budget attribution.** The playbook names "agent budget" and reads timings from git and OTel but never
@@ -70,7 +72,10 @@ are what remains once all of that is built. Ordered by how soon a complex projec
     `check_artifact_chain.py` builds `HEAD:work\<slug>\<file>` with `os.path.join`, so `git show` fails and the
     approval-author check is silently skipped locally ("approval not committed yet"); (e) the autocrlf checkout
     turned the hook scripts into CRLF files that bash cannot run — **done:** `.gitattributes` now forces LF for
-    `*.sh`. One symlink test also needs Developer Mode. The rest is a `kind: fix` work item.
+    `*.sh`; (f) the hooks took `C:\...` paths as relative and allowed everything, and a missing `jq` made them allow
+    blindly — **done:** `_lib.sh` handles drive-letter paths and fails closed without `jq`
+    (`knowledge/decisions/gemini-hooks.md`). One symlink test also needs Developer Mode. The rest (a–d) is a
+    `kind: fix` work item.
 
 ## Phase 3 — scale across agents and repos
 7. **Multi-repo intent and orchestration.** One `intent.md` fanning out to several `plan.md`; worktree-per-work-item

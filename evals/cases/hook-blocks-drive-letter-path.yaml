@@ -1,0 +1,5 @@
+name: hook-blocks-drive-letter-path
+kind: hook
+source: knowledge/decisions/gemini-hooks.md
+check: |
+  ! printf '%s' '{"tool_name":"write_file","tool_input":{"file_path":"C:\\kit\\src\\a.ts","content":"x"}}' | PLAN_REQUIRED_PATHS=src SDLC_WORK_ITEM=does-not-exist CLAUDE_PROJECT_DIR='C:\kit' .claude/hooks/require-plan.sh 2>/dev/null

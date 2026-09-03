@@ -19,8 +19,8 @@ human sets `status: approved`. The active work item is named in `.sdlc/active`.
    also locks test files: reproduce the bug as a failing test first, then fix the code.
 2. If implementation deviates from `plan.md`, update `plan.md` in the same commit.
    CI fails a PR whose diff touches files not listed in the plan.
-3. Never edit `.claude/hooks/`, `.github/workflows/`, `.sdlc/`, or secret files.
-   Propose the change in the PR description instead.
+3. Never edit `.claude/hooks/`, `.gemini/`, `.github/workflows/`, `.sdlc/`, or secret
+   files. Propose the change in the PR description instead.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.

@@ -73,6 +73,7 @@ scripts/adopt.sh                 installs this kit into another repo without ove
 .claude/agents/                  explorer, plan-reviewer, security-reviewer, verifier (all read-only)
 .claude/hooks/                   protect-paths, block-secrets, require-plan, protect-tests, production-gate, post-edit-format, stop-verify-reminder
 docs/sdlc/templates/claude-settings.json   the hook wiring adopters get as .claude/settings.json (this repo wires the same hooks on itself, plus the control-plane unlock: knowledge/decisions/self-hooks-on.md)
+.gemini/settings.json            the same hook scripts wired for Gemini CLI (BeforeTool / AfterAgent); .gemini/agents/ mirrors .claude/agents/ read-only (knowledge/decisions/gemini-hooks.md)
 scripts/verify.sh                the single pass/fail signal; also runs every scripts/checks/*.sh
 scripts/checks/                  self-registering verify.sh checks: okf, index-drift, context-drift, workflow-permissions, plugin-manifest
 scripts/check_artifact_chain.py  artifacts approved by a valid approver with a log.md entry; diff ⊆ "Files that change"; release-gated paths have an owner
@@ -115,10 +116,11 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
   pays off when intent spans many repos.
 - **`ask` lives only in the production gate.** The playbook is explicit: approval prompts during build put a person back
   on the critical path of every parallel session. Build hooks allow or block; only the release gate asks.
-- **Strong gates are in CI and branch protection, not only in Claude hooks.** Per the Gemini parity spike
-  (`docs/sdlc/spikes/gemini-parity.md`), Gemini CLI has a `BeforeTool` hook with the same exit-2 block contract, so
-  the hooks in `.claude/hooks/` are reusable in principle — but this repo has not wired a Gemini side yet. Until it
-  does, CI (the chain check, verify, branch protection) is the gate that holds for any model or human, model-neutral
+- **Strong gates are in CI and branch protection, not only in local hooks.** Gemini CLI's `BeforeTool` hook has the
+  same exit-2 block contract as Claude's `PreToolUse`, so `.gemini/settings.json` runs the scripts in `.claude/hooks/`
+  unchanged (`docs/sdlc/spikes/gemini-parity.md`, `knowledge/decisions/gemini-hooks.md`). A local hook can still be
+  skipped — Gemini warns before running a new or changed project hook, and a missing `jq` used to allow blindly — so
+  CI (the chain check, verify, branch protection) remains the gate that holds for any model or human, model-neutral
   by construction. See `okf-pairing.md` for the multi-model argument.
 - **Evals cover the workflow.** Hook cases need no model and run in seconds; prompt cases run with `claude -p` and
   bounded tools, exactly as the playbook's `agent-evals.yml` does.
@@ -129,6 +131,7 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
    lists what it skipped). Or install as a Claude Code plugin — `claude --plugin-dir .` from
    this repo, or add it to a marketplace via `.claude-plugin/marketplace.json` — for the skills, agents, and templates
    without the repo-local hooks. Either way, set `VERIFY_CMDS`, `FORMAT_CMD`, and the path classes in `.sdlc/config.env`.
+   For Gemini CLI, copy `.gemini/settings.json` and `.gemini/agents/` as well; the hooks need `bash` and `jq` on PATH.
 2. Rewrite `CLAUDE.md`: commands with healthy output, architecture in ten lines, the mistakes the team sees most. One page.
 3. Add standards as skills (security is included; add UX, API conventions, data classification) and list them in `/sdlc-spec`.
 4. Protect `main`: require `sdlc-gate` and `agent-evals`; CODEOWNERS for `RELEASE_GATED_PATHS`.
