@@ -105,8 +105,11 @@ Net: rules 1, 3, 8 reach real local parity; 4 and 5 reach advisory parity; 2, 6,
   human PR, and `CONTEXT_FILES` already lists all three files.
 
 ## Unverified
-- UNVERIFIED: the argument key Gemini's `write_file` / `replace` use inside `tool_input` (assumed `file_path`) and
-  `run_shell_command`'s (assumed `command`). A one-line adapter in the hook (`.tool_input.file_path // .tool_input.absolute_path // …`) removes the risk when a Gemini hook is actually written.
+- VERIFIED (2026-09-02, installed CLI v0.58.0): `write_file` and `replace` take `file_path`, `run_shell_command`
+  takes `command`; hook commands run via `bash -c` on POSIX and `powershell.exe -NoProfile -Command` on Windows;
+  `$GEMINI_PROJECT_DIR` / `$CLAUDE_PROJECT_DIR` are substituted textually (shell-escaped) and also exported;
+  `.gemini/agents/*.md` front matter is strict (`name`, `description`, `tools`, `model`, `temperature`, `max_turns`,
+  `timeout_mins`). Wired in `knowledge/decisions/gemini-hooks.md`.
 - UNVERIFIED: whether `policyPaths` accepts repo-relative paths, i.e. whether policy TOML can be committed per repo.
 - UNVERIFIED: whether project `.gemini/settings.json` hooks run without an interactive trust prompt in a
   non-interactive/CI invocation.

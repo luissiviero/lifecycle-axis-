@@ -1,0 +1,5 @@
+name: gate-blocks-deploy-under-gemini
+kind: hook
+source: knowledge/decisions/gemini-hooks.md
+check: |
+  ! printf '%s' '{"tool_name":"run_shell_command","tool_input":{"command":"git push origin main"}}' | GEMINI_SESSION_ID=eval CLAUDE_PROJECT_DIR="$(git rev-parse --show-toplevel)" .claude/hooks/production-gate.sh 2>/dev/null

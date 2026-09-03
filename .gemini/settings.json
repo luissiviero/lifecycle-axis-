@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "write_file|replace|run_shell_command",
+        "sequential": true,
+        "hooks": [
+          { "name": "sdlc-protect-paths", "type": "command", "command": "bash .claude/hooks/protect-paths.sh" },
+          { "name": "sdlc-block-secrets", "type": "command", "command": "bash .claude/hooks/block-secrets.sh" },
+          { "name": "sdlc-require-plan", "type": "command", "command": "bash .claude/hooks/require-plan.sh" },
+          { "name": "sdlc-protect-tests", "type": "command", "command": "bash .claude/hooks/protect-tests.sh" }
+        ]
+      },
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          { "name": "sdlc-production-gate", "type": "command", "command": "bash .claude/hooks/production-gate.sh" }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "hooks": [
+          { "name": "sdlc-verify-reminder", "type": "command", "command": "bash .claude/hooks/stop-verify-reminder.sh" }
+        ]
+      }
+    ]
+  }
+}

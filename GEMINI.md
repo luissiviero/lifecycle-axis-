@@ -19,8 +19,8 @@ human sets `status: approved`. The active work item is named in `.sdlc/active`.
    also locks test files: reproduce the bug as a failing test first, then fix the code.
 2. If implementation deviates from `plan.md`, update `plan.md` in the same commit.
    CI fails a PR whose diff touches files not listed in the plan.
-3. Never edit `.claude/hooks/`, `.github/workflows/`, `.sdlc/`, or secret files.
-   Propose the change in the PR description instead.
+3. Never edit `.claude/hooks/`, `.gemini/`, `.github/workflows/`, `.sdlc/`, or secret
+   files. Propose the change in the PR description instead.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.
@@ -57,12 +57,15 @@ previous one.
   to run inside an agent session; an agent asks for approval and waits.
 
 ## Gemini CLI notes
-- Hooks are `BeforeTool` entries in `.gemini/settings.json` and match Gemini tool names
-  (`write_file`, `replace`, `run_shell_command`), not `Edit|Write|MultiEdit`.
+- `.gemini/settings.json` wires the same scripts as Claude: `BeforeTool` on
+  `write_file|replace|run_shell_command` runs `.claude/hooks/` protect-paths, block-secrets,
+  require-plan, protect-tests, and production-gate; `AfterAgent` runs the verify reminder.
 - A project hook that is new or whose command changed warns before it runs, so a local
   block can be skipped on first run. The CI gate (`sdlc-gate`) is the authoritative red line.
+- The release gate cannot ask you under Gemini; a deploy or push to a protected branch
+  without `.sdlc/release-authorizations/<sha>` is blocked outright.
 - Leaving plan mode with `exit_plan_mode` is **not** an approved `plan.md`. Rule 1 is
   satisfied only by `work/<slug>/plan.md` with `status: approved` set by a human.
-- Treat `.gemini/` (settings, agents, policies) as protected exactly like `.claude/hooks/`
-  in rule 3: propose the change in the PR description instead of editing it.
+- Subagents live in `.gemini/agents/` (read-only mirrors of `.claude/agents/`); the
+  `/sdlc-*` procedures are the SKILL.md files under `.claude/skills/`: read and follow them.
 <!-- END GENERATED -->

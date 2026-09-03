@@ -10,13 +10,36 @@ _ENV_UNLOCK="${SDLC_CONTROL_PLANE_UNLOCK:-}"
 _ENV_RELEASE="${RELEASE_APPROVAL:-}"
 _ENV_UNATTENDED="${SDLC_UNATTENDED:-}"
 ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+# Windows: Claude Code and Gemini CLI both hand the hook `C:\repo` and `C:\repo\src\x.ts`. Fold
+# backslashes to slashes here and treat a drive-letter prefix as absolute in canon(); before this
+# every such path was taken as relative, landed outside ROOT and was silently allowed
+# (knowledge/decisions/gemini-hooks.md). winpath() gives one spelling for ROOT and every
+# candidate (cygpath exists only on MSYS/Cygwin; elsewhere it is a no-op).
+winpath() { case "$1" in [A-Za-z]:/*|/[a-z]/*) cygpath -m -- "$1" 2>/dev/null || printf '%s' "$1";; *) printf '%s' "$1";; esac; }
+ROOT="${ROOT//\\//}"
 ROOT="$(realpath -m -- "$ROOT" 2>/dev/null || printf '%s' "$ROOT")"
+ROOT="$(winpath "$ROOT")"
 # shellcheck disable=SC1091
 [ -f "$ROOT/.sdlc/config.env" ] && . "$ROOT/.sdlc/config.env"
 SDLC_CONTROL_PLANE_UNLOCK="$_ENV_UNLOCK"
 RELEASE_APPROVAL="$_ENV_RELEASE"
 SDLC_UNATTENDED="$_ENV_UNATTENDED"
 INPUT="$(cat)"
+# Every decision below reads the input with jq. Without jq the fields come back empty and every
+# hook would allow blindly, so a gating hook fails closed instead; the advisory hooks stay quiet
+# so a missing tool can never wedge the end of a turn. On Windows, winget installs jq into a
+# directory the hook process often does not have on PATH, so look there before giving up.
+if ! command -v jq >/dev/null 2>&1 && [ -n "${LOCALAPPDATA:-}" ]; then
+  for _d in "${LOCALAPPDATA//\\//}"/Microsoft/WinGet/Packages/jqlang.jq_*; do
+    [ -x "$_d/jq.exe" ] && PATH="$(cygpath -u -- "$_d"):$PATH" && break
+  done
+fi
+if ! command -v jq >/dev/null 2>&1; then
+  case "$0" in
+    *stop-verify-reminder.sh|*post-edit-format.sh) exit 0;;
+    *) printf 'SDLC hook blocked this action: jq is not on PATH, so %s cannot read its input; refusing rather than allowing blind. Install jq (https://jqlang.org) or add it to PATH, then retry.\n' "$(basename "$0")" >&2; exit 2;;
+  esac
+fi
 TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')"
 FILE="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty')"
 CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
@@ -25,17 +48,18 @@ CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 # (a `cd` target inside a Bash command); default: the repo root. Prefix matching on anything
 # less than a canonical path is bypassable (security review, finding 1).
 canon() {
-  local p="$1" base="${2:-}" abs
+  local p="${1//\\//}" base="${2:-}" abs
   case "$p" in
-    /*) abs="$p";;
+    /*|[A-Za-z]:/*) abs="$p";;
     *) case "$base" in
-         /*) abs="$base/$p";;
+         /*|[A-Za-z]:/*) abs="$base/$p";;
          '') abs="$ROOT/$p";;
          *)  abs="$ROOT/$base/$p";;
        esac;;
   esac
   abs="$(realpath -m -- "$abs" 2>/dev/null)" \
     || abs="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$abs" 2>/dev/null || printf '%s' "$abs")"
+  abs="$(winpath "$abs")"
   case "$abs" in
     "$ROOT") printf '.';;
     "$ROOT"/*) printf '%s' "${abs#"$ROOT"/}";;

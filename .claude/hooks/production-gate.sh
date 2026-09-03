@@ -5,6 +5,10 @@
 # config cannot satisfy the gate (security review, finding 2).
 . "$(dirname "$0")/_lib.sh"
 [ -z "$CMD" ] && exit 0
+# Gemini CLI has no "ask" decision for BeforeTool: the JSON ask() emits is ignored and the call
+# would go through. Under Gemini (it exports GEMINI_SESSION_ID to every hook) the gate therefore
+# fails closed, exactly as it does when SDLC_UNATTENDED is set (knowledge/decisions/gemini-hooks.md).
+if [ -z "$SDLC_UNATTENDED" ] && [ -n "${GEMINI_SESSION_ID:-}" ]; then SDLC_UNATTENDED="gemini-cli"; fi
 DEPLOY_RE='(^|[;&| ])(kubectl[[:space:]]+(apply|rollout|delete)|helm[[:space:]]+(install|upgrade|rollback)|terraform[[:space:]]+(apply|destroy)|pulumi[[:space:]]+up|aws[[:space:]]+(cloudformation|lambda|ecs|s3[[:space:]]+sync)|gcloud[[:space:]]+(run|app|functions)[[:space:]]+deploy|az[[:space:]]+webapp|npm[[:space:]]+publish|twine[[:space:]]+upload|docker[[:space:]]+push|flyctl[[:space:]]+deploy|fly[[:space:]]+deploy|vercel[[:space:]]+(--prod|deploy)|serverless[[:space:]]+deploy|cap[[:space:]]+production|git[[:space:]]+push[^;&|]*[[:space:]](main|master|prod|production|release)([[:space:]]|$))'
 DANGER_RE='(^|[;&| ])(rm[[:space:]]+-rf[[:space:]]+/|git[[:space:]]+push[[:space:]]+[^;&|]*--force|git[[:space:]]+reset[[:space:]]+--hard[[:space:]]+origin|DROP[[:space:]]+(TABLE|DATABASE))'
 if printf '%s' "$CMD" | grep -Eiq "$DANGER_RE"; then
