@@ -9,12 +9,33 @@ status: accepted
 
 # Spike - prompt surfaces
 
-> Sources: the Claude platform docs at platform.claude.com, read in full on 2026-09-03: *Prompting best practices*,
-> *Prompting Claude Fable 5.1*, *Prompting Claude Fable 5*, *Prompting Claude Opus 5*, *Prompting Claude Opus 4.8*,
-> *Prompting Claude Sonnet 5*, *Mitigate jailbreaks and prompt injections*, *Reduce hallucinations*, *Increase output
-> consistency*, *Reduce latency*, *Reduce prompt leak*, *Define success criteria and build evaluations*, the prompt
-> engineering overview and the glossary. Nobody on the team will read those fourteen pages, and the model-specific ones
-> change every release. This spike decides how their advice gets applied without anyone reading them.
+> Sources: the fourteen Claude platform doc pages below, read in full on 2026-09-03. Nobody on the team will read
+> them, and the model-specific ones change every release. This spike decides how their advice gets applied without
+> anyone reading them.
+>
+> URLs verified 2026-09-03. Four were fetched directly (marked +); the rest are taken from the docs index at
+> `https://platform.claude.com/docs/llms.txt` and from the link list on the *Prompting best practices* page itself.
+> Re-check them at each pin change (the model-upgrade runbook, 2.6) and update this date.
+>
+> | Page | URL |
+> |---|---|
+> | Prompt engineering overview + | `https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview` |
+> | Prompting best practices + | `https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices` |
+> | Prompting Claude Fable 5.1 | `https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1` |
+> | Prompting Claude Fable 5 | `https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5` |
+> | Prompting Claude Opus 5 | `https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5` |
+> | Prompting Claude Opus 4.8 | `https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8` |
+> | Prompting Claude Sonnet 5 | `https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5` |
+> | Mitigate jailbreaks and prompt injections + | `https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/mitigate-jailbreaks` |
+> | Reduce hallucinations | `https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations` |
+> | Increase output consistency | `https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency` |
+> | Reducing latency | `https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-latency` |
+> | Reduce prompt leak | `https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-prompt-leak` |
+> | Define success criteria and build evaluations | `https://platform.claude.com/docs/en/test-and-evaluate/develop-tests` |
+> | Glossary | `https://platform.claude.com/docs/en/about-claude/glossary` |
+>
+> Not re-verified here: the specific claims drawn from these pages in 2.6 (the routing table) were read on 2026-09-03
+> and are not quoted verbatim. Anyone checking a routing row should open the page in the table above.
 >
 > Accepted by the owner on 2026-09-03 as a design; implementation is a separate decision, to be taken as work item
 > `prompt-surfaces` when scheduled. Revision 2 adds per-role model routing (2.6) after the owner's question on how far
