@@ -61,6 +61,11 @@ class VerifyScript(unittest.TestCase):
             self.assertEqual(_last_line(result.stdout), "VERIFY: FAIL")
             self.assertEqual(result.returncode, 1)
 
+    @unittest.skipIf(
+        os.name == "nt",
+        "NTFS has no POSIX executable bit, so a check written with executable=False is "
+        "still -x and the behaviour under test cannot be produced (roadmap item 19)",
+    )
     def test_non_executable_check_is_skipped(self):
         with tempfile.TemporaryDirectory() as root:
             _make_repo(root)

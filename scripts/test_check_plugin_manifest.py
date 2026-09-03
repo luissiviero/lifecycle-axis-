@@ -230,6 +230,11 @@ class HooksPathsCheck(unittest.TestCase):
                 any("does-not-exist.sh" in l for l in drift_lines), result.stdout
             )
 
+    @unittest.skipIf(
+        os.name == "nt",
+        "NTFS has no POSIX executable bit, so os.chmod(path, 0o644) leaves the script "
+        "executable and the drift under test cannot be produced (roadmap item 19)",
+    )
     def test_hooks_command_referencing_non_executable_script_is_a_problem(self):
         with tempfile.TemporaryDirectory() as root:
             plugin = _default_plugin(

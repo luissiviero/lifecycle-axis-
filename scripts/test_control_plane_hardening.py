@@ -48,7 +48,18 @@ class Traversal(unittest.TestCase):
     def test_symlink_into_control_plane_is_blocked(self):
         with fake_repo() as root:
             os.makedirs(os.path.join(root, "work"), exist_ok=True)
-            os.symlink(os.path.join(root, ".sdlc"), os.path.join(root, "work", "link"))
+            try:
+                os.symlink(os.path.join(root, ".sdlc"), os.path.join(root, "work", "link"))
+            except OSError as exc:
+                # Windows refuses symlink creation to an unprivileged process (WinError 1314)
+                # unless Developer Mode is on. Skip rather than fail: the precondition cannot be
+                # built here, so there is nothing to assert. Linux CI always runs this.
+                if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+                    self.skipTest(
+                        "creating a symlink needs Windows Developer Mode "
+                        "(Settings > Privacy & security > For developers)"
+                    )
+                raise
             r = run_hook("protect-paths.sh", bash("echo x > work/link/config.env"), root)
             self.assertEqual(r.returncode, 2, r.stderr)
 
