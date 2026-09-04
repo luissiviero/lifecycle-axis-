@@ -4,11 +4,11 @@ id: loop-protection
 title: The agent must not be able to weaken the check on its own work
 description: Files, order, proof and risks for protecting the verify loop and settings, the existing-only test lock, permissions in settings, and loud skipped checks and failing evals.
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-04
 risk-class: low
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
