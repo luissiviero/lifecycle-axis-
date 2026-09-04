@@ -260,6 +260,37 @@ class InProgressChain(unittest.TestCase):
             self.assertNotIn("mode: in-progress", result.stdout)
             self.assertIn("work/new/spec.md is missing", result.stdout)
 
+    def test_superseding_an_approved_plan_keeps_its_approved_by_and_passes(self):
+        """Retiring an item: plan.md goes approved -> superseded, its approved-by stays as history."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)  # 'demo' fully approved on main
+            _git(root, "checkout", "-q", "-b", "work/demo")
+            _write(os.path.join(wd, "plan.md"), _plan("luissiviero", status="superseded"))
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-01-02T00:00:00Z | plan.md | approved -> superseded | luissiviero | abc1234 | retired\n")
+            _commit(root, "retire the item")
+            result = _run(root, "--slug", "demo", "--base", "main")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("mode: in-progress", result.stdout)
+
+    def test_activating_the_item_in_the_same_diff_stays_in_progress(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._start_item(root)
+            _write(os.path.join(root, ".sdlc", "active"), "new\n")
+            _commit(root, "open and activate")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("mode: in-progress", result.stdout)
+
+    def test_pointing_active_at_another_item_is_strict(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._start_item(root)
+            _write(os.path.join(root, ".sdlc", "active"), "somebody-else\n")
+            _commit(root, "active flipped elsewhere")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 1)
+            self.assertNotIn("mode: in-progress", result.stdout)
+
     def test_code_in_the_diff_needs_the_whole_chain(self):
         with tempfile.TemporaryDirectory() as root:
             self._start_item(root)

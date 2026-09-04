@@ -2,11 +2,14 @@
 """Fail a PR whose artifact chain is broken.
 
 Two modes, chosen from the diff against --base:
-  in-progress  every changed path is under work/ (an artifact-only PR, or no diff at all): the chain
-               is checked as far as it exists. intent.md must exist; spec.md may exist only once
+  in-progress  every changed path is this item's own (work/<slug>/, the generated work/index.md, or
+               .sdlc/active when it now names <slug>), or there is no diff at all: the chain is
+               checked as far as it exists. intent.md must exist; spec.md may exist only once
                intent.md is approved, plan.md only once spec.md is; every status is one of
-               draft | in-review | approved | superseded; log.md exists. This is what lets a work
-               item be opened and approved one stage per PR, as docs/sdlc/README.md prescribes.
+               draft | in-review | approved | superseded; approved-by only on approved or
+               superseded artifacts; log.md exists. This is what lets a work item be opened,
+               approved one stage per PR, activated, and finally superseded, as
+               docs/sdlc/README.md prescribes.
   strict       anything else changed: the whole chain must be approved (the checks below).
 
 Checks, for the work item named by --slug (or .sdlc/active):
@@ -128,14 +131,23 @@ def main():
 
     diff = subprocess.run(["git", "diff", "--name-only", f"{a.base}...HEAD"], capture_output=True, text=True, cwd=ROOT)
     changed_all = [p for p in diff.stdout.split() if p]
-    # Artifact-only means *this* item's artifacts (plus the generated top-level index): a PR that
-    # touches another item's work/<other>/ while labelled with this slug is mislabelled, and gets the
-    # strict check. An empty diff (`--base HEAD`, a local self-check) validates what exists.
-    in_progress = all(p == "work/index.md" or p.startswith(f"work/{slug}/") for p in changed_all)
+    # Artifact-only means *this* item's artifacts (plus the generated top-level index), and
+    # .sdlc/active when the diff points it at this item -- activating an item is part of opening it.
+    # A PR that touches another item's work/<other>/ while labelled with this slug is mislabelled,
+    # and gets the strict check. An empty diff (`--base HEAD`, a local self-check) validates what exists.
+    active_path = os.path.join(ROOT, ".sdlc", "active")
+    active_now = open(active_path, encoding="utf-8").read().strip() if os.path.exists(active_path) else ""
+
+    def own_artifact(p):
+        if p == "work/index.md" or p.startswith(f"work/{slug}/"):
+            return True
+        return p == ".sdlc/active" and active_now == slug
+
+    in_progress = all(own_artifact(p) for p in changed_all)
     if in_progress:
         notes.append(
-            f"mode: in-progress -- the diff touches only work/{slug}/, so the chain is checked as far "
-            "as it exists; any other path in the diff needs the whole chain approved"
+            f"mode: in-progress -- the diff touches only work/{slug}/ (and .sdlc/active naming it), so the "
+            "chain is checked as far as it exists; any other path in the diff needs the whole chain approved"
         )
 
     fms = {name: front_matter(os.path.join(wd, name)) for name in CHAIN}
@@ -164,7 +176,8 @@ def main():
                     )
             if status == "approved" and not fm.get("approved-by"):
                 errors.append(f"work/{slug}/{name} is approved but has no approved-by")
-            if status != "approved" and fm.get("approved-by"):
+            # A superseded artifact keeps the approved-by it earned; a draft or in-review one has none.
+            if status not in ("approved", "superseded") and fm.get("approved-by"):
                 errors.append(
                     f"work/{slug}/{name} has approved-by '{fm.get('approved-by')}' but status '{status}'; "
                     f"scripts/approve.py sets both together"
