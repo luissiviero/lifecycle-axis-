@@ -22,7 +22,7 @@ prints the git-derived ones.
 | Feedback loop | first-pass CI success rate for agent changes | review time per PR; change failure rate | CI; incident tracker |
 | Continuous evals | eval pass rate over time; time for an incident to become an eval | regressions caught in CI vs found in production | `agent-evals` runs |
 | PR review | time to first review; share of comments resolved without a human touching the branch | defects caught before merge vs escaped | PR history; incidents |
-| Approval gates | time waiting at each gate (hook decisions with timestamps) | gate violations reaching production before/after hooks | OTel; incidents |
+| Approval gates | time waiting at each gate (hook decisions with timestamps) | gate violations reaching production before/after hooks | `.sdlc/hook-decisions.log` (timestamped block/ask/unlock lines per session); incidents |
 | CI/CD | share of pipeline failures triaged without paging a human | DORA measures | CI logs |
 | Closing the loop | band breach → intent.md in the triage queue | share of findings that become merged fixes; repeat incidents of the same class | detector log; PRs |
 | Codebase scans | share of repos on a schedule; finding → patch in review gate | scan findings vs production/external reports; findings per scan trend | scan history |

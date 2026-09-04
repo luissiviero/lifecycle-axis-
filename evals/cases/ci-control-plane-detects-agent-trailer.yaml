@@ -1,0 +1,16 @@
+name: ci-control-plane-detects-agent-trailer
+kind: hook
+source: work/control-plane-visibility/spec.md (R-6, R-7: a kit/ branch or a Claude commit trailer on a work/ branch is agent-authored to CI)
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"
+  cd "$d" && git init -q -b main && git config user.email t@e.com && git config user.name t
+  mkdir .sdlc && cp "$R/.sdlc/config.env" .sdlc/
+  echo base > README.md && git add -A && git commit -q -m base
+  git checkout -q -b head
+  printf '# agent edit\n' >> .sdlc/config.env && git add -A && git commit -q -m touch -m 'Co-Authored-By: Claude <noreply@anthropic.com>'
+  ! SDLC_PR_AUTHOR_TYPE=User SDLC_PR_HEAD_REF=work/x SDLC_PR_LABELS='[]' "$R/scripts/check_control_plane.sh" main > "$d/out" 2>&1
+  grep -q BLOCKED "$d/out"
+  SDLC_PR_AUTHOR_TYPE=User SDLC_PR_HEAD_REF=work/x SDLC_PR_LABELS='["control-plane-approved"]' "$R/scripts/check_control_plane.sh" main | grep -q EXEMPT
+  git commit -q --amend -m touch
+  SDLC_PR_AUTHOR_TYPE=User SDLC_PR_HEAD_REF=work/x SDLC_PR_LABELS='[]' "$R/scripts/check_control_plane.sh" main | grep -q human-authored
+  ! SDLC_PR_AUTHOR_TYPE=User SDLC_PR_HEAD_REF=kit/x SDLC_PR_LABELS='[]' "$R/scripts/check_control_plane.sh" main >/dev/null 2>&1

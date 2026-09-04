@@ -29,8 +29,10 @@ and gains a label exemption:
 
 1. No changes under any `PROTECTED_PATHS` prefix → `CONTROL-PLANE: clean`, exit 0. This is the
    common case and needs no human action.
-2. Changes present, but the PR is human-authored (`SDLC_PR_AUTHOR_TYPE` is not `Bot` and
-   `SDLC_PR_HEAD_REF` does not start with an entry in `AGENT_BRANCH_PREFIXES`, default `claude/`)
+2. Changes present, but the PR is human-authored (`SDLC_PR_AUTHOR_TYPE` is not `Bot`,
+   `SDLC_PR_HEAD_REF` does not start with an entry in `AGENT_BRANCH_PREFIXES` from
+   `.sdlc/config.env`, default `claude/ kit/ spike/`, and no commit in `<base>..HEAD` carries a
+   `Co-Authored-By: … Claude` or `Claude-Session:` trailer)
    → informational pass: `CONTROL-PLANE: human-authored, review by CODEOWNERS`, exit 0. CODEOWNERS
    (`.github/CODEOWNERS`) already requires the owner's review on these paths; this job does not
    duplicate that gate.
@@ -74,3 +76,12 @@ without a fresh look, until someone removes the label.
 A future hardening (not built here): a workflow that removes the label automatically whenever a
 new commit changes the set of touched protected-path files, forcing re-review. Left for adoption
 if the residual risk proves costly in practice.
+
+Two residuals recorded by `work/control-plane-visibility` (spec C3, C4):
+
+- **The label can be applied by the agent's own session.** An agent running under the owner's
+  login can run `gh pr edit --add-label control-plane-approved`; nothing in the kit gates that
+  call. The owner's review under CODEOWNERS and branch protection remain the gate against intent.
+- **Trailer detection needs trailers.** The prefix list and the trailer scan are belt and braces,
+  not proof: a session that commits without a Claude trailer on a `work/<slug>` branch is still
+  human to this job. The hook and `.sdlc/hook-decisions.log` are the local record for that case.
