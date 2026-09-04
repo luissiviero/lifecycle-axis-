@@ -4,10 +4,10 @@ id: front-matter
 title: Templates and artifact parsers must agree; approve.py must not misfire
 description: One front-matter parser for every Python reader, comment lines instead of inline comments in the templates, an example that matches them, and an approve.py that only records gates a human can actually hold.
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-04
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Transcribed from the approved implementation plan (session above), section WI-1 and appendix A6, by a drafting subagent; reviewed by the orchestrator."
