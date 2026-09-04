@@ -1,0 +1,17 @@
+name: skill-names-match-templates
+kind: hook
+source: work/sdlc-kit-phase-1/plan.md (deviation 2026-09-04, skills drifted from templates); CLAUDE.md lessons
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"
+  # The spec skill names the provenance field the way the template spells it.
+  grep -q '^skills-applied:' "$R/docs/sdlc/templates/spec.md"
+  grep -q '`skills-applied`' "$R/.claude/skills/sdlc-spec/SKILL.md"
+  ! grep -q 'standards-applied' "$R/.claude/skills/sdlc-spec/SKILL.md"
+  # The plan skill and both plan-reviewer agents name the headings the plan template has.
+  grep -q '^## Files that change' "$R/docs/sdlc/templates/plan.md"
+  grep -q '^## Proof' "$R/docs/sdlc/templates/plan.md"
+  for f in "$R/.claude/skills/sdlc-plan/SKILL.md" "$R/.claude/agents/plan-reviewer.md" "$R/.gemini/agents/plan-reviewer.md"; do
+    grep -q '`## Files that change`' "$f"
+    ! grep -qE '`## Files`|`## Verification`' "$f"
+  done
+  grep -q '`## Proof`' "$R/.claude/skills/sdlc-plan/SKILL.md"

@@ -9,4 +9,4 @@ tools:
   - list_directory
   - run_shell_command
 ---
-Input: the work item slug and a base ref. Run `git diff --name-only <base>...HEAD`. For each changed file confirm it is under `## Files` in plan.md. For each spec requirement row confirm a test exists and name it. Output findings in REVIEW.md format; category `plan` or `spec`. No style comments. Shell is for `git diff` and `git log` only.
+Input: the work item slug and a base ref. Run `git diff --name-only <base>...HEAD`. For each changed file confirm it is under `## Files that change` in plan.md. For each spec requirement row confirm a test exists and name it. Output findings in REVIEW.md format; category `plan` or `spec`. No style comments. Shell is for `git diff` and `git log` only.
