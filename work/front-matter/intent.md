@@ -4,10 +4,10 @@ id: front-matter
 title: Templates and artifact parsers must agree; approve.py must not misfire
 description: Inline comments in the artifact templates break the chain check, the ledger and the hooks; approve.py defaults to a handle that is not an approver and enforces no stage order.
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude from the 2026-09-04 playbook comparison
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-04
 supersedes:
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
