@@ -128,12 +128,14 @@ def main():
 
     diff = subprocess.run(["git", "diff", "--name-only", f"{a.base}...HEAD"], capture_output=True, text=True, cwd=ROOT)
     changed_all = [p for p in diff.stdout.split() if p]
-    # An empty diff (`--base HEAD`, a local self-check) counts as artifact-only: validate what exists.
-    in_progress = all(p.startswith("work/") for p in changed_all)
+    # Artifact-only means *this* item's artifacts (plus the generated top-level index): a PR that
+    # touches another item's work/<other>/ while labelled with this slug is mislabelled, and gets the
+    # strict check. An empty diff (`--base HEAD`, a local self-check) validates what exists.
+    in_progress = all(p == "work/index.md" or p.startswith(f"work/{slug}/") for p in changed_all)
     if in_progress:
         notes.append(
-            "mode: in-progress -- the diff touches only work/, so the chain is checked as far as it "
-            "exists; a diff outside work/ needs the whole chain approved"
+            f"mode: in-progress -- the diff touches only work/{slug}/, so the chain is checked as far "
+            "as it exists; any other path in the diff needs the whole chain approved"
         )
 
     fms = {name: front_matter(os.path.join(wd, name)) for name in CHAIN}

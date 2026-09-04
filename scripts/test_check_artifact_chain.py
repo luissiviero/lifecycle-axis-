@@ -250,6 +250,16 @@ class InProgressChain(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("work/new/log.md is missing", result.stdout)
 
+    def test_another_items_artifacts_in_the_diff_is_not_in_progress_for_this_slug(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._start_item(root)
+            _write(os.path.join(root, "work", "other", "intent.md"), _artifact("", status="draft"))
+            _commit(root, "two items in one PR, labelled with one")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 1)
+            self.assertNotIn("mode: in-progress", result.stdout)
+            self.assertIn("work/new/spec.md is missing", result.stdout)
+
     def test_code_in_the_diff_needs_the_whole_chain(self):
         with tempfile.TemporaryDirectory() as root:
             self._start_item(root)
