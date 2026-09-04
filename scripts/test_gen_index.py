@@ -181,6 +181,25 @@ class CheckMode(unittest.TestCase):
             chk = _run_cli(["--check", "--root", root])
             self.assertEqual(chk.returncode, 0, chk.stdout + chk.stderr)
 
+    def test_check_ignores_crlf_line_endings(self):
+        """A core.autocrlf=true checkout on Windows hands back CRLF index files. The generator
+        writes LF, so a byte-for-byte compare called every such checkout drifted until
+        someone regenerated; a line-ending difference alone is not drift."""
+        with tempfile.TemporaryDirectory() as root:
+            _build_two_item_tree(root)
+            gen = _run_cli(["--root", root])
+            self.assertEqual(gen.returncode, 0, gen.stderr)
+
+            top_index = os.path.join(root, "work", "index.md")
+            with open(top_index, "rb") as f:
+                lf = f.read()
+            self.assertNotIn(b"\r\n", lf)
+            with open(top_index, "wb") as f:
+                f.write(lf.replace(b"\n", b"\r\n"))
+
+            chk = _run_cli(["--check", "--root", root])
+            self.assertEqual(chk.returncode, 0, chk.stdout + chk.stderr)
+
     def test_check_fails_after_hand_edit_and_names_the_file(self):
         with tempfile.TemporaryDirectory() as root:
             _build_two_item_tree(root)
