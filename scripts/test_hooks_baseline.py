@@ -14,7 +14,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from hooktest import fake_repo, run_hook  # noqa: E402
+from hooktest import REAL_ROOT, fake_repo, run_hook  # noqa: E402
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "hook_inputs")
 
@@ -28,6 +28,24 @@ def load_fixture(name, **tool_input_overrides):
         payload = json.load(f)
     payload["tool_input"].update(tool_input_overrides)
     return payload
+
+
+class Harness(unittest.TestCase):
+    """scripts/hooktest.py itself: what every fake repo carries (work/front-matter spec R-10)."""
+
+    def test_fake_repo_carries_approvers_yaml(self):
+        with open(os.path.join(REAL_ROOT, ".sdlc", "approvers.yaml"), encoding="utf-8") as f:
+            real = f.read()
+        with fake_repo() as root:
+            with open(os.path.join(root, ".sdlc", "approvers.yaml"), encoding="utf-8") as f:
+                self.assertEqual(f.read(), real)
+        with fake_repo(approvers_yaml="roles:\n  tech-lead: [alice]\n") as root:
+            with open(os.path.join(root, ".sdlc", "approvers.yaml"), encoding="utf-8") as f:
+                self.assertEqual(f.read(), "roles:\n  tech-lead: [alice]\n")
+        # A test's own file wins over the copy.
+        with fake_repo(**{".sdlc/approvers.yaml": "roles:\n"}) as root:
+            with open(os.path.join(root, ".sdlc", "approvers.yaml"), encoding="utf-8") as f:
+                self.assertEqual(f.read(), "roles:\n")
 
 
 class ProtectPathsHook(unittest.TestCase):
@@ -103,10 +121,22 @@ class RequirePlanHook(unittest.TestCase):
             self.assertIn("in-review", result.stderr)
 
     def test_allows_when_plan_approved(self):
-        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\n---\n"}) as root:
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\n---\n"}) as root:
             payload = load_fixture("edit", file_path="src/a.ts")
             result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_template_derived_plan_reads_clean_status(self):
+        """A plan.md copied verbatim from docs/sdlc/templates/ reads as 'draft', not as
+        'draft   # ...' (work/front-matter spec R-5): today's awk reader sees a bare value."""
+        with open(os.path.join(REAL_ROOT, "docs", "sdlc", "templates", "plan.md"), encoding="utf-8") as f:
+            template = f.read()
+        with fake_repo(**{"work/foo/plan.md": template}) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("status 'draft', not 'approved'", result.stderr)
+            self.assertNotIn("#", result.stderr)
 
     def test_allows_path_outside_plan_required_paths(self):
         with fake_repo() as root:
@@ -119,20 +149,20 @@ class ProtectTestsHook(unittest.TestCase):
     HOOK = "protect-tests.sh"
 
     def test_blocks_test_file_when_kind_fix(self):
-        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\nkind: fix\n---\n"}) as root:
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\nkind: fix\n---\n"}) as root:
             payload = load_fixture("edit", file_path="src/foo.test.ts")
             result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
             self.assertEqual(result.returncode, 2, result.stderr)
             self.assertIn("kind: fix", result.stderr)
 
     def test_allows_non_test_file_when_kind_fix(self):
-        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\nkind: fix\n---\n"}) as root:
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\nkind: fix\n---\n"}) as root:
             payload = load_fixture("edit", file_path="src/foo.ts")
             result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_allows_test_file_when_kind_feature(self):
-        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\nkind: feature\n---\n"}) as root:
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\nkind: feature\n---\n"}) as root:
             payload = load_fixture("edit", file_path="src/foo.test.ts")
             result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
             self.assertEqual(result.returncode, 0, result.stderr)

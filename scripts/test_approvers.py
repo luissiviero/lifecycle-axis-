@@ -1,6 +1,7 @@
-import os, sys, tempfile, textwrap, unittest
+import os, subprocess, sys, tempfile, textwrap, unittest
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 import approvers
 from approvers import load
 
@@ -126,6 +127,57 @@ class ApproversTempFileDifferentOwner(unittest.TestCase):
             self.assertTrue(ok, reason)
             ok, reason = a.is_valid("intent.md", "luissiviero")
             self.assertFalse(ok)
+
+
+class HasRole(unittest.TestCase):
+    """work/front-matter spec R-9: the role question the deploy gate asks, as a method and a CLI."""
+
+    def setUp(self):
+        self.a = load()
+
+    def test_listed_handle_ok(self):
+        for role in ("product-owner", "tech-lead", "release-manager", "service-owner"):
+            ok, reason = self.a.has_role(role, "luissiviero")
+            self.assertTrue(ok, f"{role}: {reason}")
+            self.assertEqual(reason, "ok")
+        ok, _ = self.a.has_role("tech-lead", "@LuisSiviero (tech lead)")
+        self.assertTrue(ok)
+
+    def test_never_approve_handle_rejected(self):
+        for bot in ("claude[bot]", "github-actions[bot]", "claude", "@claude"):
+            ok, reason = self.a.has_role("tech-lead", bot)
+            self.assertFalse(ok)
+            self.assertEqual(reason, "agent identities cannot approve")
+        ok, reason = self.a.has_role("tech-lead", "")
+        self.assertFalse(ok)
+        self.assertEqual(reason, "empty approver")
+        ok, reason = self.a.has_role("tech-lead", "someone-else")
+        self.assertFalse(ok)
+        self.assertEqual(reason, "someone-else is not a tech-lead")
+
+    def test_unknown_role_rejected(self):
+        ok, reason = self.a.has_role("janitor", "luissiviero")
+        self.assertFalse(ok)
+        self.assertEqual(reason, "no such role janitor")
+        with tempfile.TemporaryDirectory() as d:
+            missing = os.path.join(d, "nope.yaml")
+            ok, reason = load(missing).has_role("tech-lead", "luissiviero")
+            self.assertFalse(ok)
+            self.assertIn("no approvers file", reason)
+
+    def test_cli_exit_codes(self):
+        script = os.path.join(HERE, "approvers.py")
+        cases = (("tech-lead", "luissiviero", 0), ("tech-lead", "claude", 1),
+                 ("tech-lead", "someone-else", 1), ("janitor", "luissiviero", 1))
+        for role, handle, code in cases:
+            r = subprocess.run([sys.executable, script, "--has-role", role, handle],
+                               capture_output=True, text=True, cwd=os.path.dirname(HERE))
+            self.assertEqual(r.returncode, code, f"{role} {handle}: {r.stderr}")
+            self.assertTrue(r.stderr.strip(), "reason goes to stderr")
+        # No flag: the JSON dump is unchanged.
+        r = subprocess.run([sys.executable, script], capture_output=True, text=True, cwd=os.path.dirname(HERE))
+        self.assertEqual(r.returncode, 0)
+        self.assertIn('"roles"', r.stdout)
 
 
 if __name__ == "__main__":
