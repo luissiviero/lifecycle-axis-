@@ -4,12 +4,16 @@ id: <slug>
 title: <one-line problem statement in the originator's words>
 description: <one sentence for indexes and catalogs>
 stage: plan
-status: draft            # draft | in-review | approved | superseded
+# status: draft | in-review | approved | superseded
+status: draft
 author: <originator name and team>
-approved-by:             # product owner; set only by a human
+# approved-by: product owner; set only by a human, with scripts/approve.py from their own shell
+approved-by:
 approved-on:
-supersedes:              # previous intent id, if any
-record:                  # legacy system id (Jira/ServiceNow) if that system holds a copy
+# supersedes: previous intent id, if any
+supersedes:
+# record: legacy system id (Jira/ServiceNow) if that system holds a copy
+record:
 resource: <link to issue / incident / channel thread / band breach log>
 tags: []
 timestamp: 2026-09-02T20:00:00Z

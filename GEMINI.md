@@ -53,8 +53,10 @@ previous one.
 - `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
   handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
   `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.
-- Humans approve with `python3 scripts/approve.py <slug> <artifact>` from their own shell, then commit. It refuses
-  to run inside an agent session; an agent asks for approval and waits.
+- Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone:
+  `git config sdlc.approver <github-handle>`, or pass `--as <handle>`; it enforces intent → spec → plan order), or by
+  editing the artifact plus `log.md` in the GitHub web editor; then commit as themselves. The script refuses to run
+  inside an agent session; an agent asks for approval and waits. CI checks the approval commit's author.
 
 ## Gemini CLI notes
 - `.gemini/settings.json` wires the same scripts as Claude: `BeforeTool` on

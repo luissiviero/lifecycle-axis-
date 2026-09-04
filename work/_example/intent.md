@@ -5,10 +5,13 @@ title: Example work item
 description: Always-green example so hooks and CI can be exercised end to end.
 stage: plan
 status: approved
-originator: repo maintainer
+author: repo maintainer
 approved-by: luissiviero
 approved-on: 2026-09-02
-source: docs/sdlc/README.md
+supersedes:
+record:
+resource: docs/sdlc/README.md
+tags: [example]
 timestamp: 2026-09-02T14:18:00Z
 ---
 # Intent: keep an always-green example so hooks and CI can be exercised
@@ -16,18 +19,21 @@ timestamp: 2026-09-02T14:18:00Z
 ## Problem
 New contributors need a work item that already passes every gate, to see the loop run end to end.
 
-## Success criteria
+## Proposed outcome
 - `scripts/check_artifact_chain.py --slug _example` exits 0 on a clean branch
 
 ## Affected users and systems
 - Users: contributors
 - Services / repos / data: this repo only
 
-## Constraints and non-goals
+## Constraints
+- Must: keep every field and heading the templates in `docs/sdlc/templates/` have, in their order
 - Must not: touch application code
+- Out of scope: anything beyond documentation
 
 ## Risk class
 low — documentation only.
 
-## Open questions
-- none
+## Open questions (agent asks; originator answers; carried into spec.md if unresolved)
+- Q: none
+  A: none

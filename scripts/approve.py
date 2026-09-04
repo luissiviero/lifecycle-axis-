@@ -5,8 +5,9 @@ Usage:
   scripts/approve.py <slug> <artifact>... [--as HANDLE] [--note TEXT] [--activate] [--dry-run]
 
   <artifact> is one of intent.md, spec.md, plan.md, incident.md (or several).
-  --as HANDLE   GitHub handle recorded as approved-by (default: `git config sdlc.approver`,
-                then `git config user.name`); it must hold the artifact's role in .sdlc/approvers.yaml.
+  --as HANDLE   GitHub handle recorded as approved-by (default: `git config sdlc.approver`; there is
+                no fallback to user.name, a display name is not a handle); it must hold the
+                artifact's role in .sdlc/approvers.yaml.
   --note TEXT   free text for the ledger line.
   --activate    also point .sdlc/active at <slug>.
   --dry-run     print what would change, write nothing.
@@ -15,6 +16,10 @@ What it does, per artifact: sets `status: approved`, `approved-by: HANDLE`, `app
 the YAML front matter, and appends `- <ts> | <artifact> | <old> -> approved | HANDLE | <sha> | <note>` to
 work/<slug>/log.md (creating it from the template shape if absent). It then prints the commit command;
 the human commits. Nothing is committed by this script.
+
+Stage order: spec.md is approved only once intent.md is, plan.md only once spec.md is (on disk, or
+earlier in the same call, which processes several artifacts in chain order whatever order they are
+given in). A violation exits 1 naming the predecessor and its status, and writes nothing.
 
 Only a human may approve (hard rule in CLAUDE.md). The script therefore refuses to run inside a Claude
 Code session, which exports CLAUDECODE=1 to every command it runs; an agent asking a human to approve
@@ -33,6 +38,7 @@ import log_ledger  # noqa: E402
 from check_artifact_chain import ROOT, front_matter  # noqa: E402
 
 ARTIFACTS = ("intent.md", "spec.md", "plan.md", "incident.md")
+PREDECESSOR = {"spec.md": "intent.md", "plan.md": "spec.md"}
 
 
 def git(*args):
@@ -72,7 +78,7 @@ def main(argv=None):
               "run this from your own shell.", file=sys.stderr)
         return 3
 
-    handle = a.handle or git("config", "sdlc.approver") or git("config", "user.name")
+    handle = a.handle or git("config", "sdlc.approver")
     if not handle:
         print("approve: no handle; pass --as <github-handle> or `git config sdlc.approver <handle>`", file=sys.stderr)
         return 1
@@ -88,7 +94,11 @@ def main(argv=None):
     sha = git("rev-parse", "--short", "HEAD") or "0000000"
     changed, lines = [], []
 
-    for name in a.artifacts:
+    # Validate everything first, in chain order, so a refusal writes nothing; then write.
+    ordered = [n for n in ARTIFACTS if n in a.artifacts]
+    approved_now = set()
+    todo = []  # (name, path, old_status, new_text)
+    for name in ordered:
         path = os.path.join(wd, name)
         fm = front_matter(path)
         if fm is None:
@@ -98,13 +108,25 @@ def main(argv=None):
         if not ok:
             print(f"approve: '{handle}' may not approve {name}: {reason}", file=sys.stderr)
             return 1
+        prev = PREDECESSOR.get(name)
+        if prev and prev not in approved_now:
+            prev_fm = front_matter(os.path.join(wd, prev))
+            prev_status = "missing" if prev_fm is None else (prev_fm.get("status") or "draft")
+            if prev_status != "approved":
+                print(f"approve: work/{a.slug}/{name} needs work/{a.slug}/{prev} approved first "
+                      f"(it is '{prev_status}')", file=sys.stderr)
+                return 1
+        approved_now.add(name)
         old = fm.get("status", "draft") or "draft"
         if old == "approved" and av.normalize(fm.get("approved-by", "")) == av.normalize(handle):
             print(f"approve: work/{a.slug}/{name} already approved by {handle}; nothing to do")
             continue
         with open(path, encoding="utf-8") as f:
             text = f.read()
-        new_text = set_front_matter(text, {"status": "approved", "approved-by": handle, "approved-on": today})
+        todo.append((name, path, old, set_front_matter(
+            text, {"status": "approved", "approved-by": handle, "approved-on": today})))
+
+    for name, path, old, new_text in todo:
         entry = log_ledger.Entry(ts=ts, artifact=name, from_status=old, to_status="approved",
                                  actor=handle, sha=sha, note=a.note, lineno=0)
         line = log_ledger.render(entry)
