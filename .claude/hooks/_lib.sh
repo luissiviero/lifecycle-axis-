@@ -90,7 +90,10 @@ under_any() { # under_any <relpath> <space-separated prefixes>
 # the way) is swallowed: the log never changes a verdict or an exit code.
 DECISION_LOG="$ROOT/.sdlc/hook-decisions.log"
 log_decision() {  # <verdict> <detail>; never fails the hook
-  { printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$(basename "$0")" "${TOOL:-?}" "${SESSION_ID:-?}" "$2" >> "$DECISION_LOG"; } 2>/dev/null || true
+  # The detail may carry a whole Bash command (an ask() reason); tabs and newlines in it are
+  # folded to spaces so one decision is always one row.
+  local d="${2//$'\n'/ }"; d="${d//$'\r'/ }"; d="${d//$'\t'/ }"
+  { printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$(basename "$0")" "${TOOL:-?}" "${SESSION_ID:-?}" "$d" >> "$DECISION_LOG"; } 2>/dev/null || true
 }
 block() { log_decision block "$1"; printf 'SDLC hook blocked this action: %s\n' "$1" >&2; exit 2; }
 ask()   { log_decision ask "$1"; jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'; exit 0; }

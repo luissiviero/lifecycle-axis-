@@ -147,6 +147,18 @@ class DecisionLog(unittest.TestCase):
             self.assertEqual([l.split("\t")[1:5] for l in lines[1:]],
                              [["block", "fakehook.sh", "Bash", "s2"], ["ask", "fakehook.sh", "Bash", "?"]])
 
+    def test_log_decision_folds_tabs_and_newlines_in_detail(self):
+        """An ask() reason can carry a multi-line Bash command; a row is still one line."""
+        with fake_repo() as root:
+            r = lib("log_decision ask \"$(printf 'cat > x <<EOF\\na\\tb\\nEOF')\"; echo rc=$?", root,
+                    stdin='{"tool_name":"Bash","session_id":"s3"}')
+            self.assertEqual(r.stdout.strip(), "rc=0", r.stderr)
+            lines = log_lines(root)
+            self.assertEqual(len(lines), 1, lines)
+            fields = lines[0].split("\t")
+            self.assertEqual(len(fields), 6, fields)
+            self.assertEqual(fields[5], "cat > x <<EOF a b EOF")
+
     def test_log_decision_failure_is_silent(self):
         with fake_repo() as root:
             # A directory at the log path makes every append fail, whatever user runs the tests
