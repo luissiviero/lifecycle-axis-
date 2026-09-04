@@ -41,9 +41,11 @@ JSON and a scratch clone (`EXP5`, `EXP7`, `EXP8` in the comparison report).
 ## Proposed outcome
 - A verbatim copy of any template into `work/<slug>/` passes `check_artifact_chain.py` in in-progress
   mode, and `approve.py` on it produces a five-field ledger line with no `#` left on the `status:` line.
-- `require-plan.sh` and `protect-tests.sh` read `status:` and `kind:` through one shared parser that
-  strips CR, trailing comments and quotes and casefolds, so `kind: fix   # comment`, `kind: "Fix"` and
-  a CRLF plan all lock tests; the templates keep their guidance as a comment line above each field.
+- The templates keep their guidance as a comment line above each field, so the hooks' current
+  `status:` and `kind:` parsers read a template-derived plan cleanly (pinned by a characterisation
+  test). The shared hook parser itself (`fm_value` in `_lib.sh`) lands in `control-plane-visibility`,
+  and its use in `require-plan.sh` and `protect-tests.sh` in `loop-protection`, so this item makes
+  no hook runtime change.
 - `work/_example/` matches the templates field for field and heading for heading.
 - `approve.py` without `sdlc.approver` exits 1 with the exact `--as` hint, never guesses from
   `user.name`; approving `spec.md` with an unapproved `intent.md` (or `plan.md` with an unapproved
@@ -61,14 +63,13 @@ JSON and a scratch clone (`EXP5`, `EXP7`, `EXP8` in the comparison report).
   reads `status:`/`kind:` through the hooks.
 - Services / repos / data: this repo only. `scripts/check_artifact_chain.py` (imported by
   `approve.py`, `gen_index.py`, `gen_context_files.py`, `check_okf.py`, `check_plugin_manifest.py`),
-  `scripts/approve.py`, `scripts/approvers.py`, `scripts/hooktest.py`, `.claude/hooks/_lib.sh`
-  (one new helper, `fm_value`), `require-plan.sh`, `protect-tests.sh`, the four templates,
-  `work/_example/`, the affected tests, `docs/sdlc/rules/30-conventions.md`.
+  `scripts/approve.py`, `scripts/approvers.py`, `scripts/hooktest.py`, the four templates,
+  `work/_example/`, the affected tests, `docs/sdlc/rules/30-conventions.md`. No hook script changes.
 
 ## Constraints
-- Must: keep every hook's verdict unchanged for inputs that pass today, except the fail-open `kind:`
-  cases, which must now lock; keep the `VERIFY:`/`CHAIN:`/`EVALS:` contract lines byte-identical.
-- Must: stay stdlib-only Python and bash+awk in hooks (no PyYAML, no `python3` call inside a hook).
+- Must: change no hook script in this item (the fail-open `kind:` cases lock in `loop-protection`);
+  keep the `VERIFY:`/`CHAIN:`/`EVALS:` contract lines byte-identical.
+- Must: stay stdlib-only Python (no PyYAML).
 - Must not: change what `status: approved` means, how the ledger is formatted, or the template
   headings (`evals/cases/skill-names-match-templates.yaml` pins them).
 - Must not: set `status: approved` or `approved-by` on any artifact from an agent session; this item's
