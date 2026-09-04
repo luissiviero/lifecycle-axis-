@@ -6,9 +6,11 @@ description: <one sentence>
 stage: design
 status: draft
 reads: intent.md
-approved-by:             # product owner; tech lead consulted for medium/high risk
+# approved-by: product owner; tech lead consulted for medium/high risk; set only by a human
+approved-by:
 approved-on:
-skills-applied: [security-standards]   # skills loaded as hard constraints
+# skills-applied: skills loaded as hard constraints while writing this spec
+skills-applied: [security-standards]
 skills-version: <git sha of .claude/skills at generation time>
 prompt: <the prompt that produced this spec, or path to it>
 record:

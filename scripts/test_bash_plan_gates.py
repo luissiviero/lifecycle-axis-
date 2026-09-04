@@ -11,7 +11,9 @@ The hooks are driven as subprocesses through scripts/hooktest.py (fake_repo + ru
 strips SDLC_* from the environment first, so the kit repo's own settings.json unlock cannot leak
 into these expectations.
 """
+import json
 import os
+import subprocess
 import sys
 import unittest
 
@@ -19,9 +21,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hooktest import fake_repo, run_hook  # noqa: E402
 
 PLAN_IN_REVIEW = {"work/foo/plan.md": "---\nstatus: in-review\n---\n"}
-PLAN_APPROVED = {"work/foo/plan.md": "---\nstatus: approved\n---\n"}
-PLAN_FIX = {"work/foo/plan.md": "---\nstatus: approved\nkind: fix\n---\n"}
-PLAN_FEATURE = {"work/foo/plan.md": "---\nstatus: approved\nkind: feature\n---\n"}
+PLAN_APPROVED = {"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\n---\n"}
+PLAN_FIX = {"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\nkind: fix\n---\n"}
+PLAN_FEATURE = {"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\nkind: feature\n---\n"}
 FOO = {"SDLC_WORK_ITEM": "foo"}
 
 # A complete .sdlc/config.env for the two plan hooks with the Bash branch switched off.
@@ -50,6 +52,15 @@ def edit(path):
         "tool_name": "Edit",
         "tool_input": {"file_path": path, "old_string": "a", "new_string": "b"},
     }
+
+
+def log_lines(root):
+    """Lines of the fake repo's .sdlc/hook-decisions.log, split into their six fields."""
+    path = os.path.join(root, ".sdlc", "hook-decisions.log")
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        return [line.split("\t") for line in f.read().splitlines()]
 
 
 class RequirePlanBashBranch(unittest.TestCase):
@@ -174,6 +185,121 @@ class UnlockOnEditBranch(unittest.TestCase):
             r = run_hook(self.HOOK, edit("docs/x.md"), root, env=self.UNLOCK)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(r.stderr, "")
+            self.assertEqual(r.stdout, "", "nothing unlocked: no systemMessage either")
+            self.assertEqual(log_lines(root), [])
+
+    def test_unlock_appends_log_line(self):
+        with fake_repo() as root:
+            r = run_hook(self.HOOK, edit(".sdlc/x"), root, env=self.UNLOCK)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("unlocked", r.stderr)  # the stderr line is unchanged
+            lines = log_lines(root)
+            self.assertEqual(len(lines), 1, lines)
+            self.assertEqual(lines[0][1:], ["unlock", "protect-paths.sh", "Edit", "test-session", ".sdlc/x"])
+
+    def test_unlock_emits_one_system_message_for_two_targets(self):
+        with fake_repo() as root:
+            r = run_hook(self.HOOK, bash("echo a > .sdlc/x && echo b >> .claude/hooks/y.sh"), root, env=self.UNLOCK)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(r.stderr.count("unlocked"), 2, r.stderr)
+            out = json.loads(r.stdout)  # exactly one JSON object on stdout
+            self.assertEqual(set(out), {"systemMessage"})
+            self.assertIn(".sdlc/x", out["systemMessage"])
+            self.assertIn(".claude/hooks/y.sh", out["systemMessage"])
+            self.assertIn("hook-decisions.log", out["systemMessage"])
+            lines = log_lines(root)
+            self.assertEqual([l[1] for l in lines], ["unlock", "unlock"])
+            self.assertTrue(lines[0][5].startswith(".sdlc/x"), lines[0])
+            self.assertTrue(lines[1][5].startswith(".claude/hooks/y.sh"), lines[1])
+
+    def test_unlock_never_emits_permission_decision(self):
+        with fake_repo() as root:
+            r = run_hook(self.HOOK, edit(".sdlc/x"), root, env=self.UNLOCK)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertNotIn("permissionDecision", r.stdout)
+            self.assertNotIn("hookSpecificOutput", r.stdout)
+            self.assertEqual(list(json.loads(r.stdout)), ["systemMessage"])
+
+
+class DecisionLog(unittest.TestCase):
+    """Every block and ask lands in .sdlc/hook-decisions.log; a failed append changes nothing."""
+
+    def test_block_is_logged(self):
+        with fake_repo(**PLAN_IN_REVIEW) as root:
+            r = run_hook("require-plan.sh", edit("src/a.ts"), root, env=FOO)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            lines = log_lines(root)
+            self.assertEqual(len(lines), 1, lines)
+            self.assertEqual(lines[0][1:5], ["block", "require-plan.sh", "Edit", "test-session"])
+            self.assertIn("in-review", lines[0][5])
+
+    def test_ask_is_logged(self):
+        with fake_repo() as root:
+            with open(os.path.join(root, "f.txt"), "w", encoding="utf-8") as f:
+                f.write("x")
+            subprocess.run(["git", "-C", root, "add", "."], check=True)
+            subprocess.run(["git", "-C", root, "commit", "-q", "-m", "init"], check=True)
+            r = run_hook("production-gate.sh", bash("terraform apply"), root)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn('"ask"', r.stdout)
+            lines = log_lines(root)
+            self.assertEqual(len(lines), 1, lines)
+            self.assertEqual(lines[0][1:5], ["ask", "production-gate.sh", "Bash", "test-session"])
+
+    @unittest.skipIf(os.name == "nt", "POSIX permissions")
+    def test_read_only_sdlc_does_not_break_hook(self):
+        with fake_repo(**PLAN_IN_REVIEW) as root:
+            sdlc = os.path.join(root, ".sdlc")
+            # A directory at the log path defeats the append for every user (root ignores a
+            # read-only bit); the chmod covers the unprivileged case as well.
+            os.makedirs(os.path.join(sdlc, "hook-decisions.log"))
+            os.chmod(sdlc, 0o555)
+            try:
+                r = run_hook("require-plan.sh", edit("src/a.ts"), root, env=FOO)
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("in-review", r.stderr)
+                self.assertEqual(r.stderr.count("\n"), 1, r.stderr)
+                r = run_hook("protect-paths.sh", edit(".sdlc/x"), root, env={"SDLC_CONTROL_PLANE_UNLOCK": "1"})
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertIn("unlocked", r.stderr)
+                self.assertIn("systemMessage", r.stdout)
+            finally:
+                os.chmod(sdlc, 0o755)
+
+
+class NeverUnlock(unittest.TestCase):
+    """Three human-only files the unlock never covers: the release authorizations, the approvers
+    file and the decision log (spec R-5, design D4)."""
+
+    HOOK = "protect-paths.sh"
+    UNLOCK = {"SDLC_CONTROL_PLANE_UNLOCK": "1"}
+
+    def _blocked(self, root, payload):
+        r = run_hook(self.HOOK, payload, root, env=self.UNLOCK)
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("human-only", r.stderr)
+        self.assertNotIn("unlocked", r.stderr)
+        self.assertEqual(r.stdout, "")
+        return r
+
+    def test_release_authorizations_blocked_under_unlock(self):
+        with fake_repo() as root:
+            self._blocked(root, edit(".sdlc/release-authorizations/abc1234"))
+            self._blocked(root, edit(".sdlc/release-authorizations"))
+            self.assertEqual([l[1] for l in log_lines(root)], ["block", "block"])
+
+    def test_approvers_yaml_blocked_under_unlock(self):
+        with fake_repo() as root:
+            self._blocked(root, edit(".sdlc/approvers.yaml"))
+
+    def test_decision_log_blocked_under_unlock(self):
+        with fake_repo() as root:
+            self._blocked(root, edit(".sdlc/hook-decisions.log"))
+
+    def test_bash_redirect_into_release_authorizations_blocked_under_unlock(self):
+        with fake_repo() as root:
+            self._blocked(root, bash("printf 'approved-by: me\\n' > .sdlc/release-authorizations/abc1234"))
+            self._blocked(root, bash("cd .sdlc && cat > approvers.yaml <<'EOF'\nroles:\nEOF"))
 
 
 if __name__ == "__main__":

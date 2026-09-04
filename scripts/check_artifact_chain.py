@@ -39,7 +39,27 @@ EXEMPT = ("work/", "docs/", "monitoring/", "knowledge/", "CLAUDE.md", "REVIEW.md
 CHAIN = ("intent.md", "spec.md", "plan.md")
 STATUSES = ("draft", "in-review", "approved", "superseded")
 
+def _fm_value(raw):
+    """Clean one front-matter value the way YAML reads it: a value that is only a comment is
+    empty; a trailing ` #...` (whitespace, then `#`) is a comment and is dropped, so a `#` with no
+    whitespace before it -- a URL anchor -- survives; matching surrounding quotes are stripped;
+    `strip()` also drops a stray `\r` from a CRLF checkout."""
+    v = raw.strip()
+    if v.startswith("#"):
+        return ""
+    # A quoted value is taken whole, comment or not: `title: "Fix #12 crash"   # note` is the
+    # spec's answer (C2) for a value that needs ` #`. The quote check therefore runs first.
+    if v[:1] in ("\"", "'"):
+        end = v.find(v[0], 1)
+        if end != -1:
+            return v[1:end].strip()
+    return re.split(r"\s+#", v, 1)[0].rstrip()
+
 def front_matter_text(text):
+    """Parse the leading `---` block into a dict. Every Python reader in scripts/ (approve.py,
+    gen_index.py, gen_context_files.py, check_okf.py, check_plugin_manifest.py) goes through this
+    one function, so a `# comment` line is never a key and a `value   # note` is never a value
+    for any of them (work/front-matter, spec R-1)."""
     fm = {}
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
@@ -47,9 +67,11 @@ def front_matter_text(text):
     for line in lines[1:]:
         if line.strip() == "---":
             break
+        if line.lstrip().startswith("#"):
+            continue
         if ":" in line:
             k, v = line.split(":", 1)
-            fm[k.strip()] = v.strip()
+            fm[k.strip()] = _fm_value(v)
     return fm
 
 def front_matter(path):
@@ -278,7 +300,7 @@ def main():
         cfg = config()
         for p in changed:
             if not any(fnmatch.fnmatch(p, g) or p == g or p.startswith(g.rstrip("/") + "/") for g in allowed):
-                errors.append(f"{p} changed but is not listed under '## Files' in work/{slug}/plan.md (update the plan in this PR)")
+                errors.append(f"{p} changed but is not listed under '## Files that change' in work/{slug}/plan.md (update the plan in this PR)")
             if any(p == g or p.startswith(g + "/") for g in cfg.get("RELEASE_GATED_PATHS", [])):
                 if not any(p.startswith(x.split()[0].rstrip("/")) for x in gated_listed):
                     errors.append(f"{p} is release-gated but not declared under '## Release-gated' in plan.md with a human owner")

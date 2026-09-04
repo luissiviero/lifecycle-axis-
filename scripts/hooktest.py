@@ -15,12 +15,15 @@ Hook contract (see .claude/hooks/_lib.sh):
 
 Two helpers:
 
-  fake_repo(config_env=None, **files)
+  fake_repo(config_env=None, approvers_yaml=None, **files)
       Context manager. Creates a temp dir, `git init`s it, writes
       .sdlc/config.env (copied from this repo's own .sdlc/config.env unless
-      `config_env` is given as a string of file content), and writes any
-      extra `files` (relative-path -> content) into the tree. Yields the
-      repo's absolute path.
+      `config_env` is given as a string of file content), writes
+      .sdlc/approvers.yaml (copied from this repo's own unless
+      `approvers_yaml` is given as a string of file content), and writes any
+      extra `files` (relative-path -> content) into the tree, after the two
+      .sdlc files so a test can still overwrite them. Yields the repo's
+      absolute path.
 
   run_hook(hook_name, payload, root, env=None)
       Runs .claude/hooks/<hook_name> from the real repo (hooks are read from
@@ -56,8 +59,8 @@ HOOKS_DIR = os.path.join(REAL_ROOT, ".claude", "hooks")
 
 
 @contextlib.contextmanager
-def fake_repo(config_env: str | None = None, **files):
-    """Yield a temp dir that is a git repo with .sdlc/config.env and `files` written."""
+def fake_repo(config_env: str | None = None, approvers_yaml: str | None = None, **files):
+    """Yield a temp dir that is a git repo with .sdlc/{config.env,approvers.yaml} and `files` written."""
     with tempfile.TemporaryDirectory() as root:
         subprocess.run(["git", "init", "-q", root], check=True)
         # A committer identity, in case a test wants to `git commit` in the fake repo.
@@ -82,6 +85,14 @@ def fake_repo(config_env: str | None = None, **files):
             )
         with open(os.path.join(root, ".sdlc", "config.env"), "w", encoding="utf-8") as f:
             f.write(config_env)
+
+        # The approvers file is what the approval gate (protect-approvals.sh) and the deploy gate
+        # read; every fake repo carries the kit's own so those hooks fail closed only on purpose.
+        if approvers_yaml is None:
+            with open(os.path.join(REAL_ROOT, ".sdlc", "approvers.yaml"), encoding="utf-8") as f:
+                approvers_yaml = f.read()
+        with open(os.path.join(root, ".sdlc", "approvers.yaml"), "w", encoding="utf-8") as f:
+            f.write(approvers_yaml)
 
         for relpath, content in files.items():
             path = os.path.join(root, relpath)

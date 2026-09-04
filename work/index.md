@@ -9,6 +9,8 @@ timestamp: 2026-09-04T21:53:54Z
 | slug | title | stage | intent | spec | plan | last gate |
 |---|---|---|---|---|---|---|
 | [_example](_example/index.md) | Example work item | plan | approved | approved | approved | plan.md -> approved by luissiviero |
+| [control-plane-visibility](control-plane-visibility/index.md) | Hook decisions must be logged; the control-plane unlock must be visible; CI must recognise the kit's own agent PRs | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [delegation-boundary](delegation-boundary/index.md) | Decide whether a subagent may ever write code in this kit | intent | draft | — | — | intent.md -> draft by claude[bot] |
-| [loop-protection](loop-protection/index.md) | The agent must not be able to weaken the check on its own work | plan | in-review | in-review | in-review | plan.md -> in-review by claude |
+| [front-matter](front-matter/index.md) | Templates and artifact parsers must agree; approve.py must not misfire | plan | approved | approved | approved | plan.md -> in-review by claude |
+| [loop-protection](loop-protection/index.md) | The agent must not be able to weaken the check on its own work | plan | approved | approved | approved | plan.md -> approved by luissiviero |
 | [sdlc-kit-phase-1](sdlc-kit-phase-1/index.md) | Make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects | plan | approved | approved | approved | plan.md -> approved by luissiviero |

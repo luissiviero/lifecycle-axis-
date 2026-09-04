@@ -11,6 +11,13 @@
 # Exit 0 on: no protected-path changes; human-authored change (informational only); or an
 # agent-authored change carrying the exemption label. Exit 1 on: an agent-authored change to
 # protected paths without the label, or a git-diff failure.
+#
+# Agent-authored means any of: the PR author is a Bot; the head ref starts with an entry of
+# AGENT_BRANCH_PREFIXES (.sdlc/config.env; default "claude/ kit/ spike/"); or a commit in
+# <base-ref>..HEAD carries a `Co-Authored-By: ... Claude` or `Claude-Session:` trailer. The kit's
+# own sessions commit under the owner's identity on kit/ and spike/ branches with those trailers,
+# so before the last two rules 11 of its 13 control-plane PRs were never checked
+# (work/control-plane-visibility, consensus item 4).
 set -u
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
@@ -32,7 +39,8 @@ fi
 : "${SDLC_PR_AUTHOR_TYPE:=}"
 : "${SDLC_PR_HEAD_REF:=}"
 : "${SDLC_PR_LABELS:=}"
-AGENT_BRANCH_PREFIXES="${AGENT_BRANCH_PREFIXES:-claude/}"
+: "${AGENT_BRANCH_PREFIXES:=claude/ kit/ spike/}"   # also a key in .sdlc/config.env (config wins)
+AGENT_TRAILER_RE='^(Co-Authored-By:.*Claude|Claude-Session:)'
 
 diff_out="$(cd "$ROOT" && git diff --name-only "${BASE}...HEAD" 2>&1)"
 rc=$?
@@ -73,8 +81,14 @@ is_agent_branch() {
   return 1
 }
 
+# A trailer anywhere in the PR's own commits (base..HEAD, never the base's history) marks the PR
+# agent-authored. A failed git log reads as "no trailer": the diff above already failed the run
+# for an unresolvable base, and a shallow clone is the caller's problem (sdlc-gate.yml fetches
+# full history).
+has_agent_trailer() { git -C "$ROOT" log --format=%B "${BASE}..HEAD" 2>/dev/null | grep -Eiq "$AGENT_TRAILER_RE"; }
+
 agent_authored=0
-if [ "$SDLC_PR_AUTHOR_TYPE" = "Bot" ] || is_agent_branch "$SDLC_PR_HEAD_REF"; then
+if [ "$SDLC_PR_AUTHOR_TYPE" = "Bot" ] || is_agent_branch "$SDLC_PR_HEAD_REF" || has_agent_trailer; then
   agent_authored=1
 fi
 
