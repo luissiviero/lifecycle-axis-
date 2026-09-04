@@ -105,7 +105,7 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
 | Mistake twice → memory | rule 7, REVIEW.md Memory pass | — | reviewer insists |
 | Detection stays deterministic; tier bounds the agent | — | `detect_bands.py` + `bands.yaml` tools/routes | service owner triages |
 | `approved-by` is a real human role, backed by a ledger entry | rule 8, `docs/sdlc/rules/30-conventions.md` | `check_artifact_chain.py` validates against `.sdlc/approvers.yaml` and requires a matching `work/<slug>/log.md` entry | approver named in the file |
-| Control-plane diff on an agent PR needs explicit human sign-off | rule 3 | CI blocks any `claude/*`-authored PR touching `PROTECTED_PATHS`; a human applying `control-plane-approved` is the only exemption | applies the label after reading the diff |
+| Control-plane diff on an agent PR needs explicit human sign-off | rule 3 | CI blocks any agent-authored PR (head branch in `AGENT_BRANCH_PREFIXES`, a Bot author, or a Claude commit trailer) touching `PROTECTED_PATHS`; a human applying `control-plane-approved` is the only exemption | applies the label after reading the diff |
 | Context files stay one source, never hand-drift | CLAUDE.md play | `context-drift.sh` fails `verify.sh` when `CLAUDE.md`/`GEMINI.md`/`AGENTS.md` don't match `docs/sdlc/rules/*.md` | edits a fragment, not the generated file |
 | Workflows stay read-only and unprivileged | — | `workflow-permissions.sh`: every workflow declares `permissions:`, none grants `contents: write` outside an empty allowlist, none uses `pull_request_target` | reviews workflow diffs |
 | Plugin manifest matches what's actually on disk | — | `plugin-manifest.sh`: every skill/agent listed and vice versa, hook paths exist and are executable, semver valid | — |
