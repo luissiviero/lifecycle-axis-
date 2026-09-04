@@ -188,7 +188,9 @@ def main():
             if not fm.get("approved-by"):
                 errors.append(f"work/{slug}/{name} has no approved-by")
 
-        if status == "approved" and not a.no_approvers:
+        # Approving and superseding are both human acts: the same approver, ledger and
+        # commit-author checks apply to either status.
+        if status in ("approved", "superseded") and not a.no_approvers:
             any_approved = True
             approved_by = fm.get("approved-by", "")
             ok, reason = av.is_valid(name, approved_by)
@@ -198,12 +200,22 @@ def main():
                 )
             elif log_exists:
                 target = av.normalize(approved_by)
-                match = any(
-                    e.artifact == name
-                    and e.to_status == "approved"
-                    and log_ledger.normalize(e.actor) == target
-                    for e in entries
-                )
+                if status == "approved":
+                    match = any(
+                        e.artifact == name
+                        and e.to_status == "approved"
+                        and log_ledger.normalize(e.actor) == target
+                        for e in entries
+                    )
+                else:
+                    # Whoever superseded it must hold the artifact's role; it need not be the
+                    # original approver, whose handle stays in approved-by as history.
+                    match = any(
+                        e.artifact == name
+                        and e.to_status == "superseded"
+                        and av.is_valid(name, e.actor)[0]
+                        for e in entries
+                    )
                 if not match:
                     sha = subprocess.run(
                         ["git", "rev-parse", "--short", "HEAD"],
@@ -214,17 +226,17 @@ def main():
                         log_ledger.Entry(
                             ts=ts,
                             artifact=name,
-                            from_status="in-review",
-                            to_status="approved",
+                            from_status="in-review" if status == "approved" else "approved",
+                            to_status=status,
                             actor=approved_by,
                             sha=sha,
                             note="",
                             lineno=0,
                         )
                     )
+                    who_did = f"approved by '{approved_by}'" if status == "approved" else "superseded by a valid approver"
                     errors.append(
-                        f"work/{slug}/log.md has no entry recording {name} approved by "
-                        f"'{approved_by}'; append: {line}"
+                        f"work/{slug}/log.md has no entry recording {name} {who_did}; append: {line}"
                     )
             # The commit that introduced `status: approved` must not be authored by an agent identity.
             # scripts/approve.py refuses to run inside an agent session, but an environment variable is
@@ -236,19 +248,20 @@ def main():
             rel = "/".join(("work", slug, name))
             head_text = subprocess.run(["git", "show", f"HEAD:{rel}"], capture_output=True, text=True, cwd=ROOT).stdout
             who = ""
-            if front_matter_text(head_text).get("status") == "approved":
+            if front_matter_text(head_text).get("status") == status:
                 who = subprocess.run(
-                    ["git", "log", "-n1", "--format=%an%x00%ae", "-S", "status: approved", "--", rel],
+                    ["git", "log", "-n1", "--format=%an%x00%ae", "-S", f"status: {status}", "--", rel],
                     capture_output=True, text=True, cwd=ROOT,
                 ).stdout.strip()
             if not who:
-                notes.append(f"work/{slug}/{name}: approval not committed yet (author check skipped)")
+                act = "approval" if status == "approved" else "supersession"
+                notes.append(f"work/{slug}/{name}: {act} not committed yet (author check skipped)")
             else:
                 an, _, ae = who.partition("\x00")
                 if is_agent_identity(an, ae, av):
                     errors.append(
-                        f"work/{slug}/{name}: the commit that set status: approved is authored by an agent "
-                        f"identity ({an} <{ae}>); a human must approve and commit"
+                        f"work/{slug}/{name}: the commit that set status: {status} is authored by an agent "
+                        f"identity ({an} <{ae}>); a human must set it and commit"
                     )
 
     if not a.no_approvers:

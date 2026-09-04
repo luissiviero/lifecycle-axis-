@@ -273,6 +273,31 @@ class InProgressChain(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn("mode: in-progress", result.stdout)
 
+    def test_superseded_with_an_invalid_approver_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _git(root, "checkout", "-q", "-b", "work/demo")
+            _write(os.path.join(wd, "plan.md"), _plan("claude[bot]", status="superseded"))
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-01-02T00:00:00Z | plan.md | approved -> superseded | luissiviero | abc1234 |\n")
+            _commit(root, "retire with a bot approver")
+            result = _run(root, "--slug", "demo", "--base", "main")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("approved-by 'claude[bot]' is not valid", result.stdout)
+
+    def test_superseded_without_a_ledger_line_by_a_valid_approver_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _git(root, "checkout", "-q", "-b", "work/demo")
+            _write(os.path.join(wd, "plan.md"), _plan("luissiviero", status="superseded"))
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-01-02T00:00:00Z | plan.md | approved -> superseded | claude[bot] | abc1234 |\n")
+            _commit(root, "retired by a bot")
+            result = _run(root, "--slug", "demo", "--base", "main")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("no entry recording plan.md superseded by a valid approver", result.stdout)
+            self.assertIn("approved -> superseded | luissiviero", result.stdout)
+
     def test_activating_the_item_in_the_same_diff_stays_in_progress(self):
         with tempfile.TemporaryDirectory() as root:
             self._start_item(root)
