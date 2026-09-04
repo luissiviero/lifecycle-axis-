@@ -11,4 +11,4 @@ timestamp: 2026-09-04T21:46:58Z
 - [spec.md](spec.md) — status: approved; approved-by: luissiviero; A tab-separated decision log written by every hook, a systemMessage on every unlocked write, three never-unlock paths, and agent detection by branch prefix list or commit trailer in check_control_plane.sh.
 - [plan.md](plan.md) — status: approved; approved-by: luissiviero; Add log_decision and the A1 helpers to _lib.sh, a systemMessage and never-unlock list to protect-paths.sh, a prefix list and trailer scan to check_control_plane.sh, with tests, two evals and the doc corrections.
 
-Last gate: - 2026-09-04T23:30:00Z | plan.md | in-review -> approved | luissiviero | 7bfe5f4 | approved from the GitHub web editor
+Last gate: - 2026-09-04T23:43:42Z | plan.md | build -> in-review | claude | 0976fc3 | implementation of steps 1-7 complete; tests 318 -> 345, evals 27 pass, OKF 71 docs 0 warnings; six deviations recorded in plan.md; needs control-plane-approved (hooks, .sdlc, CI script)

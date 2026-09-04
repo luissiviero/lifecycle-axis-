@@ -25,11 +25,11 @@ timestamp: 2026-09-04T21:46:58Z
 - .sdlc/README.md — line 1 says the unlock exists here and names the three never-unlock files; a line for AGENT_BRANCH_PREFIXES and one for hook-decisions.log
 - .sdlc/active — point at this work item (--activate) during implementation
 - .gitignore — add .sdlc/hook-decisions.log and monitoring/series/
-- scripts/test_lib_helpers.py (new) — R-1, R-2, R-8 helper tests through bash -c '. _lib.sh; ...' with crafted stdin
+- scripts/test_lib_helpers.py — new; R-1, R-2, R-8 helper tests through bash -c '. _lib.sh; ...' with crafted stdin
 - scripts/test_bash_plan_gates.py — UnlockOnEditBranch gains the log and systemMessage cases; new classes DecisionLog and NeverUnlock (R-1 to R-5)
 - scripts/test_check_control_plane.py — kit/ prefix, config prefixes, three trailer cases, base-only trailer (R-6, R-7)
-- evals/cases/hook-unlock-writes-decision-log.yaml (new) — R-3 oracle in a mktemp repo
-- evals/cases/ci-control-plane-detects-agent-trailer.yaml (new) — R-7 oracle in a mktemp repo
+- evals/cases/hook-unlock-writes-decision-log.yaml — new; R-3 oracle in a mktemp repo
+- evals/cases/ci-control-plane-detects-agent-trailer.yaml — new; R-7 oracle in a mktemp repo
 - knowledge/decisions/self-hooks-on.md — lines 55 and 59-61: the audit trail is the log plus systemMessage; PLAN_REQUIRED_PATHS is scripts
 - knowledge/decisions/bash-write-guard.md — lines 51-56 (CI now sees prefixes and trailers) and 77-78 (stderr is not the transcript; the log is)
 - knowledge/decisions/control-plane-label.md — lines 32-34: prefix list from config plus trailer scan; residual C3 and C4
@@ -71,4 +71,9 @@ timestamp: 2026-09-04T21:46:58Z
 - Revert the PR: the log file is git-ignored and harmless; no data or schema to roll back. Restart the session after reverting `_lib.sh` or `protect-paths.sh`. The kit's own control-plane PRs return to the unchecked state until re-landed.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- 2026-09-04: `DecisionLog::test_read_only_sdlc_does_not_break_hook` induces the failed append with a directory at the log path as well as `chmod 555`: the suite runs as root in the remote session and root ignores a read-only bit, so the chmod alone proved nothing.
+- 2026-09-04: `scripts/test_lib_helpers.py` uses `bash -c` with `$0` set to a fake hook name so the log's hook field is testable; `test_check_control_plane.py::ControlPlaneRepo` gains `base_message` and `config_env` constructor arguments for the trailer-on-base and config-prefix cases (the plan named the tests, not the fixture changes).
+- 2026-09-04: the pre-existing eval `hook-unlock-covers-edit-branch` runs the hook against this repo (`CLAUDE_PROJECT_DIR="$R"`), so every `scripts/run_evals.sh` now appends one `unlock` and one `block` line to this repo's git-ignored log; it is not in this item's file list and is left as it is (harmless, noted for WI-9 agent-evals).
+- 2026-09-04: the step-3 "second shell" rule was met by one Bash command that copies the new `_lib.sh` into place, runs `bash -n`, a smoke invocation and the whole suite, and restores the previous file from git if any of them fails, so no later tool call could meet a broken library; the same shape was used for `protect-paths.sh`. Test count 318 -> 345.
+- 2026-09-04: C5 (whether `systemMessage` renders for an exit-0 PreToolUse hook) stays open: the implementing session cannot see its own hook stdout; the owner checks once after restarting a session in this folder and records the answer here.
+- 2026-09-04: three file-list bullets were written as `path (new) — note`; `check_artifact_chain.py` reads the bullet up to the first ` — ` as the path, so the chain check failed on `scripts/test_lib_helpers.py (new)` and the two eval cases after the first push (0976fc3). Rewritten as `path — new; note`. The same shape sits in the in-review plans of deploy-gate (6 bullets), loop-protection (2) and bash-guard-hardening (2); a CLAUDE.md lesson line records it (rule 7: the empty deviation bullet `- ` with a trailing space tripped WI-1's edit too).
