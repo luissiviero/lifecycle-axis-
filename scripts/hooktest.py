@@ -39,6 +39,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import re
 import subprocess
 import tempfile
 
@@ -67,6 +68,18 @@ def fake_repo(config_env: str | None = None, **files):
         if config_env is None:
             with open(os.path.join(REAL_ROOT, ".sdlc", "config.env"), encoding="utf-8") as f:
                 config_env = f.read()
+            # The fake repo is an *adopter's* repo, so it gets the adopter default for the one
+            # key that is the kit's own governance value: this repo plan-gates `scripts` (its
+            # product code), an adopted application gates its source tree. adopt.sh makes the
+            # same rewrite. Tests that write into src/ expecting the plan gate rely on this;
+            # a test that wants the kit's live value passes config_env explicitly.
+            config_env = re.sub(
+                r'^PLAN_REQUIRED_PATHS=.*$',
+                'PLAN_REQUIRED_PATHS="src lib app services packages"',
+                config_env,
+                count=1,
+                flags=re.M,
+            )
         with open(os.path.join(root, ".sdlc", "config.env"), "w", encoding="utf-8") as f:
             f.write(config_env)
 

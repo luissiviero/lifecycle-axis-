@@ -2,4 +2,9 @@ name: hook-requires-approved-plan
 kind: hook
 source: docs/sdlc/README.md
 check: |
-  ! printf '%s' '{"tool_name":"Edit","tool_input":{"file_path":"src/a.ts"}}' | SDLC_WORK_ITEM=does-not-exist CLAUDE_PROJECT_DIR="$(git rev-parse --show-toplevel)" .claude/hooks/require-plan.sh 2>/dev/null
+  # Write under the first plan-required path this repo actually configures, whatever it is,
+  # so the case holds in the kit (scripts) and in any adopter (src, lib, ...).
+  R="$(git rev-parse --show-toplevel)"
+  p="$(. "$R/.sdlc/config.env"; set -- $PLAN_REQUIRED_PATHS; printf '%s' "$1")"
+  [ -n "$p" ] || exit 1
+  ! printf '%s' "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$p/a.ts\"}}" | SDLC_WORK_ITEM=does-not-exist CLAUDE_PROJECT_DIR="$R" .claude/hooks/require-plan.sh 2>/dev/null
