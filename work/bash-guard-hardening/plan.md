@@ -21,11 +21,11 @@ timestamp: 2026-09-04T21:48:41Z
 - .claude/hooks/_lib.sh — `FILE` reads `notebook_path`; new `CWD`, `CWD_CANON`, `rel()` with a base; `bash_write_targets` steps 1, 2, 4 and the new arms; `bash_write_candidates` resolves against `CWD` (R-1..R-7, R-11)
 - .claude/hooks/protect-paths.sh — line 36 `canon "$FILE"` becomes `rel "$FILE"` (R-7, R-8)
 - .claude/hooks/block-secrets.sh — line 6 appends `.tool_input.new_source` (R-8)
-- scripts/fixtures/hook_inputs/notebookedit.json (new) — NotebookEdit payload shape with a `_note` like `multiedit.json`'s (R-8)
+- scripts/fixtures/hook_inputs/notebookedit.json — new; NotebookEdit payload shape with a `_note` like `multiedit.json`'s (R-8)
 - scripts/test_protect_paths_bash.py — `bash()` gains `cwd=`; the A4 block and allow lists; notebook `new_source` case (R-1..R-7, R-8)
 - scripts/test_hooks_baseline.py — `ProtectPathsHook.test_blocks_notebook_under_sdlc` (R-8)
 - scripts/test_bash_plan_gates.py — `ProtectTestsBashBranch` delete/rename cases under `kind: fix` (R-9)
-- evals/cases/hook-blocks-delete-and-glued-writes.yaml (new) — runtime oracle for `rm`, glued `;`, `2>` (R-10)
+- evals/cases/hook-blocks-delete-and-glued-writes.yaml — new; runtime oracle for `rm`, glued `;`, `2>` (R-10)
 - evals/cases/hook-blocks-bash-write-to-protected-path.yaml — adds the newline-separated form (R-10)
 - knowledge/decisions/bash-write-guard.md — reword lines 99-102, replace 104-119 with `## Accepted residuals` (R-12)
 - work/bash-guard-hardening/intent.md — this item's intent
