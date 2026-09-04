@@ -183,5 +183,84 @@ class FilesSectionRegression(unittest.TestCase):
             )
 
 
+class InProgressChain(unittest.TestCase):
+    """A PR whose diff touches only work/ is checked as far as the chain exists, so a work item
+    can be opened and approved one stage per PR. Anything else in the diff needs the whole chain."""
+
+    DRAFT_LOG = "- 2026-01-01T00:00:00Z | intent.md | (none) -> draft | claude[bot] | abc1234 | drafted\n"
+
+    def _start_item(self, root, slug="new", intent=None, log=DRAFT_LOG):
+        _make_repo(root)  # 'main' holds the fully approved 'demo' item; the new item lands on a branch
+        _git(root, "checkout", "-q", "-b", f"work/{slug}")
+        wd = os.path.join(root, "work", slug)
+        _write(os.path.join(wd, "intent.md"), intent if intent is not None else _artifact("", status="draft"))
+        if log is not None:
+            _write(os.path.join(wd, "log.md"), log)
+        return wd
+
+    def test_intent_only_draft_passes(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._start_item(root)
+            _commit(root, "open the work item")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+            self.assertIn("mode: in-progress", result.stdout)
+
+    def test_spec_started_before_intent_is_approved_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = self._start_item(root)
+            _write(os.path.join(wd, "spec.md"), _artifact("", status="draft"))
+            _commit(root, "spec too early")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("one stage at a time", result.stdout)
+            self.assertIn("work/new/intent.md is 'draft'", result.stdout)
+
+    def test_status_outside_the_enum_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._start_item(root, intent=_artifact("", status="open"))
+            _commit(root, "bad status word")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("must be one of draft, in-review, approved, superseded", result.stdout)
+
+    def test_approved_by_on_a_draft_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._start_item(root, intent=_artifact("luissiviero", status="draft"))
+            _commit(root, "half-approved")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("approve.py sets both together", result.stdout)
+
+    def test_approved_intent_still_needs_a_valid_approver(self):
+        with tempfile.TemporaryDirectory() as root:
+            log = "- 2026-01-01T00:00:00Z | intent.md | in-review -> approved | claude[bot] | abc1234 |\n"
+            self._start_item(root, intent=_artifact("claude[bot]"), log=log)
+            _commit(root, "bot approval")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("approved-by 'claude[bot]' is not valid", result.stdout)
+
+    def test_missing_log_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._start_item(root, log=None)
+            _commit(root, "no ledger")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("work/new/log.md is missing", result.stdout)
+
+    def test_code_in_the_diff_needs_the_whole_chain(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._start_item(root)
+            _write(os.path.join(root, "scripts", "x.py"), "print('hi')\n")
+            _commit(root, "code with a draft chain")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 1)
+            self.assertNotIn("mode: in-progress", result.stdout)
+            self.assertIn("work/new/spec.md is missing", result.stdout)
+            self.assertIn("work/new/intent.md status is 'draft', must be 'approved'", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

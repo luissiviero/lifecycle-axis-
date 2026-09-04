@@ -353,6 +353,16 @@ class AdoptScript(unittest.TestCase):
         with open(os.path.join(s.target, ".sdlc", "active"), encoding="utf-8") as f:
             self.assertEqual(f.read().strip(), "_example")
 
+    def test_plan_required_paths_reset_to_the_adopter_default(self):
+        """The kit's own PLAN_REQUIRED_PATHS names the kit's product code (scripts/); an adopter
+        gets the application-shaped default instead, whatever the kit's value is at the time."""
+        s = self.s["default"]
+        with open(os.path.join(s.target, ".sdlc", "config.env"), encoding="utf-8") as f:
+            config = f.read()
+        self.assertIn('PLAN_REQUIRED_PATHS="src lib app services packages"\n', config)
+        self.assertEqual(config.count("PLAN_REQUIRED_PATHS="), 1)
+        self.assertIn("set PLAN_REQUIRED_PATHS to the adopter default", s.first.stdout)
+
     def test_preexisting_config_env_left_alone_without_force(self):
         s = self.s["config_env"]
         self.assertEqual(s.first.returncode, 0, s.first.stderr)
