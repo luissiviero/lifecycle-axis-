@@ -1,0 +1,36 @@
+2026-09-04T23:41:42Z	block	production-gate.sh	run_shell_command	?	deploy command in an unattended session with no release authorization for 526ada6b23acb70946706304c4290f3e38447021.
+2026-09-04T23:41:42Z	block	production-gate.sh	Bash	?	deploy command in an unattended session with no release authorization for 526ada6b23acb70946706304c4290f3e38447021.
+2026-09-04T23:41:42Z	block	production-gate.sh	Bash	?	deploy command in an unattended session with no release authorization for 526ada6b23acb70946706304c4290f3e38447021.
+2026-09-04T23:41:42Z	block	protect-paths.sh	Bash	?	'.sdlc/x' is a protected path (.claude/hooks .github/workflows .sdlc .gemini) (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body). Describe the change you want in the PR body; a human applies it.
+2026-09-04T23:41:42Z	block	block-secrets.sh	MultiEdit	?	the content matches a credential pattern. Use an environment variable or the secret manager and reference it by name.
+2026-09-04T23:41:42Z	block	block-secrets.sh	Write	?	the content matches a credential pattern. Use an environment variable or the secret manager and reference it by name.
+2026-09-04T23:41:43Z	block	require-plan.sh	Edit	?	'scripts/a.ts' needs an approved plan, but work/does-not-exist/plan.md does not exist. Run /sdlc-plan first.
+2026-09-04T23:41:43Z	block	protect-paths.sh	Edit	?	'.sdlc/x' is a protected path (.claude/hooks .github/workflows .sdlc .gemini). Describe the change you want in the PR body; a human applies it.
+2026-09-04T23:41:43Z	unlock	protect-paths.sh	Edit	?	.sdlc/x
+2026-09-04T23:41:43Z	block	protect-paths.sh	Write	?	'.env' looks like secret material. Never write secrets to the repo.
+2026-09-04T23:42:24Z	unlock	protect-paths.sh	Bash	13a76676-c5cf-521d-9443-4a4bb0195d55	.claude/hooks (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body)
+2026-09-04T23:42:24Z	unlock	protect-paths.sh	Bash	13a76676-c5cf-521d-9443-4a4bb0195d55	.claude/hooks (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body)
+2026-09-04T23:42:24Z	unlock	protect-paths.sh	Bash	13a76676-c5cf-521d-9443-4a4bb0195d55	.sdlc (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body)
+2026-09-04T23:42:24Z	unlock	protect-paths.sh	Bash	13a76676-c5cf-521d-9443-4a4bb0195d55	.sdlc (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body)
+2026-09-04T23:42:39Z	block	production-gate.sh	run_shell_command	?	deploy command in an unattended session with no release authorization for 0976fc306c5e39dba1d31bb3c8eda0a5ce3e7a23.
+2026-09-04T23:42:39Z	block	production-gate.sh	Bash	?	deploy command in an unattended session with no release authorization for 0976fc306c5e39dba1d31bb3c8eda0a5ce3e7a23.
+2026-09-04T23:42:39Z	block	production-gate.sh	Bash	?	deploy command in an unattended session with no release authorization for 0976fc306c5e39dba1d31bb3c8eda0a5ce3e7a23.
+2026-09-04T23:42:39Z	block	protect-paths.sh	Bash	?	'.sdlc/x' is a protected path (.claude/hooks .github/workflows .sdlc .gemini) (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body). Describe the change you want in the PR body; a human applies it.
+2026-09-04T23:42:39Z	block	block-secrets.sh	MultiEdit	?	the content matches a credential pattern. Use an environment variable or the secret manager and reference it by name.
+2026-09-04T23:42:39Z	block	block-secrets.sh	Write	?	the content matches a credential pattern. Use an environment variable or the secret manager and reference it by name.
+2026-09-04T23:42:39Z	block	require-plan.sh	Edit	?	'scripts/a.ts' needs an approved plan, but work/does-not-exist/plan.md does not exist. Run /sdlc-plan first.
+2026-09-04T23:42:40Z	block	protect-paths.sh	Edit	?	'.sdlc/x' is a protected path (.claude/hooks .github/workflows .sdlc .gemini). Describe the change you want in the PR body; a human applies it.
+2026-09-04T23:42:40Z	unlock	protect-paths.sh	Edit	?	.sdlc/x
+2026-09-04T23:42:40Z	block	protect-paths.sh	Write	?	'.env' looks like secret material. Never write secrets to the repo.
+2026-09-04T23:43:40Z	unlock	protect-paths.sh	Bash	13a76676-c5cf-521d-9443-4a4bb0195d55	.sdlc (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body)
+2026-09-04T23:43:40Z	unlock	protect-paths.sh	Bash	13a76676-c5cf-521d-9443-4a4bb0195d55	.sdlc (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body)
+2026-09-04T23:43:55Z	block	production-gate.sh	run_shell_command	?	deploy command in an unattended session with no release authorization for e73c967bdf28af65866bff3d282e620bb9f32f07.
+2026-09-04T23:43:55Z	block	production-gate.sh	Bash	?	deploy command in an unattended session with no release authorization for e73c967bdf28af65866bff3d282e620bb9f32f07.
+2026-09-04T23:43:55Z	block	production-gate.sh	Bash	?	deploy command in an unattended session with no release authorization for e73c967bdf28af65866bff3d282e620bb9f32f07.
+2026-09-04T23:43:55Z	block	protect-paths.sh	Bash	?	'.sdlc/x' is a protected path (.claude/hooks .github/workflows .sdlc .gemini) (detected in a Bash command; use the Write tool for normal edits, describe control-plane changes in the PR body). Describe the change you want in the PR body; a human applies it.
+2026-09-04T23:43:55Z	block	block-secrets.sh	MultiEdit	?	the content matches a credential pattern. Use an environment variable or the secret manager and reference it by name.
+2026-09-04T23:43:55Z	block	block-secrets.sh	Write	?	the content matches a credential pattern. Use an environment variable or the secret manager and reference it by name.
+2026-09-04T23:43:55Z	block	require-plan.sh	Edit	?	'scripts/a.ts' needs an approved plan, but work/does-not-exist/plan.md does not exist. Run /sdlc-plan first.
+2026-09-04T23:43:56Z	block	protect-paths.sh	Edit	?	'.sdlc/x' is a protected path (.claude/hooks .github/workflows .sdlc .gemini). Describe the change you want in the PR body; a human applies it.
+2026-09-04T23:43:56Z	unlock	protect-paths.sh	Edit	?	.sdlc/x
+2026-09-04T23:43:56Z	block	protect-paths.sh	Write	?	'.env' looks like secret material. Never write secrets to the repo.
