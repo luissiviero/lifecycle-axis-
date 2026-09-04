@@ -37,11 +37,14 @@ are what remains once all of that is built. Ordered by how soon a complex projec
    `cost_per_merged_pr` control band. The per-role model routing in
    [`spikes/prompt-surfaces.md`](spikes/prompt-surfaces.md) §2.6 is judged by this ledger; until it exists, that
    spike's Phase C uses a per-work-item token count in `log.md` as the stand-in.
-1b. **Prompt surfaces and model routing.** The Claude platform prompting, guardrail and eval docs encoded where they
-   run: canonical prompt blocks, a `prompting-standards` skill, a prompt-surface lint in `verify.sh`, templates, a
-   conditional review pass, per-role model and effort pins with a delegation policy and caps, and evals for each.
+
+   **1b - Prompt surfaces and model routing.** The Claude platform prompting, guardrail and eval docs encoded where
+   they run: canonical prompt blocks, a `prompting-standards` skill, a prompt-surface lint in `verify.sh`, templates,
+   a conditional review pass, per-role model and effort pins with a delegation policy and caps, and evals for each.
    **Designed, not scheduled:** [`spikes/prompt-surfaces.md`](spikes/prompt-surfaces.md) (accepted 2026-09-03; the
-   set-aside alternatives are listed at its end). Becomes work item `prompt-surfaces` when scheduled.
+   set-aside alternatives are listed at its end). Becomes work item `prompt-surfaces` when scheduled. Numbered `1b`
+   rather than `2` because the item numbers here are stable identifiers cited from commits and spikes; a bare `1b.`
+   is not a Markdown list marker, so it is indented as a block of item 1, whose ledger judges it.
 2. **Computed risk tiers.** "Routine vs higher risk" and "small blast radius" decide who approves and what auto-merges,
    yet the class is a field a human fills in. Derive it from touched paths, dependency graph, data classification, and
    diff size; CI attaches it; branch protection and `environments.yaml` key off it.

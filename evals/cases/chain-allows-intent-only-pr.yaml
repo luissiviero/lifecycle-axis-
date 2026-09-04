@@ -1,0 +1,24 @@
+name: chain-allows-intent-only-pr
+kind: hook
+source: scripts/check_artifact_chain.py (in-progress mode: a diff that touches only work/ is checked as far as the chain exists)
+check: |
+  R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"
+  git init -q "$d" && ( cd "$d" && git checkout -q -b main )
+  mkdir -p "$d/.sdlc"
+  cp "$R/.sdlc/config.env" "$R/.sdlc/approvers.yaml" "$d/.sdlc/"
+  printf 'new\n' > "$d/.sdlc/active"
+  ( cd "$d" && git add -A && git -c user.email=t@t -c user.name=t commit -q -m base ) >/dev/null 2>&1
+  ( cd "$d" && git checkout -q -b work/new )
+  mkdir -p "$d/work/new"
+  printf -- '---\nstatus: draft\napproved-by:\n---\n# intent\n' > "$d/work/new/intent.md"
+  printf -- '- 2026-01-01T00:00:00Z | intent.md | (none) -> draft | claude[bot] | abc1234 | drafted\n' > "$d/work/new/log.md"
+  ( cd "$d" && git add -A && git -c user.email=t@t -c user.name=t commit -q -m "open the work item" ) >/dev/null 2>&1
+  ( cd "$d" && python3 "$R/scripts/check_artifact_chain.py" --slug new --base main ) >/dev/null 2>&1
+  rc=$?
+  # and the same draft chain must still fail once code is in the diff
+  printf 'x\n' > "$d/src.txt"
+  ( cd "$d" && git add -A && git -c user.email=t@t -c user.name=t commit -q -m "code" ) >/dev/null 2>&1
+  ( cd "$d" && python3 "$R/scripts/check_artifact_chain.py" --slug new --base main ) >/dev/null 2>&1
+  rc2=$?
+  rm -rf "$d"
+  [ "$rc" -eq 0 ] && [ "$rc2" -eq 1 ]

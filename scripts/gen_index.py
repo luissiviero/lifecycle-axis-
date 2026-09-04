@@ -255,7 +255,9 @@ def main(argv=None):
             except FileNotFoundError:
                 problems.append(f"{relpath}: missing")
                 continue
-            if have != want:
+            # A Windows checkout with core.autocrlf=true hands back CRLF; the generator writes LF.
+            # That is not drift (gen_context_files.py --check makes the same allowance).
+            if have.replace(b"\r\n", b"\n") != want:
                 problems.append(f"{relpath}: drifted")
         if problems:
             for p in problems:
