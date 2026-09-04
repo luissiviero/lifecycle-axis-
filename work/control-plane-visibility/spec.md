@@ -4,10 +4,10 @@ id: control-plane-visibility
 title: Hook decisions must be logged; the control-plane unlock must be visible; CI must recognise the kit's own agent PRs
 description: A tab-separated decision log written by every hook, a systemMessage on every unlocked write, three never-unlock paths, and agent detection by branch prefix list or commit trailer in check_control_plane.sh.
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-04
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Transcribed from the approved implementation plan (session above), section WI-2 and appendix A2 (plus the never-unlock list in A5 and the helper shapes in A1), by a drafting subagent; reviewed by the orchestrator."
