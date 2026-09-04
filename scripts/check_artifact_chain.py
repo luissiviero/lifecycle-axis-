@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
 """Fail a PR whose artifact chain is broken.
 
+Two modes, chosen from the diff against --base:
+  in-progress  every changed path is under work/ (an artifact-only PR, or no diff at all): the chain
+               is checked as far as it exists. intent.md must exist; spec.md may exist only once
+               intent.md is approved, plan.md only once spec.md is; every status is one of
+               draft | in-review | approved | superseded; log.md exists. This is what lets a work
+               item be opened and approved one stage per PR, as docs/sdlc/README.md prescribes.
+  strict       anything else changed: the whole chain must be approved (the checks below).
+
 Checks, for the work item named by --slug (or .sdlc/active):
-  1. intent.md, spec.md, plan.md exist and each has status: approved with an approved-by value.
+  1. intent.md, spec.md, plan.md exist and each has status: approved with an approved-by value
+     (strict mode; in-progress mode requires approved-by only on approved artifacts).
   2. When an artifact is approved, its approved-by handle is a valid approver for that artifact
      type (scripts/approvers.py) and work/<slug>/log.md carries a matching
      "<artifact> | ... -> approved | <actor> | ..." entry (scripts/log_ledger.py). Pass
@@ -24,6 +33,8 @@ ROOT = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=Tr
 # evals/ is deliberately NOT exempt: run_evals.sh executes each case's `check:` block as shell in CI,
 # so a new case must appear in the approved plan's file list (security review, finding 4).
 EXEMPT = ("work/", "docs/", "monitoring/", "knowledge/", "CLAUDE.md", "REVIEW.md", "README.md")
+CHAIN = ("intent.md", "spec.md", "plan.md")
+STATUSES = ("draft", "in-review", "approved", "superseded")
 
 def front_matter_text(text):
     fm = {}
@@ -115,16 +126,56 @@ def main():
 
     any_approved = False
 
-    for name in ("intent.md", "spec.md", "plan.md"):
-        fm = front_matter(os.path.join(wd, name))
-        if fm is None:
-            errors.append(f"work/{slug}/{name} is missing"); continue
-        if fm.get("status") != "approved":
-            errors.append(f"work/{slug}/{name} status is '{fm.get('status')}', must be 'approved'")
-        if not fm.get("approved-by"):
-            errors.append(f"work/{slug}/{name} has no approved-by")
+    diff = subprocess.run(["git", "diff", "--name-only", f"{a.base}...HEAD"], capture_output=True, text=True, cwd=ROOT)
+    changed_all = [p for p in diff.stdout.split() if p]
+    # Artifact-only means *this* item's artifacts (plus the generated top-level index): a PR that
+    # touches another item's work/<other>/ while labelled with this slug is mislabelled, and gets the
+    # strict check. An empty diff (`--base HEAD`, a local self-check) validates what exists.
+    in_progress = all(p == "work/index.md" or p.startswith(f"work/{slug}/") for p in changed_all)
+    if in_progress:
+        notes.append(
+            f"mode: in-progress -- the diff touches only work/{slug}/, so the chain is checked as far "
+            "as it exists; any other path in the diff needs the whole chain approved"
+        )
 
-        if fm.get("status") == "approved" and not a.no_approvers:
+    fms = {name: front_matter(os.path.join(wd, name)) for name in CHAIN}
+    if in_progress and fms["intent.md"] is None:
+        errors.append(f"work/{slug}/intent.md is missing; a work item starts with an intent")
+    if in_progress and not a.no_approvers and not log_exists and any(fm is not None for fm in fms.values()):
+        errors.append(f"work/{slug}/log.md is missing; every gate, including '(none) -> draft', is recorded there")
+
+    for i, name in enumerate(CHAIN):
+        fm = fms[name]
+        if fm is None:
+            if not in_progress:
+                errors.append(f"work/{slug}/{name} is missing")
+            continue
+        status = fm.get("status")
+        if status not in STATUSES:
+            errors.append(f"work/{slug}/{name} status is '{status}', must be one of {', '.join(STATUSES)}")
+        if in_progress:
+            if i > 0:
+                prev = CHAIN[i - 1]
+                prev_status = (fms[prev] or {}).get("status", "missing")
+                if prev_status != "approved":
+                    errors.append(
+                        f"work/{slug}/{name} exists but work/{slug}/{prev} is '{prev_status}', not "
+                        f"'approved': one stage at a time -- a human approves each artifact before the next is started"
+                    )
+            if status == "approved" and not fm.get("approved-by"):
+                errors.append(f"work/{slug}/{name} is approved but has no approved-by")
+            if status != "approved" and fm.get("approved-by"):
+                errors.append(
+                    f"work/{slug}/{name} has approved-by '{fm.get('approved-by')}' but status '{status}'; "
+                    f"scripts/approve.py sets both together"
+                )
+        else:
+            if status != "approved":
+                errors.append(f"work/{slug}/{name} status is '{status}', must be 'approved'")
+            if not fm.get("approved-by"):
+                errors.append(f"work/{slug}/{name} has no approved-by")
+
+        if status == "approved" and not a.no_approvers:
             any_approved = True
             approved_by = fm.get("approved-by", "")
             ok, reason = av.is_valid(name, approved_by)
@@ -193,8 +244,7 @@ def main():
         for lineno, raw in malformed:
             notes.append(f"work/{slug}/log.md:{lineno}: malformed log line: {raw.strip()}")
 
-    diff = subprocess.run(["git", "diff", "--name-only", f"{a.base}...HEAD"], capture_output=True, text=True, cwd=ROOT)
-    changed = [p for p in diff.stdout.split() if p and not p.startswith(EXEMPT)]
+    changed = [p for p in changed_all if not p.startswith(EXEMPT)]
     plan = os.path.join(wd, "plan.md")
     if os.path.exists(plan):
         allowed = section(plan, "Files")

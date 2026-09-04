@@ -234,15 +234,25 @@ fi
 
 if [ "$FORCE" = true ] || [ "$CONFIG_ENV_PREEXISTED" = false ]; then
   if [ -e "$TARGET/.sdlc/config.env" ]; then
+    # Two keys are the kit's own values, not the adopter's: VERIFY_CMDS runs this repo's suite,
+    # and PLAN_REQUIRED_PATHS names this repo's product code (scripts/) rather than the usual
+    # source directories of an application. Each is rewritten to an adopter default so a change
+    # to the kit's own governance never leaks into a target.
     NEW_VERIFY_LINE="VERIFY_CMDS=\"echo 'TODO(adopter): set VERIFY_CMDS in .sdlc/config.env (e.g. npm test, pytest, make lint)'\""
+    NEW_PLAN_PATHS_LINE="PLAN_REQUIRED_PATHS=\"src lib app services packages\""
     CONFIG_FILE="$TARGET/.sdlc/config.env"
     TMP_CONFIG="$(mktemp "${CONFIG_FILE}.XXXXXX")"
     replaced=false
+    replaced_plan=false
     while IFS= read -r line || [ -n "$line" ]; do
       case "$line" in
         VERIFY_CMDS=*)
           printf '%s\n' "$NEW_VERIFY_LINE" >> "$TMP_CONFIG"
           replaced=true
+          ;;
+        PLAN_REQUIRED_PATHS=*)
+          printf '%s\n' "$NEW_PLAN_PATHS_LINE" >> "$TMP_CONFIG"
+          replaced_plan=true
           ;;
         *)
           printf '%s\n' "$line" >> "$TMP_CONFIG"
@@ -252,8 +262,12 @@ if [ "$FORCE" = true ] || [ "$CONFIG_ENV_PREEXISTED" = false ]; then
     if [ "$replaced" != true ]; then
       printf '%s\n' "$NEW_VERIFY_LINE" >> "$TMP_CONFIG"
     fi
+    if [ "$replaced_plan" != true ]; then
+      printf '%s\n' "$NEW_PLAN_PATHS_LINE" >> "$TMP_CONFIG"
+    fi
     mv -- "$TMP_CONFIG" "$CONFIG_FILE"
     echo "set VERIFY_CMDS to a TODO placeholder in $TARGET/.sdlc/config.env"
+    echo "set PLAN_REQUIRED_PATHS to the adopter default (src lib app services packages) in $TARGET/.sdlc/config.env"
   fi
 fi
 
