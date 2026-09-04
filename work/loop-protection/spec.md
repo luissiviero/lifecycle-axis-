@@ -4,10 +4,10 @@ id: loop-protection
 title: The agent must not be able to weaken the check on its own work
 description: Protect the verify loop and the session settings as control plane, lock only existing tests under a fix, pre-approve the loop and deny egress in settings, and make a skipped check or a failing eval speak.
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-04
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Transcribed from the approved implementation plan (session above), section WI-3 and appendix A3, by a drafting subagent; reviewed by the orchestrator."
