@@ -4,11 +4,11 @@ id: control-plane-visibility
 title: Hook decisions must be logged; the control-plane unlock must be visible; CI must recognise the kit's own agent PRs
 description: Add log_decision and the A1 helpers to _lib.sh, a systemMessage and never-unlock list to protect-paths.sh, a prefix list and trailer scan to check_control_plane.sh, with tests, two evals and the doc corrections.
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-04
 risk-class: low
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
