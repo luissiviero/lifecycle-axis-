@@ -4,10 +4,10 @@ id: loop-protection
 title: The agent must not be able to weaken the check on its own work
 description: The verify loop, the test lock and the session settings are unprotected; a branch that guts verify.sh passes every gate, a fix item cannot write its failing test first, and a skipped check or a failing eval says nothing.
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude from the 2026-09-04 playbook comparison
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-04
 supersedes:
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
