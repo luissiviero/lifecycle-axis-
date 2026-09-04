@@ -44,6 +44,7 @@ Explicit paths only; no globs. No file under `.claude/hooks/` changes in this it
 - work/front-matter/index.md — regenerated
 - work/front-matter/plan.md — deviations log entries, if any
 - work/front-matter/log.md — gate entries
+- .sdlc/active — names `front-matter` (the owner's `--activate` step, done in the GitHub web editor on this branch)
 
 ## Release-gated
 Paths under RELEASE_GATED_PATHS with a named human owner (leave "(none)" if none).
@@ -76,4 +77,8 @@ Paths under RELEASE_GATED_PATHS with a named human owner (leave "(none)" if none
 - Revert the PR's commits; no data, no migration, no hook wiring. Regenerate `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` and the indexes after the revert so the drift checks agree with the tree.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- 2026-09-04: `_fm_value()` checks for a quoted value before the ` #` comment split, not after as appendix A6 wrote it: with A6's order `title: "Fix #12 crash"` read as `"Fix`, which is the case spec C2 promises survives; `TemplateFrontMatter::test_url_anchor_is_kept` pins it.
+- 2026-09-04: `.sdlc/active` is in this PR's diff (the owner activated the item from the web editor, since `approve.py` cannot run from a phone), so it joins the file list above; the chain check's in-progress mode already allows it.
+- 2026-09-04: the OKF baseline on this branch is `66 docs`, not the `64` written into steps 1-2 (two docs landed on main between the plan's reading and the branch point); the invariant is `0 warnings`, which holds.
+- 2026-09-04: the R-10 proof grep as written (`grep -cE '...\n...'`) cannot match across lines and prints `0` on any input, so the proof is a Python `re.findall` over the same pattern (0 and 0, from 4 and 3) plus `Harness::test_fake_repo_carries_approvers_yaml`.
+- 2026-09-04: `test_approve.py` fixture rewrites beyond the plan's list: `test_rejects_handle_without_role_and_bot` and `test_dry_run_writes_nothing` also move to `intent.md` (stage order would otherwise refuse `plan.md` first and hide what they test), and `test_approvers.py` gains a `subprocess` import for the CLI case.

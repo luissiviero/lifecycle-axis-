@@ -9,6 +9,9 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
+import log_ledger  # noqa: E402
+
+TEMPLATE_INTENT = os.path.join(REPO, "docs", "sdlc", "templates", "intent.md")
 
 ARTIFACT = """---
 type: sdlc/{kind}
@@ -92,18 +95,21 @@ class Approve(unittest.TestCase):
 
     def test_rejects_handle_without_role_and_bot(self):
         for handle in ("someone-else", "claude[bot]"):
-            r = run(self.root, "demo", "plan.md", "--as", handle)
+            r = run(self.root, "demo", "intent.md", "--as", handle)
             self.assertEqual(r.returncode, 1, handle)
-            self.assertIn("status: in-review", self.read("work/demo/plan.md"))
+            self.assertIn("may not approve", r.stderr)
+            self.assertIn("status: in-review", self.read("work/demo/intent.md"))
 
     def test_dry_run_writes_nothing(self):
-        r = run(self.root, "demo", "plan.md", "--as", "luissiviero", "--dry-run")
+        r = run(self.root, "demo", "intent.md", "spec.md", "--as", "luissiviero", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("would approve", r.stdout)
-        self.assertIn("status: in-review", self.read("work/demo/plan.md"))
+        self.assertEqual(r.stdout.count("would approve"), 2)  # spec.md counts intent.md as approved in-call
+        self.assertIn("status: in-review", self.read("work/demo/intent.md"))
+        self.assertIn("status: in-review", self.read("work/demo/spec.md"))
         self.assertFalse(os.path.exists(os.path.join(self.root, "work", "demo", "log.md")))
 
     def test_default_handle_from_git_config_and_activate(self):
+        subprocess.run(["git", "-C", self.root, "config", "sdlc.approver", "luissiviero"], check=True)
         with open(os.path.join(self.root, ".sdlc", "active"), "w") as f:
             f.write("_example\n")
         r = run(self.root, "demo", "intent.md", "--activate")
@@ -111,13 +117,63 @@ class Approve(unittest.TestCase):
         self.assertIn("approved-by: luissiviero", self.read("work/demo/intent.md"))
         self.assertEqual(self.read(".sdlc/active").strip(), "demo")
 
+    def test_missing_sdlc_approver_exits_1_with_hint(self):
+        # The fixture's user.name is 'luissiviero' (a valid approver); success here proves the
+        # display name is never consulted (spec R-7).
+        r = run(self.root, "demo", "intent.md")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("--as <github-handle>", r.stderr)
+        self.assertIn("sdlc.approver", r.stderr)
+        self.assertIn("status: in-review", self.read("work/demo/intent.md"))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "work", "demo", "log.md")))
+
     def test_already_approved_is_a_noop(self):
-        run(self.root, "demo", "plan.md", "--as", "luissiviero")
+        run(self.root, "demo", "intent.md", "--as", "luissiviero")
         before = self.read("work/demo/log.md")
-        r = run(self.root, "demo", "plan.md", "--as", "luissiviero")
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero")
         self.assertEqual(r.returncode, 0)
         self.assertIn("nothing to do", r.stdout)
         self.assertEqual(before, self.read("work/demo/log.md"))
+
+    def test_refuses_spec_before_intent_is_approved(self):
+        r = run(self.root, "demo", "spec.md", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("work/demo/spec.md needs work/demo/intent.md approved first (it is 'in-review')", r.stderr)
+        self.assertIn("status: in-review", self.read("work/demo/spec.md"))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "work", "demo", "log.md")))
+
+    def test_refuses_plan_before_spec_is_approved(self):
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r = run(self.root, "demo", "plan.md", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("work/demo/plan.md needs work/demo/spec.md approved first (it is 'in-review')", r.stderr)
+        self.assertIn("status: in-review", self.read("work/demo/plan.md"))
+        # A refused multi-artifact call writes nothing, even for the artifact that was in order.
+        r = run(self.root, "demo", "plan.md", "spec.md", "--as", "luissiviero", "--note", "x")
+        self.assertEqual(r.returncode, 0, r.stderr)  # given out of order, processed in chain order
+        self.assertIn("status: approved", self.read("work/demo/plan.md"))
+        self.assertIn("status: approved", self.read("work/demo/spec.md"))
+        log = self.read("work/demo/log.md")
+        self.assertLess(log.index("| spec.md |"), log.index("| plan.md |"))
+
+    def test_template_derived_approval_yields_clean_ledger_line(self):
+        """A verbatim copy of docs/sdlc/templates/intent.md approves cleanly (spec R-3)."""
+        shutil.copy(TEMPLATE_INTENT, os.path.join(self.root, "work", "demo", "intent.md"))
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        text = self.read("work/demo/intent.md")
+        status_lines = [l for l in text.splitlines() if l.startswith("status:")]
+        self.assertEqual(status_lines, ["status: approved"])
+        self.assertIn("approved-by: luissiviero", text)
+        entries, malformed = log_ledger.parse(os.path.join(self.root, "work", "demo", "log.md"))
+        self.assertEqual(malformed, [])
+        approved = log_ledger.approvals(entries, "intent.md")
+        self.assertEqual(len(approved), 1)
+        self.assertEqual(approved[0].from_status, "draft")
+        self.assertEqual(approved[0].actor, "luissiviero")
+        line = [l for l in self.read("work/demo/log.md").splitlines() if "-> approved" in l][0]
+        self.assertEqual(line.count("|"), 4, line)  # five fields, no note
 
 
 if __name__ == "__main__":

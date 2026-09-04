@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -9,6 +10,11 @@ ROOT = os.path.dirname(HERE)
 SCRIPT = os.path.join(HERE, "check_artifact_chain.py")
 REAL_CONFIG = os.path.join(ROOT, ".sdlc", "config.env")
 REAL_APPROVERS = os.path.join(ROOT, ".sdlc", "approvers.yaml")
+TEMPLATES = os.path.join(ROOT, "docs", "sdlc", "templates")
+EXAMPLE = os.path.join(ROOT, "work", "_example")
+
+sys.path.insert(0, HERE)
+from check_artifact_chain import front_matter_text  # noqa: E402
 
 
 def _write(path, content):
@@ -179,7 +185,7 @@ class FilesSectionRegression(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
             self.assertIn(
-                "other/x.txt changed but is not listed under '## Files'", result.stdout
+                "other/x.txt changed but is not listed under '## Files that change'", result.stdout
             )
 
 
@@ -326,6 +332,104 @@ class InProgressChain(unittest.TestCase):
             self.assertNotIn("mode: in-progress", result.stdout)
             self.assertIn("work/new/spec.md is missing", result.stdout)
             self.assertIn("work/new/intent.md status is 'draft', must be 'approved'", result.stdout)
+
+
+class TemplateFrontMatter(unittest.TestCase):
+    """work/front-matter spec R-1 and R-2: the one Python parser reads a value the way YAML does,
+    so a template copied verbatim into work/<slug>/ passes the chain check."""
+
+    def test_inline_comment_is_stripped(self):
+        fm = front_matter_text("---\nstatus: draft            # draft | in-review | approved\n---\n")
+        self.assertEqual(fm["status"], "draft")
+        fm = front_matter_text("---\nkind: feature\t# feature | fix\napproved-by:   # a human\n---\n")
+        self.assertEqual(fm["kind"], "feature")
+        self.assertEqual(fm["approved-by"], "")
+
+    def test_quoted_status_parses(self):
+        self.assertEqual(front_matter_text('---\nstatus: "in-review"\n---\n')["status"], "in-review")
+        self.assertEqual(front_matter_text("---\nstatus: 'approved'\n---\n")["status"], "approved")
+        # Only a matching pair is a quote; a lone apostrophe is part of the value.
+        self.assertEqual(front_matter_text("---\ntitle: the owner's plan\n---\n")["title"], "the owner's plan")
+
+    def test_comment_line_is_not_a_key(self):
+        fm = front_matter_text(
+            "---\n# status: draft | in-review | approved | superseded\nstatus: in-review\n"
+            "  # approved-by: set only by a human\napproved-by:\n---\n"
+        )
+        self.assertEqual(fm["status"], "in-review")
+        self.assertEqual(fm["approved-by"], "")
+        self.assertNotIn("# status", fm)
+        self.assertNotIn("# approved-by", fm)
+        self.assertEqual(len(fm), 2)
+
+    def test_crlf_input_parses(self):
+        fm = front_matter_text("---\r\nstatus: approved   # note\r\napproved-by: luissiviero\r\n---\r\n# body\r\n")
+        self.assertEqual(fm["status"], "approved")
+        self.assertEqual(fm["approved-by"], "luissiviero")
+
+    def test_url_anchor_is_kept(self):
+        fm = front_matter_text("---\nresource: https://example.com/issues/12#comment-3\ntitle: Fix #12 crash\n---\n")
+        self.assertEqual(fm["resource"], "https://example.com/issues/12#comment-3")
+        # YAML semantics, accepted in spec C2: whitespace then '#' starts a comment; quote such a value.
+        self.assertEqual(fm["title"], "Fix")
+        self.assertEqual(front_matter_text('---\ntitle: "Fix #12 crash"\n---\n')["title"], "Fix #12 crash")
+
+    def test_verbatim_template_copy_passes_in_progress(self):
+        """The real docs/sdlc/templates/intent.md, copied unchanged into a new work item."""
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _git(root, "checkout", "-q", "-b", "work/new")
+            wd = os.path.join(root, "work", "new")
+            os.makedirs(wd)
+            shutil.copy(os.path.join(TEMPLATES, "intent.md"), os.path.join(wd, "intent.md"))
+            _write(os.path.join(wd, "log.md"), InProgressChain.DRAFT_LOG)
+            _commit(root, "open the work item from the template")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+            self.assertIn("mode: in-progress", result.stdout)
+
+
+def _front_matter_keys(path):
+    """Front-matter keys in file order; comment lines are guidance, not keys."""
+    keys = []
+    with open(path, encoding="utf-8") as f:
+        lines = f.read().splitlines()
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if line.lstrip().startswith("#") or ":" not in line:
+            continue
+        keys.append(line.split(":", 1)[0].strip())
+    return keys
+
+
+def _headings(path):
+    with open(path, encoding="utf-8") as f:
+        return [l.rstrip() for l in f.read().splitlines() if l.startswith("## ") or l.startswith("### ")]
+
+
+class ExampleMatchesTemplates(unittest.TestCase):
+    """work/front-matter spec R-6: the always-green example has the templates' keys and headings,
+    in the templates' order, so it teaches the shape the parsers and skills expect."""
+
+    ARTIFACTS = ("intent.md", "spec.md", "plan.md")
+
+    def test_front_matter_keys_match(self):
+        for name in self.ARTIFACTS:
+            with self.subTest(artifact=name):
+                self.assertEqual(
+                    _front_matter_keys(os.path.join(EXAMPLE, name)),
+                    _front_matter_keys(os.path.join(TEMPLATES, name)),
+                )
+
+    def test_headings_match(self):
+        for name in self.ARTIFACTS:
+            with self.subTest(artifact=name):
+                self.assertEqual(
+                    _headings(os.path.join(EXAMPLE, name)),
+                    _headings(os.path.join(TEMPLATES, name)),
+                )
 
 
 if __name__ == "__main__":

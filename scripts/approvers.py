@@ -13,11 +13,21 @@ API:
       root. A missing file loads a fail-closed Approvers rather than
       raising -- every `is_valid()` call on it reports the file is missing.
   Approvers.role_for(artifact) -> str | None
+  Approvers.has_role(role, handle) -> (bool, reason)
+      The primitive: is `handle` a human listed under `role`? Fails closed on a
+      missing file, an empty handle, a never-approve identity, or an unknown role.
   Approvers.is_valid(artifact, handle) -> (bool, reason)
+      role_for(artifact), then has_role(role, handle).
   Approvers.normalize(handle) -> str
       Strips surrounding quotes, takes the first whitespace-delimited
       token, strips a leading '@', casefolds.
+
+CLI:
+  python3 scripts/approvers.py                       dump the parsed file as JSON
+  python3 scripts/approvers.py --has-role ROLE HANDLE  exit 0 when HANDLE holds ROLE, else 1;
+                                                     the reason goes to stderr
 """
+import argparse
 import json
 import os
 import sys
@@ -118,7 +128,8 @@ class Approvers:
     def role_for(self, artifact):
         return self.artifacts.get(artifact)
 
-    def is_valid(self, artifact, handle):
+    def has_role(self, role, handle):
+        """(True, "ok") when `handle` is listed under `role`; otherwise (False, reason)."""
         if not self.exists:
             return False, f"no approvers file at {self.path}"
         norm = self.normalize(handle)
@@ -126,13 +137,25 @@ class Approvers:
             return False, "empty approver"
         if norm in self.never_approve:
             return False, "agent identities cannot approve"
-        role = self.role_for(artifact)
-        if role is None:
-            return False, f"no role defined for {artifact}"
+        if role not in self.roles:
+            return False, f"no such role {role}"
         allowed = {self.normalize(h) for h in self.roles.get(role, [])}
         if norm not in allowed:
             return False, f"{norm} is not a {role}"
         return True, "ok"
+
+    def is_valid(self, artifact, handle):
+        if not self.exists:
+            return False, f"no approvers file at {self.path}"
+        role = self.role_for(artifact)
+        if role is None:
+            norm = self.normalize(handle)
+            if not norm:
+                return False, "empty approver"
+            if norm in self.never_approve:
+                return False, "agent identities cannot approve"
+            return False, f"no role defined for {artifact}"
+        return self.has_role(role, handle)
 
 
 def load(path=None):
@@ -156,12 +179,20 @@ def load(path=None):
     return Approvers(roles, artifacts, never_approve, path, exists=True)
 
 
-def main():
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--has-role", nargs=2, metavar=("ROLE", "HANDLE"),
+                    help="exit 0 when HANDLE holds ROLE in the approvers file, 1 otherwise")
+    args = ap.parse_args(argv)
     try:
         a = load()
     except ValueError as e:
         print(f"malformed approvers file: {e}", file=sys.stderr)
         sys.exit(1)
+    if args.has_role:
+        ok, reason = a.has_role(*args.has_role)
+        print(reason, file=sys.stderr)
+        sys.exit(0 if ok else 1)
     print(
         json.dumps(
             {

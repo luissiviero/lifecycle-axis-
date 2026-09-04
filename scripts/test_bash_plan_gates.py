@@ -19,9 +19,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hooktest import fake_repo, run_hook  # noqa: E402
 
 PLAN_IN_REVIEW = {"work/foo/plan.md": "---\nstatus: in-review\n---\n"}
-PLAN_APPROVED = {"work/foo/plan.md": "---\nstatus: approved\n---\n"}
-PLAN_FIX = {"work/foo/plan.md": "---\nstatus: approved\nkind: fix\n---\n"}
-PLAN_FEATURE = {"work/foo/plan.md": "---\nstatus: approved\nkind: feature\n---\n"}
+PLAN_APPROVED = {"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\n---\n"}
+PLAN_FIX = {"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\nkind: fix\n---\n"}
+PLAN_FEATURE = {"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\nkind: feature\n---\n"}
 FOO = {"SDLC_WORK_ITEM": "foo"}
 
 # A complete .sdlc/config.env for the two plan hooks with the Bash branch switched off.
