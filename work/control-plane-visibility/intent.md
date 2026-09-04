@@ -4,10 +4,10 @@ id: control-plane-visibility
 title: Hook decisions must be logged; the control-plane unlock must be visible; CI must recognise the kit's own agent PRs
 description: The unlock's audit line goes to stderr on exit 0 where Claude Code never shows it, check_control_plane.sh never matched the kit's kit/* branches, and no hook decision is recorded anywhere durable.
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude from the 2026-09-04 playbook comparison
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-04
 supersedes:
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
