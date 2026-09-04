@@ -4,11 +4,11 @@ id: front-matter
 title: Templates and artifact parsers must agree; approve.py must not misfire
 description: Implementation steps for one tolerant front-matter parser, comment-line templates, a matching example, approve.py stage order and handle rules, has_role, and forward-compatible hook fixtures.
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-04
 risk-class: low
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
