@@ -30,7 +30,9 @@ ROOT = os.path.dirname(HERE)
 RAN_RE = re.compile(r"^Ran (\d+) tests? in [0-9.]+s$", re.M)
 OK_RE = re.compile(r"^OK(?: \((.*)\))?$", re.M)
 FAILED_RE = re.compile(r"^FAILED \((.*)\)$", re.M)
-COUNT_RE = re.compile(r"(\w+)=(\d+)")
+# Labels can carry a space ("expected failures=1", "unexpected successes=1"); keep them whole so
+# they are not folded into the plain failures= / successes= buckets.
+COUNT_RE = re.compile(r"([a-z]+(?: [a-z]+)?)=(\d+)")
 
 # Modules that dominate the wall clock start first so their run overlaps the small ones.
 FIRST = ("test_adopt.py",)

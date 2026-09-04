@@ -21,6 +21,10 @@ OK_MODULE = textwrap.dedent(
         @unittest.skip("on purpose")
         def test_skipped(self):
             pass
+
+        @unittest.expectedFailure
+        def test_expected_failure(self):
+            self.assertTrue(False)
     """
 )
 
@@ -56,8 +60,10 @@ class RunTests(unittest.TestCase):
             write(root, "test_b.py", OK_MODULE)
             r = run(root, "-j", "2")
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-            self.assertIn("Ran 4 tests in", r.stdout)
-            self.assertIn("OK (skipped=2)", r.stdout)
+            self.assertIn("Ran 6 tests in", r.stdout)
+            # two-word unittest labels survive aggregation instead of folding into failures=
+            self.assertIn("OK (expected failures=2, skipped=2)", r.stdout)
+            self.assertNotIn("failures=2,", r.stdout.replace("expected failures=2", ""))
 
     def test_one_failing_module_fails_the_run_and_shows_its_output(self):
         with tempfile.TemporaryDirectory() as root:
@@ -65,9 +71,9 @@ class RunTests(unittest.TestCase):
             write(root, "test_b.py", BAD_MODULE)
             r = run(root, "-j", "2")
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-            self.assertIn("Ran 3 tests in", r.stdout)
+            self.assertIn("Ran 4 tests in", r.stdout)
             self.assertIn("FAILED (", r.stdout)
-            self.assertIn("failures=1", r.stdout)
+            self.assertIn(" failures=1", r.stdout)  # the real failure, distinct from expected failures=1
             # the failing assertion is visible without re-running anything
             self.assertIn("PLANTED_FAILURE_MARKER", r.stdout)
             self.assertIn("✘ test_b.py", r.stdout)
@@ -78,7 +84,7 @@ class RunTests(unittest.TestCase):
             write(root, "test_a.py", OK_MODULE)
             r = run(root, "-j", "1")
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-            self.assertIn("OK (skipped=1)", r.stdout)
+            self.assertIn("OK (expected failures=1, skipped=1)", r.stdout)
 
     def test_module_that_never_reaches_a_summary_is_a_failure(self):
         with tempfile.TemporaryDirectory() as root:
