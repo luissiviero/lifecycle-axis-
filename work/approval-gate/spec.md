@@ -4,10 +4,10 @@ id: approval-gate
 title: Only a human can flip an artifact to approved
 description: A PreToolUse hook that refuses agent writes to the approval fields of chain artifacts and agent invocations of approve.py, plus an approver check in require-plan.sh.
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Transcribed from the approved implementation plan (session above), section WI-6 and appendix A1, by a drafting subagent; reviewed by the orchestrator."
