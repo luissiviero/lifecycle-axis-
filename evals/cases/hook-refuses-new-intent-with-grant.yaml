@@ -1,0 +1,23 @@
+name: hook-refuses-new-intent-with-grant
+kind: hook
+source: work/delegated-mode/spec.md R-9, D5 (a new file with mode: delegated is a change; mode: supervised on a new file is allowed)
+check: |
+  R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"; mkdir -p "$d/.sdlc" "$d/work/bar"
+  cp "$R/.sdlc/config.env" "$R/.sdlc/approvers.yaml" "$d/.sdlc/"
+  cp "$R/docs/sdlc/templates/delegation.yaml" "$d/.sdlc/delegation.yaml"
+  H="$R/.claude/hooks/protect-approvals.sh"
+  rc() { printf '%s' "$1" | CLAUDE_PROJECT_DIR="$d" "$H" >/tmp/hook-refuses-new-intent-with-grant.err 2>&1; echo $?; }
+  DELEGATED_CONTENT='---\nstatus: draft\napproved-by:\napproved-on:\nrisk-class: low\nmode: delegated\ndelegated-by:\ndelegated-on:\n---\n# Intent\n'
+  SUPERVISED_CONTENT='---\nstatus: draft\napproved-by:\napproved-on:\nrisk-class: low\nmode: supervised\ndelegated-by:\ndelegated-on:\n---\n# Intent\n'
+  ok=1
+  # A brand-new intent.md granting itself delegated mode is refused: nothing -> delegated is still
+  # an agent widening its own permission.
+  p_delegated="$(printf '{"tool_name":"Write","tool_input":{"file_path":"work/bar/intent.md","content":"%s"}}' "$DELEGATED_CONTENT")"
+  [ "$(rc "$p_delegated")" = 2 ] || ok=0
+  grep -qi "mode" /tmp/hook-refuses-new-intent-with-grant.err || ok=0
+  [ -f "$d/work/bar/intent.md" ] && ok=0
+  # A brand-new intent.md at the default mode: supervised is a normal draft and is allowed.
+  p_supervised="$(printf '{"tool_name":"Write","tool_input":{"file_path":"work/bar/intent.md","content":"%s"}}' "$SUPERVISED_CONTENT")"
+  [ "$(rc "$p_supervised")" = 0 ] || ok=0
+  rm -rf "$d"
+  [ "$ok" = 1 ]

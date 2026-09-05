@@ -30,6 +30,44 @@ def load_fixture(name, **tool_input_overrides):
     return payload
 
 
+# work/delegated-mode R-10: require-plan.sh's delegated branch opens the plan gate on a
+# `status: delegated` plan.md the same way it opens on a tech-lead-approved one, but only under a
+# human grant (mode: delegated on the item's intent.md) and an enabled policy that lists the
+# signer among `agents` and plan.md among `signable`.
+DELEGATION_POLICY = """\
+enabled: true
+agents: [claude, claude[bot]]
+signable: [spec.md, plan.md, incident.md]
+risk-classes: [low]
+max-deviations: 5
+revisions: consensus
+min-reviewers: 2
+merge:
+  enabled: true
+  require-review: true
+  require-checks: [sdlc-gate, agent-evals, pr-review]
+  method: merge
+  cool-off-hours: 0
+locked-paths: [scripts/check_artifact_chain.py]
+"""
+DELEGATED_INTENT = {
+    "work/foo/intent.md": (
+        "---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-04\n"
+        "risk-class: low\nmode: delegated\ndelegated-by: luissiviero\ndelegated-on: 2026-09-04\n"
+        "---\n# Intent\n"
+    )
+}
+SUPERVISED_INTENT = {
+    "work/foo/intent.md": (
+        "---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-04\n"
+        "risk-class: low\nmode: supervised\ndelegated-by:\ndelegated-on:\n"
+        "---\n# Intent\n"
+    )
+}
+DELEGATED_PLAN_CLAUDE = {"work/foo/plan.md": "---\nstatus: delegated\napproved-by: claude\n---\n# Plan\n"}
+DELEGATED_PLAN_MALLORY = {"work/foo/plan.md": "---\nstatus: delegated\napproved-by: mallory\n---\n# Plan\n"}
+
+
 class Harness(unittest.TestCase):
     """scripts/hooktest.py itself: what every fake repo carries (work/front-matter spec R-10)."""
 
@@ -211,12 +249,69 @@ class RequirePlanHook(unittest.TestCase):
             result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "nope"})
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    # -- work/delegated-mode R-10: the delegated branch --------------------------------------
+
+    def test_allows_when_plan_delegated_with_grant(self):
+        files = dict(DELEGATED_INTENT, **DELEGATED_PLAN_CLAUDE, **{".sdlc/delegation.yaml": DELEGATION_POLICY})
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_blocks_when_plan_delegated_but_policy_missing(self):
+        # No .sdlc/delegation.yaml: a signature with no policy behind it opens nothing.
+        files = dict(DELEGATED_INTENT, **DELEGATED_PLAN_CLAUDE)
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_blocks_when_plan_delegated_by_handle_outside_agents(self):
+        files = dict(DELEGATED_INTENT, **DELEGATED_PLAN_MALLORY, **{".sdlc/delegation.yaml": DELEGATION_POLICY})
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("mallory", result.stderr)
+
+    def test_blocks_when_intent_mode_is_supervised(self):
+        files = dict(SUPERVISED_INTENT, **DELEGATED_PLAN_CLAUDE, **{".sdlc/delegation.yaml": DELEGATION_POLICY})
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_blocks_when_plan_not_in_signable(self):
+        policy = DELEGATION_POLICY.replace("signable: [spec.md, plan.md, incident.md]", "signable: [spec.md, incident.md]")
+        files = dict(DELEGATED_INTENT, **DELEGATED_PLAN_CLAUDE, **{".sdlc/delegation.yaml": policy})
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+
 
 FIX_PLAN = "---\nstatus: approved\napproved-by: luissiviero\nkind: fix\n---\n"
 FEATURE_PLAN = "---\nstatus: approved\napproved-by: luissiviero\nkind: feature\n---\n"
 # Under kind: fix only an EXISTING test is locked (work/loop-protection R-5): the fixtures that
 # expect a block create the file first, the fixtures that expect an allow do not.
 EXISTING_TEST = {"src/foo.test.ts": "it('x', () => {})\n"}
+
+
+class RequirePlanDelegatedIntentStatus(unittest.TestCase):
+    HOOK = "require-plan.sh"
+
+    def test_blocks_delegated_plan_when_intent_is_not_approved(self):
+        # PR #43 security pass, nit 3: a grant stands on a human-approved intent; mode alone is not one.
+        files = {
+            "work/foo/intent.md": "---\nstatus: in-review\napproved-by:\nrisk-class: low\nmode: delegated\n---\n",
+            "work/foo/plan.md": "---\nstatus: delegated\napproved-by: claude\n---\n",
+            ".sdlc/delegation.yaml": open(os.path.join(REAL_ROOT, "docs", "sdlc", "templates", "delegation.yaml"), encoding="utf-8").read(),
+        }
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("not approved", result.stderr)
 
 
 class ProtectTestsHook(unittest.TestCase):
@@ -519,3 +614,20 @@ class StopVerifyReminderHook(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SettingsAllowList(unittest.TestCase):
+    """work/delegated-mode R-11: the commands a delegated run needs are on the allow list of both
+    settings files (the kit's own and the adopter template), and the deny list is untouched."""
+    ENTRIES = ("Bash(python3 scripts/sign.py*)", "Bash(gh pr ready*)", "Bash(gh pr comment*)",
+               "Bash(gh pr create*)", "Bash(git push -u origin claude/*)")
+    DENY = ["Read(./.env)", "Read(./.env.*)", "Read(./secrets/**)", "Read(~/.ssh/**)", "Read(~/.aws/**)",
+            "WebFetch", "Bash(curl *)", "Bash(wget *)"]
+
+    def test_both_settings_files_allow_the_run_commands(self):
+        for rel in (".claude/settings.json", "docs/sdlc/templates/claude-settings.json"):
+            with open(os.path.join(REAL_ROOT, rel), encoding="utf-8") as f:
+                perms = json.load(f)["permissions"]
+            for entry in self.ENTRIES:
+                self.assertIn(entry, perms["allow"], rel)
+            self.assertEqual(perms["deny"], self.DENY, rel)

@@ -33,6 +33,26 @@ GUARD_OFF_CONFIG = (
     'BASH_WRITE_GUARD="0"\n'
 )
 
+# work/delegated-mode R-9, D5: a human grant on intent.md (mode: delegated) is what lets an
+# agent's signature stand as work/foo/spec.md's `status: delegated`. GRANTED_INTENT already
+# carries `status: approved` by a human (luissiviero) so the pre-existing approval rules never
+# fire on it; only the mode/delegated-* keys are new.
+GRANTED_INTENT = {
+    "work/foo/intent.md": (
+        "---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-04\n"
+        "risk-class: low\nmode: delegated\ndelegated-by: luissiviero\ndelegated-on: 2026-09-04\n"
+        "---\n# Intent\n"
+    )
+}
+SUPERVISED_INTENT = {
+    "work/foo/intent.md": (
+        "---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-04\n"
+        "risk-class: low\nmode: supervised\ndelegated-by:\ndelegated-on:\n"
+        "---\n# Intent\n"
+    )
+}
+DRAFT_SPEC = {"work/foo/spec.md": "---\nstatus: in-review\napproved-by:\napproved-on:\n---\n# Spec\n"}
+
 
 def _payload(tool, tool_input):
     return {
@@ -257,6 +277,176 @@ class BashBranch(unittest.TestCase):
         with fake_repo(**DRAFT_INTENT) as root:
             r = run_hook(HOOK, bash(cmd), root)
             self.assertEqual(r.returncode, 0, r.stderr)
+
+
+def _delegate_spec_payload(handle="claude"):
+    return multiedit("work/foo/spec.md", [
+        ("status: in-review", "status: delegated"),
+        ("approved-by:", f"approved-by: {handle}"),
+    ])
+
+
+class Delegated(unittest.TestCase):
+    """work/delegated-mode R-9, D5: check_result judges the resulting status and approved-by
+    together. An agent may sign work/<slug>/spec.md (etc.) `status: delegated` only when a human
+    grant (`mode: delegated` on that item's intent.md) and an enabled `.sdlc/delegation.yaml`
+    both stand behind it, the signer is a policy-listed agent, and the target is not intent.md
+    itself -- the file that carries the grant is never the file the agent signs (spec D-b)."""
+
+    def _files(self, intent=GRANTED_INTENT, policy=True, policy_content=None, **extra):
+        files = dict(intent, **DRAFT_SPEC, **extra)
+        if policy:
+            files[".sdlc/delegation.yaml"] = policy_content if policy_content is not None else template("delegation.yaml")
+        return files
+
+    def test_allows_delegated_sign_result(self):
+        with fake_repo(**self._files()) as root:
+            r = run_hook(HOOK, _delegate_spec_payload("claude"), root)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(r.stdout, "")
+
+    def test_refuses_when_target_is_intent(self):
+        # The grant lives on intent.md; the agent must never be able to sign that same file
+        # `delegated` (it would be widening its own permission).
+        payload = multiedit("work/foo/intent.md", [
+            ("status: approved", "status: delegated"),
+            ("approved-by: luissiviero", "approved-by: claude"),
+        ])
+        with fake_repo(**self._files()) as root:
+            r = run_hook(HOOK, payload, root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("intent.md", r.stderr)
+
+    def test_refuses_edit_replacing_a_human_approval(self):
+        # PR #43 security pass, finding 2: one Edit must never turn a human's `approved` into the
+        # agent's `delegated`; that re-decision is sign.py --revision's, with a consensus record.
+        files = self._files()
+        files["work/foo/spec.md"] = "---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-01\n---\n"
+        with fake_repo(**files) as root:
+            r = run_hook(HOOK, multiedit("work/foo/spec.md", [
+                ("status: approved", "status: delegated"),
+                ("approved-by: luissiviero", "approved-by: claude"),
+                ("approved-on: 2026-09-01", "approved-on: 2026-09-05"),
+            ]), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("approved by a human", r.stderr)
+
+    def test_refuses_edit_resign_of_a_signed_artifact(self):
+        # A re-signature stands on a revision record that only scripts/sign.py checks (R-5, R-7),
+        # so an Edit that keeps `delegated` and moves approved-on is refused by the plain rule; the
+        # honest path is `sign.py --revision` (plan deviation 5).
+        files = self._files()
+        files["work/foo/spec.md"] = "---\nstatus: delegated\napproved-by: claude\napproved-on: 2026-09-01\n---\n"
+        with fake_repo(**files) as root:
+            r = run_hook(HOOK, multiedit("work/foo/spec.md", [("approved-on: 2026-09-01", "approved-on: 2026-09-02")]), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("approved-on", r.stderr)
+
+    def test_refuses_approved_by_outside_agents(self):
+        for handle in ("luissiviero", "mallory"):
+            with fake_repo(**self._files()) as root:
+                r = run_hook(HOOK, _delegate_spec_payload(handle), root)
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn(handle, r.stderr)
+
+    def test_refuses_mode_edit_on_existing_intent(self):
+        # Only a human sets mode/delegated-by/delegated-on; an agent session can never grant
+        # itself delegated mode by editing the intent it is working from.
+        with fake_repo(**self._files(intent=SUPERVISED_INTENT)) as root:
+            payload = edit("work/foo/intent.md", "mode: supervised", "mode: delegated")
+            r = run_hook(HOOK, payload, root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("mode", r.stderr)
+
+    def test_refuses_new_intent_with_mode_delegated(self):
+        # A brand-new intent.md is also a "change" to mode: nothing -> delegated is still an
+        # agent granting itself delegated mode.
+        content = "---\nstatus: draft\napproved-by:\napproved-on:\nrisk-class: low\nmode: delegated\ndelegated-by:\ndelegated-on:\n---\n# Intent\n"
+        with fake_repo(**self._files(intent=SUPERVISED_INTENT)) as root:
+            r = run_hook(HOOK, write("work/bar/intent.md", content), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("mode", r.stderr)
+
+    def test_allows_new_intent_with_mode_supervised(self):
+        content = "---\nstatus: draft\napproved-by:\napproved-on:\nrisk-class: low\nmode: supervised\ndelegated-by:\ndelegated-on:\n---\n# Intent\n"
+        with fake_repo(**self._files(intent=SUPERVISED_INTENT)) as root:
+            r = run_hook(HOOK, write("work/bar/intent.md", content), root)
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_refuses_status_approved_still_blocked(self):
+        # R-9: 'approved' and 'superseded' are refused exactly as today, even with a grant and
+        # policy in place.
+        payload = multiedit("work/foo/spec.md", [
+            ("status: in-review", "status: approved"),
+            ("approved-by:", "approved-by: claude"),
+        ])
+        with fake_repo(**self._files()) as root:
+            r = run_hook(HOOK, payload, root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_refuses_when_policy_missing(self):
+        with fake_repo(**self._files(policy=False)) as root:
+            r = run_hook(HOOK, _delegate_spec_payload("claude"), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_refuses_when_policy_disabled(self):
+        disabled = template("delegation.yaml").replace("enabled: true", "enabled: false", 1)
+        with fake_repo(**self._files(policy_content=disabled)) as root:
+            r = run_hook(HOOK, _delegate_spec_payload("claude"), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+
+
+class DelegatedBashBranch(unittest.TestCase):
+    """R-9's Bash-branch additions: check_text also reads `mode`, and a mutating `gh api` call
+    on a contents/ or git/ path is refused -- the API route to the same commit an Edit/Write
+    would make, which check_result never sees."""
+
+    def test_allows_sign_py_command(self):
+        # sign.py is the agent's own signing script; the existing approve.py-only regex must
+        # never widen to catch it (regression guard: this already passes today).
+        with fake_repo(**GRANTED_INTENT) as root:
+            r = run_hook(HOOK, bash("python3 scripts/sign.py demo spec.md"), root)
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_refuses_gh_api_mutating_contents_write(self):
+        cmd = "gh api -X PUT repos/o/r/contents/work/demo/intent.md -f content=x"
+        with fake_repo(**DRAFT_INTENT) as root:
+            r = run_hook(HOOK, bash(cmd), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_refuses_gh_api_graphql_commit_mutation(self):
+        # PR #43 security pass, finding 3: createCommitOnBranch is the GraphQL spelling of the same
+        # server-signed commit the REST contents/ write would make.
+        cmd = ('gh api graphql -f query=\'mutation { createCommitOnBranch(input: {branch: {repositoryNameWithOwner: "o/r", '
+               'branchName: "main"}, fileChanges: {additions: [{path: "work/demo/intent.md", contents: "x"}]}, '
+               'message: {headline: "grant"}, expectedHeadOid: "abc"}) { commit { url } } }\'')
+        with fake_repo(**DRAFT_INTENT) as root:
+            r = run_hook(HOOK, bash(cmd), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("GraphQL", r.stderr)
+        with fake_repo(**DRAFT_INTENT) as root:
+            r = run_hook(HOOK, bash("gh api graphql -f query='query { viewer { login } }'"), root)
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_refuses_bash_write_of_delegated_status_to_a_draft(self):
+        # PR #43 security pass, nit 1: the Bash branch judges `delegated` like the edit branch does.
+        with fake_repo(**dict(DRAFT_INTENT, **DRAFT_SPEC)) as root:
+            r = run_hook(HOOK, bash("printf 'status: delegated\\n' >> work/foo/spec.md"), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("sign.py", r.stderr)
+
+    def test_allows_gh_api_read_only_contents_call(self):
+        cmd = "gh api repos/o/r/contents/work/demo/intent.md"
+        with fake_repo(**DRAFT_INTENT) as root:
+            r = run_hook(HOOK, bash(cmd), root)
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_refuses_heredoc_setting_mode_delegated_on_draft_intent(self):
+        cmd = "cat > work/foo/intent.md <<'EOF'\n---\nstatus: draft\nmode: delegated\n---\nEOF"
+        with fake_repo(**DRAFT_INTENT) as root:
+            r = run_hook(HOOK, bash(cmd), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("mode", r.stderr)
 
 
 if __name__ == "__main__":

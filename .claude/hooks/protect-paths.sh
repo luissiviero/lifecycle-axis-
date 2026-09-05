@@ -32,10 +32,11 @@ finish() { # exit 0; one systemMessage when the unlock let something through, no
 check_target() { # check_target <repo-relative canonical path> <where>
   local R="$1" where="$2"
   # Hard-coded, not a config key, so no config line can widen it: the release authorizations
-  # (production-gate.sh), the approvers file (every approval check) and the decision log are
-  # written by a human from their own shell or by the hook process, never by a tool call.
+  # (production-gate.sh), the approvers and delegation files (every approval and signature check)
+  # and the decision log are written by a human from their own shell or by the hook process,
+  # never by a tool call.
   case "$R" in
-    .sdlc/release-authorizations|.sdlc/release-authorizations/*|.sdlc/approvers.yaml|.sdlc/hook-decisions.log)
+    .sdlc/release-authorizations|.sdlc/release-authorizations/*|.sdlc/approvers.yaml|.sdlc/delegation.yaml|.sdlc/hook-decisions.log)
       block "'$R' is a human-only file$where. The control-plane unlock never covers it; the release manager / repo owner writes it from their own shell.";;
   esac
   if under_any "$R" "$PROTECTED_PATHS"; then

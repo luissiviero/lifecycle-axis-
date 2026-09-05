@@ -1,0 +1,20 @@
+name: hook-refuses-mode-edit
+kind: hook
+source: work/delegated-mode/spec.md R-9, D5 (mode/delegated-by/delegated-on stay human-only, like approved-by)
+check: |
+  R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"; mkdir -p "$d/.sdlc" "$d/work/demo"
+  cp "$R/.sdlc/config.env" "$R/.sdlc/approvers.yaml" "$d/.sdlc/"
+  cp "$R/docs/sdlc/templates/delegation.yaml" "$d/.sdlc/delegation.yaml"
+  printf -- '---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-01\nrisk-class: low\nmode: supervised\ndelegated-by:\ndelegated-on:\n---\n# Intent\n' > "$d/work/demo/intent.md"
+  H="$R/.claude/hooks/protect-approvals.sh"
+  rc() { printf '%s' "$1" | CLAUDE_PROJECT_DIR="$d" "$H" >/tmp/hook-refuses-mode-edit.err 2>&1; echo $?; }
+  ok=1
+  # An agent session can never grant itself delegated mode by editing the intent it works from,
+  # even though the resulting status is still 'approved' (only mode/delegated-by/delegated-on move).
+  [ "$(rc '{"tool_name":"Edit","tool_input":{"file_path":"work/demo/intent.md","old_string":"mode: supervised","new_string":"mode: delegated"}}')" = 2 ] || ok=0
+  grep -qi "mode" /tmp/hook-refuses-mode-edit.err || ok=0
+  grep -q "mode: delegated" "$d/work/demo/intent.md" && ok=0
+  # Repeating the current (unchanged) mode is not a change, and stays allowed.
+  [ "$(rc '{"tool_name":"Edit","tool_input":{"file_path":"work/demo/intent.md","old_string":"mode: supervised","new_string":"mode: supervised"}}')" = 0 ] || ok=0
+  rm -rf "$d"
+  [ "$ok" = 1 ]

@@ -1,0 +1,64 @@
+# Delegation policy: everything tunable about delegated mode lives here, in one file. Copy this
+# template to .sdlc/delegation.yaml and edit it there; the copy is what scripts/delegation.py and
+# the hooks' policy_* helpers (.claude/hooks/_lib.sh) read. This file is human-only, like
+# .sdlc/approvers.yaml: no agent session ever writes it, .claude/hooks/protect-paths.sh carries
+# .sdlc/delegation.yaml on its never-unlock list (SDLC_CONTROL_PLANE_UNLOCK does not reach it), and
+# scripts/sign.py, the hooks and scripts/delegated_merge.py all treat a missing file the same as
+# `enabled: false`: delegated mode is off everywhere, and every artifact goes through the
+# supervised, human-approved path.
+
+# enabled: the master switch. false or absent turns every may_* query in scripts/delegation.py
+# False, closes the delegated branch in protect-approvals.sh and require-plan.sh, and makes
+# check_artifact_chain.py reject any status: delegated artifact outright.
+enabled: false
+
+# agents: handles that may hold approved-by on a delegated artifact. Never list a human handle
+# here; scripts/sign.py refuses to run for a handle outside this list, and the hook checks every
+# approved-by occurrence in the result against it.
+agents: [claude, claude[bot]]
+
+# signable: which chain artifacts an agent may sign delegated. intent.md is never listed: the grant
+# lives there and the agent must never be able to widen its own permission by signing the file that
+# grants it.
+signable: [spec.md, plan.md, incident.md]
+
+# risk-classes: intent.md risk-class values a delegation grant may cover. A grant on an intent whose
+# risk-class is outside this list is invalid; approve.py --delegate refuses it and the chain check
+# fails any artifact signed under it.
+risk-classes: [low]
+
+# max-deviations: how many `delegated -> delegated` or `approved -> approved` ledger lines with a
+# `deviation:` note a single work item may log. Past the cap the run stops and calls the owner
+# back; the chain check fails the item.
+max-deviations: 5
+
+# revisions: the rule for re-signing an artifact that already carries a signature or a human
+# approval. `consensus` requires a committed revisions/<n>.md with min-reviewers sections, all
+# `verdict: revise`, before scripts/sign.py --revision will write; `never` refuses every re-sign;
+# `free` (not recommended) skips the record.
+revisions: consensus
+
+# min-reviewers: how many `## Reviewer: <role> (<model>)` sections a revision record needs, and how
+# many scripts/sign.py and check_artifact_chain.py both count before accepting it.
+min-reviewers: 2
+
+# merge: conditions scripts/delegated_merge.py checks before merging a delegated pull request; a
+# missing or false enabled leaves every pull request, delegated or not, to a human click.
+merge:
+  enabled: true
+  # require-review: wait for the claude[bot] tracking comment to end `Important: 0` before merging.
+  require-review: true
+  # require-checks: check-run names that must all be completed and successful on the head SHA.
+  require-checks: [sdlc-gate, agent-evals, pr-review]
+  # method: the merge method passed to the GitHub API. Never squash: squash-merging would re-author
+  # every agent-signed commit as the person who clicked, which the -G author checks read.
+  method: merge
+  # cool-off-hours: minimum age of the last required check's completion before merging. 0 means
+  # merge as soon as every condition holds; raise it to add a waiting window with no code change.
+  cool-off-hours: 0
+
+# locked-paths: files the merge script refuses to see touched in a delegated pull request's diff,
+# on top of the repository's own PROTECTED_PATHS and RELEASE_GATED_PATHS. These are the scripts and
+# document that judge the merge itself, so the head copy on a delegated PR must be byte-identical to
+# main's, or the merge is refused.
+locked-paths: [scripts/check_artifact_chain.py, scripts/approvers.py, scripts/log_ledger.py, scripts/approve.py, scripts/sign.py, scripts/delegation.py, scripts/delegated_merge.py, scripts/check_control_plane.sh, scripts/check_workflow_permissions.py, REVIEW.md, .claude-plugin]
