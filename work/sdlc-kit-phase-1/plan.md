@@ -4,7 +4,7 @@ id: sdlc-kit-phase-1
 title: Reusable AI-native SDLC kit for Claude + Gemini projects
 description: Files, order of work, proof and risks for the phase-1 kit build; detailed task specs live in spec.md.
 stage: build
-status: approved
+status: superseded
 kind: feature
 reads: spec.md
 approved-by: luissiviero
