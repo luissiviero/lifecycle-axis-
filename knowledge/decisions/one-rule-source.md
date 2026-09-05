@@ -33,8 +33,10 @@ the other two, with no signal that they disagree.
 5. **`AGENTS.md` is generated in full, not a pointer** (spike decision 1): a tool that reads only `AGENTS.md` cannot
    follow a pointer, and the cost is zero once the renderer exists. `AGENTS.md` is *not* added to Gemini's
    `context.fileName`, or Gemini would load the rules twice.
-6. Text outside the markers is preserved, so `CLAUDE.md`'s "Lessons learned" section stays hand-editable (rule 7 keeps
-   working without a regeneration) while every rule above it is generated.
+6. Text outside the markers is preserved, so an adopter's `## Commands`, `## Architecture` and `## Lessons learned`
+   sections (seeded by `adopt.sh`) stay hand-editable while the block below them is generated. This repo's own lessons
+   no longer sit there: since `work/docs-reconcile` they are files in `knowledge/lessons/` with a pointer line each in
+   the `60-lessons.md` fragment, so rule 7 means "add the file and the pointer line, then regenerate".
 7. Drift is a `verify.sh` failure, not a convention: `scripts/checks/context-drift.sh` runs
    `gen_context_files.py --check`, which exits 1 listing any file that a regeneration would change.
 8. `MAX_CONTEXT_LINES` (120) is enforced per rendered file. It is a repo policy — "keep it to one page" — not a limit
