@@ -669,6 +669,22 @@ class DelegatedChain(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stdout)
             self.assertIn("revision", result.stdout)
 
+    def test_deviation_line_after_first_signature_needs_no_record(self):
+        # Advisory review on PR #43: a `delegated -> delegated | deviation:` line after the first
+        # signature is a deviation, not a re-decision; check_revisions must not count it, and the
+        # signature before it stays a fresh one.
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _write_delegation_policy(root)
+            _apply_grant(root, wd)
+            _sign_delegated(root, wd, artifact="spec.md", from_status="in-review")
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-09-05T02:00:00Z | spec.md | delegated -> delegated | claude | abc1234 | deviation: add src/x.py\n")
+            _commit_as(root, AGENT_NAME, AGENT_EMAIL, "log a deviation")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+
     def test_signer_not_in_agents_fails_naming_the_signer(self):
         with tempfile.TemporaryDirectory() as root:
             wd = _make_repo(root)
