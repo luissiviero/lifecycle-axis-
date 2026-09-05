@@ -40,14 +40,29 @@ check_text() {
   compare_fields "$R" "$ns" "$nb" "$no" "$where"
 }
 
+# fm_all <text> <key> -- every value of <key> in the first front-matter block, one per line, cleaned
+# like fm_value. A duplicated key is a decoy (PR #25 review): the hook judges every occurrence,
+# whichever one a later reader would pick.
+fm_all() {
+  printf '%s\n' "$1" | awk -v k="$2" '
+    { sub(/\r$/, "") }
+    /^---[[:space:]]*$/ { c++; if (c == 2) exit; next }
+    c == 1 && index($0, k ":") == 1 {
+      v = substr($0, length(k) + 2)
+      sub(/^[[:space:]]+/, "", v); sub(/[[:space:]]+#.*$/, "", v); if (v ~ /^#/) v = ""
+      sub(/[[:space:]]+$/, "", v)
+      if (length(v) >= 2 && substr(v, 1, 1) == substr(v, length(v), 1) && (substr(v, 1, 1) == "\"" || substr(v, 1, 1) == "\047")) v = substr(v, 2, length(v) - 2)
+      print tolower(v) }'
+}
+
 # check_result <repo-relative path> <resulting file text> -- edit branch: judge by the front matter
-# of the file as it would be after the edit.
+# of the file as it would be after the edit, every occurrence of every approval key.
 check_result() {
-  local R="$1" result="$2" ns nb no
-  ns="$(printf '%s\n' "$result" | fm_value - status)"
-  nb="$(printf '%s\n' "$result" | fm_value - approved-by)"
-  no="$(printf '%s\n' "$result" | fm_value - approved-on)"
-  compare_fields "$R" "$ns" "$nb" "$no" ""
+  local R="$1" result="$2" v
+  while IFS= read -r v; do compare_fields "$R" "$v" "" "" ""; done < <(fm_all "$result" status)
+  while IFS= read -r v; do compare_fields "$R" "" "$v" "" ""; done < <(fm_all "$result" approved-by)
+  while IFS= read -r v; do compare_fields "$R" "" "" "$v" ""; done < <(fm_all "$result" approved-on)
+  return 0
 }
 
 if [ -n "$FILE" ]; then

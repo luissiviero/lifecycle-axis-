@@ -110,6 +110,30 @@ class EditBranch(unittest.TestCase):
             self.assertEqual(r.returncode, 2, r.stderr)
             self.assertIn("approved-on", r.stderr)
 
+    def test_blocks_multiedit_with_decoy_status_in_an_earlier_edit(self):
+        # PR #25 review: an earlier edit plants `status: in-review` in the body; the later edit is
+        # the one that approves. The resulting front matter is what counts.
+        with fake_repo(**DRAFT_INTENT) as root:
+            payload = multiedit("work/foo/intent.md", [("# Intent", "# Intent\nstatus: in-review"), ("status: draft", "status: approved")])
+            r = run_hook(HOOK, payload, root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("status: approved", r.stderr)
+
+    def test_blocks_duplicate_status_key_decoy_inside_front_matter(self):
+        # A second `status:` line inside the front matter: whichever one a reader picks first, the
+        # hook judges every occurrence.
+        with fake_repo(**DRAFT_INTENT) as root:
+            payload = multiedit("work/foo/intent.md", [("---\nstatus: draft", "---\nstatus: in-review\nstatus: draft"), ("\nstatus: draft", "\nstatus: approved")])
+            r = run_hook(HOOK, payload, root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_blocks_duplicate_approved_by_key_decoy(self):
+        with fake_repo(**APPROVED_PLAN) as root:
+            payload = edit("work/foo/plan.md", "approved-on:", "approved-by: mallory\napproved-on:")
+            r = run_hook(HOOK, payload, root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("mallory", r.stderr)
+
     def test_allows_status_in_review(self):
         with fake_repo(**DRAFT_INTENT) as root:
             r = run_hook(HOOK, edit("work/foo/intent.md", "status: draft", "status: in-review"), root)
