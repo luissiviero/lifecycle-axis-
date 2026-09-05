@@ -5,7 +5,7 @@ description: Header and artifact-chain rules rendered into every context file.
 targets: [claude, gemini, agents]
 order: 0
 tags: [rules, context-files, chain]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-05T01:26:09Z
 ---
 # Repository memory (keep to ~1 page)
 

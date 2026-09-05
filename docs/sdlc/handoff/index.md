@@ -3,7 +3,7 @@ type: doc
 title: Handoff documents
 description: Working documents of the 2026-09-04 playbook comparison and the implementation that followed; read HANDOFF.md first.
 tags: [sdlc, handoff, playbook-comparison]
-timestamp: 2026-09-04T22:13:39Z
+timestamp: 2026-09-04T22:13:40Z
 ---
 
 # Handoff documents

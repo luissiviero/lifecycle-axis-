@@ -5,7 +5,7 @@ description: Model-neutral stage order plus branch, commit and test conventions.
 targets: [claude, gemini, agents]
 order: 30
 tags: [rules, conventions, workflow]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-04T22:38:45Z
 ---
 ## Workflow
 One stage at a time: write `intent.md`, then `spec.md`, then `plan.md`, then implement,

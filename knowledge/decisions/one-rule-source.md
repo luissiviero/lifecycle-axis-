@@ -4,7 +4,7 @@ title: One rule source renders CLAUDE.md, GEMINI.md and AGENTS.md
 description: Why the eight hard rules live in docs/sdlc/rules fragments and are generated into three context files instead of being maintained per model.
 resource: scripts/gen_context_files.py
 tags: [context-files, gemini, claude-code, drift, t17]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-05T04:48:42Z
 status: in-review
 ---
 # Decision: one rule source, three context files
@@ -33,8 +33,10 @@ the other two, with no signal that they disagree.
 5. **`AGENTS.md` is generated in full, not a pointer** (spike decision 1): a tool that reads only `AGENTS.md` cannot
    follow a pointer, and the cost is zero once the renderer exists. `AGENTS.md` is *not* added to Gemini's
    `context.fileName`, or Gemini would load the rules twice.
-6. Text outside the markers is preserved, so `CLAUDE.md`'s "Lessons learned" section stays hand-editable (rule 7 keeps
-   working without a regeneration) while every rule above it is generated.
+6. Text outside the markers is preserved, so an adopter's `## Commands`, `## Architecture` and `## Lessons learned`
+   sections (seeded by `adopt.sh`) stay hand-editable while the block below them is generated. This repo's own lessons
+   no longer sit there: since `work/docs-reconcile` they are files in `knowledge/lessons/` with a pointer line each in
+   the `60-lessons.md` fragment, so rule 7 means "add the file and the pointer line, then regenerate".
 7. Drift is a `verify.sh` failure, not a convention: `scripts/checks/context-drift.sh` runs
    `gen_context_files.py --check`, which exits 1 listing any file that a regeneration would change.
 8. `MAX_CONTEXT_LINES` (120) is enforced per rendered file. It is a repo policy — "keep it to one page" — not a limit
@@ -54,5 +56,6 @@ the other two, with no signal that they disagree.
 - Editing `CLAUDE.md` inside the markers is now a build break: change the fragment and rerun the generator.
 - The H1 is shared, so it reads `# Repository memory (keep to ~1 page)` in all three files rather than naming one file.
 - `scripts/adopt.sh` (T22) renders context files into the target repo instead of copying `CLAUDE.md`.
-- Follow-ups, both needing a human `.sdlc` PR: add `.gemini` to `PROTECTED_PATHS`, and move "Lessons learned" into
-  `knowledge/` so Gemini and third-party agents see lessons too.
+- Follow-ups, both done: `.gemini` is in `PROTECTED_PATHS` (`.sdlc/config.env`); "Lessons learned" moved into
+  `knowledge/lessons/` with a pointer fragment (`docs/sdlc/rules/60-lessons.md`, `work/docs-reconcile`), so Gemini and
+  third-party agents see lessons too.

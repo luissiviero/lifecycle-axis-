@@ -3,7 +3,7 @@ type: spike
 title: Prompt surfaces - encoding the Claude platform best practices where they run
 description: How the Claude platform prompting and guardrail docs become one standard, one lint, templates, evals and a review pass that fire on their own, with the ideas that were considered and set aside.
 tags: [prompting, agents, skills, evals, review, guardrails, sdlc]
-timestamp: 2026-09-03T00:00:00Z
+timestamp: 2026-09-05T04:00:24Z
 status: accepted
 ---
 

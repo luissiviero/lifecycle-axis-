@@ -5,7 +5,7 @@ description: Skill entry points, hook events and subagent location for Claude Co
 targets: [claude]
 order: 40
 tags: [rules, claude-code, skills, hooks]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-05T04:00:24Z
 ---
 ## Workflow entry points (skills)
 `/sdlc-intent` → `/sdlc-spec` → `/sdlc-plan` → implement → `/sdlc-review` → `/sdlc-incident`

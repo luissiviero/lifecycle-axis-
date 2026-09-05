@@ -5,7 +5,7 @@ description: The commands every agent runs before reporting a task complete.
 targets: [claude, gemini, agents]
 order: 20
 tags: [rules, verify, evals]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-05T02:28:00Z
 ---
 ## Verifying your work
 - Verify everything: `scripts/verify.sh` — must end with `VERIFY: PASS (<sha>)`; it also runs every `scripts/checks/*.sh`

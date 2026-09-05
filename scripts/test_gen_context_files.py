@@ -224,9 +224,18 @@ class RealOutputTests(unittest.TestCase):
         self.assertNotIn("Gemini CLI notes", _read(os.path.join(ROOT, "AGENTS.md")))
         self.assertIn("Gemini CLI notes", _read(os.path.join(ROOT, "GEMINI.md")))
 
-    def test_lessons_learned_stays_outside_the_generated_block(self):
-        text = _read(os.path.join(ROOT, "CLAUDE.md"))
-        self.assertLess(text.index(gen.END_MARKER), text.index("## Lessons learned"))
+    def test_lessons_pointer_list_renders_inside_the_generated_block_in_every_file(self):
+        """work/docs-reconcile R-7: the lessons live in knowledge/lessons/ and the pointer list is a shared
+        fragment (docs/sdlc/rules/60-lessons.md), so Gemini and third-party agents see it too; the hand-kept
+        "## Lessons learned" section that only CLAUDE.md carried is gone."""
+        heading = "## Lessons (one file each in knowledge/lessons/)"
+        for name in ("CLAUDE.md", "GEMINI.md", "AGENTS.md"):
+            text = _read(os.path.join(ROOT, name))
+            self.assertIn(heading, text, name)
+            self.assertLess(text.index(gen.BEGIN_PREFIX), text.index(heading), name)
+            self.assertLess(text.index(heading), text.index(gen.END_MARKER), name)
+            self.assertGreaterEqual(text.count("knowledge/lessons/"), 9, name)
+        self.assertNotIn("## Lessons learned", _read(os.path.join(ROOT, "CLAUDE.md")))
 
 
 if __name__ == "__main__":

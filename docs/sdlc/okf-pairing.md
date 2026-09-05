@@ -3,7 +3,7 @@ type: doc
 title: Pairing the SDLC playbook with the Open Knowledge Format (OKF)
 description: Guidelines for integrating the SDLC playbook with OKF as a model-neutral knowledge format.
 tags: [sdlc, okf, knowledge]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-05T04:48:42Z
 ---
 
 # Pairing the SDLC playbook with the Open Knowledge Format (OKF)
@@ -47,6 +47,8 @@ the enforcement layer, which stays in hooks (Claude), CI and branch protection (
 - Do not make OKF conformance a merge gate before v1.0 of the spec. Run the conformance check as a warning and promote
   it to a failing check once the format is stable and something actually consumes the bundle.
 - Do not duplicate: `CLAUDE.md` must not restate what `knowledge/` holds. It links.
+- Freeze: no new OKF directories until `lessons/` or `services/` has content that is not an index (2026-09-05, consensus
+  item 10); `lessons/` gained its first content in `work/docs-reconcile`.
 
 ## What this adds to the implementation plan
 

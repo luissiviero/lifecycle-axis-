@@ -3,7 +3,7 @@ type: decision
 title: Bash writes to protected paths are stopped by a hook heuristic and a CI job
 description: protect-paths.sh inspects Bash command text for write targets under PROTECTED_PATHS because the edit hooks only matched Edit/Write/MultiEdit; the heuristic is deliberately over-inclusive, the CI control-plane job remains the gate against deliberate obfuscation, and a human-only environment variable unlocks the guard with an audit line.
 tags: [hooks, control-plane, bash, security, sdlc]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-05T00:47:23Z
 ---
 
 # Bash writes to protected paths are stopped by a hook heuristic and a CI job

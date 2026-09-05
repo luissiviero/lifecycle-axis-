@@ -5,7 +5,7 @@ description: Where the hooks are wired for Gemini CLI, the first-run trust warni
 targets: [gemini]
 order: 50
 tags: [rules, gemini-cli, hooks, plan-mode]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-05T04:00:24Z
 ---
 ## Gemini CLI notes
 - `.gemini/settings.json` wires the same scripts as Claude: `BeforeTool` on

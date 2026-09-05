@@ -3,7 +3,7 @@ type: index
 title: Knowledge bundle
 description: Entry point to the model-neutral OKF knowledge bundle — institutional knowledge that CLAUDE.md and GEMINI.md point into instead of restating.
 tags: [okf, index, knowledge]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-02T16:18:39Z
 ---
 
 # Knowledge bundle

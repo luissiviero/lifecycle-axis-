@@ -3,7 +3,7 @@ type: index
 title: SDLC Templates
 description: Templates for SDLC artifacts throughout the AI-native playbook stages.
 tags: [sdlc, templates, artifacts]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-02T16:18:39Z
 ---
 
 [intent.md](intent.md) — Template for capturing requirements and brainstorming with Claude.

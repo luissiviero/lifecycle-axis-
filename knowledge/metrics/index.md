@@ -3,7 +3,7 @@ type: index
 title: Metrics
 description: One definition per metric named in monitoring/bands.yaml — what it measures, its source command, baseline window, and tiers.
 tags: [okf, index, metrics]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-02T16:18:39Z
 ---
 
 # Metrics

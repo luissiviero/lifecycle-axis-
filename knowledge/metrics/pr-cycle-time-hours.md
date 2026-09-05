@@ -3,7 +3,7 @@ type: metric-definition
 title: PR cycle time (hours)
 description: Hours from PR open to merge, one value per merged PR over a 30-day series with a trailing 14-point baseline, feeding the Maintain-play control-band detector.
 tags: [metric, pull-request, western-electric, bands]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-05T02:28:00Z
 ---
 
 # PR cycle time (hours)

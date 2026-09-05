@@ -3,7 +3,7 @@ type: decision
 title: The kit repo wires its own hooks, with the control-plane unlock
 description: .claude/settings.json is back, as the adopter template plus env.SDLC_CONTROL_PLANE_UNLOCK=1; the unlock now covers Edit/Write as well as Bash and never lifts the secret-material check; require-plan.sh and protect-tests.sh gained the Bash branch protect-paths.sh already had. Supersedes self-enforcement-off.md.
 tags: [hooks, control-plane, dogfooding, sdlc]
-timestamp: 2026-09-02T22:30:00Z
+timestamp: 2026-09-04T23:42:26Z
 ---
 
 # The kit repo wires its own hooks, with the control-plane unlock

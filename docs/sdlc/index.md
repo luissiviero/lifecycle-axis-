@@ -3,7 +3,7 @@ type: index
 title: SDLC Documentation
 description: Index of SDLC documentation, templates, spikes, and rules for the AI-native playbook.
 tags: [sdlc, index, documentation]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-02T16:18:39Z
 ---
 
 ## Core Documentation

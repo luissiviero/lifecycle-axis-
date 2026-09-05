@@ -3,7 +3,7 @@ type: metric-definition
 title: Post-deploy 5xx rate
 description: Server-error rate in the window after a deploy, over a rolling 14-day baseline; inert until a metrics store exists to source it from.
 tags: [metric, deploy, western-electric, bands]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-05T04:48:42Z
 ---
 
 # Post-deploy 5xx rate
@@ -39,7 +39,7 @@ Electric, as documented at the top of `detect_bands.py`.
 |---|---|
 | 1σ | `log` — recorded, no agent invoked. |
 | 2σ | `diagnose` — Claude runs read-only with `tools: "Read,Grep,Bash(kubectl logs *)"` to explain the spike. |
-| 3σ | `propose` — Claude proposes the [rollback runbook](../runbooks/rollback-deploy.md); it never runs it. |
+| 3σ | `propose` — declared route: Claude would propose the [rollback runbook](../runbooks/rollback-deploy.md) and never run it; the metric has no source yet, so nothing runs. |
 
 See `.github/workflows/bands.yml` for the daily collect-then-detect job this metric will join once it has a source.
 

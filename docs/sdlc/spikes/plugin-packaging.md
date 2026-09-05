@@ -3,7 +3,7 @@ type: spike
 title: Plugin packaging for the SDLC kit
 description: How lifecycle-axis ships as a Claude Code plugin - manifest and marketplace schema, component contribution, hook path resolution, and local dogfooding.
 tags: [plugin, packaging, hooks, distribution, sdlc]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-02T16:18:39Z
 status: decided
 ---
 

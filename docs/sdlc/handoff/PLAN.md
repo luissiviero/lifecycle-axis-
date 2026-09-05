@@ -1,9 +1,9 @@
 ---
 type: doc
-title: Implementation plan: close the consensus findings
-description: Approved 2026-09-04 plan: eleven work items, explicit file lists, tests, evals, landing order, verified hook designs.
+title: "Implementation plan: close the consensus findings"
+description: "Approved 2026-09-04 plan: eleven work items, explicit file lists, tests, evals, landing order, verified hook designs."
 tags: [sdlc, handoff, playbook-comparison]
-timestamp: 2026-09-04T22:13:39Z
+timestamp: 2026-09-05T04:48:42Z
 ---
 
 # Implementation plan: close the consensus findings in lifecycle-axis

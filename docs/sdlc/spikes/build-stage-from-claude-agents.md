@@ -3,7 +3,7 @@ type: spike
 title: Build-stage discipline borrowed from claude-agents
 description: What to bring into this kit from the retired claude-agents repo (the /task shape as a Build-stage skill, plan-template lines, review round caps, a multi-session hand-off file, outcome telemetry) and what to leave behind, with the evidence and the implementation order.
 tags: [sdlc, build, skills, review, telemetry, claude-agents]
-timestamp: 2026-09-03T12:00:00Z
+timestamp: 2026-09-05T04:00:24Z
 status: open
 ---
 

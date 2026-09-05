@@ -3,7 +3,7 @@ type: spike
 title: Gemini CLI enforcement parity
 description: What Gemini CLI can enforce locally versus what must stay CI-only, so T17 can target rule fragments per model.
 tags: [gemini, hooks, context-files, enforcement, t03]
-timestamp: 2026-09-02T15:30:00Z
+timestamp: 2026-09-05T04:48:42Z
 status: open
 ---
 # Spike: Gemini CLI parity (T03)
@@ -81,7 +81,7 @@ system prompt; subagents cannot call subagents. Direct parity with `.claude/agen
 | 8. Subagents have a named role, bounded tools, return evidence | **Local** — `.gemini/agents/*.md` front matter `name` / `description` / `tools` mirrors `.claude/agents/`; no CI check either side |
 
 Net: rules 1, 3, 8 reach real local parity; 4 and 5 reach advisory parity; 2, 6, 7 stay CI-only or prose.
-**No Gemini hook is written in this phase** (per the plan) — this spike only fixes what T17 must emit.
+**No Gemini hook was written in that phase** (per the plan) — this spike only fixed what T17 must emit (superseded 2026-09-02: the hooks are wired in `.gemini/settings.json`, see `knowledge/decisions/gemini-hooks.md`).
 
 ## Decision
 

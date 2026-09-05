@@ -3,7 +3,7 @@ type: doc
 title: GitHub-side setup for an adopted repository
 description: "The first hour after scripts/adopt.sh, in order, and the GitHub settings the kit's gates rely on: plan check, branch protection, the control-plane-approved label, secrets, and the review App."
 tags: [sdlc, adopt, github, setup, branch-protection]
-timestamp: 2026-09-05T02:33:32Z
+timestamp: 2026-09-05T03:00:57Z
 ---
 
 # GitHub-side setup for an adopted repository

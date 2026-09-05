@@ -3,7 +3,7 @@ type: doc
 title: lifecycle-axis vs. the AI-native SDLC playbook
 description: The adversarial comparison report with file:line evidence, 2026-09-04.
 tags: [sdlc, handoff, playbook-comparison]
-timestamp: 2026-09-04T22:13:39Z
+timestamp: 2026-09-04T22:13:40Z
 ---
 
 # lifecycle-axis vs. "The AI-Native SDLC playbook": what changed, what broke, what is missing

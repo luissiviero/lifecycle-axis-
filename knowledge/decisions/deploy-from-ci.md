@@ -3,7 +3,7 @@ type: decision
 title: Deploy only from CI via GitHub Environments
 description: Deploys run only from a GitHub Actions workflow gated by a GitHub Environment's required reviewers; agents never run deploy commands, and the production-gate hook stays as defence in depth.
 tags: [deploy, ci, github-environments, agents, sdlc]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-05T04:48:42Z
 ---
 
 # Deploy only from CI via GitHub Environments
@@ -36,8 +36,8 @@ unless all of the following hold, and otherwise prints a clear refusal and exits
    `.sdlc/release-authorizations/<sha>` whose `approved-by` holds `release-manager` in
    `.sdlc/approvers.yaml`. A set `RELEASE_APPROVAL` wins and must equal HEAD; with it empty, the
    committed file is checked and any other file refuses, naming the handle (work/deploy-gate).
-2. `CI` is set — the script refuses to run on a developer or agent machine at all
-   ("deploy runs from CI only").
+2. `CI` is set — the script refuses unless it is ("deploy runs from CI only"). Any shell can export it,
+   so like guard 4 it is a hint, not a gate on its own; guard 1 is the gate.
 3. The requested environment exists in `.sdlc/environments.yaml` (otherwise it lists the valid
    ones).
 4. For an environment whose `approval:` is `release-manager` (production today), `GITHUB_ACTIONS`
@@ -58,8 +58,9 @@ by the repo owner in GitHub Settings → Environments, not in this repo's YAML; 
 
 ## Consequences
 
-- Agents cannot rehearse rollback locally — the `rollback:` runbook pointer in
-  `.sdlc/environments.yaml` is exercised in CI/staging, not on a developer machine.
+- Agents cannot run rollback locally — the `rollback:` runbook pointer in
+  `.sdlc/environments.yaml` names a manual `workflow_dispatch` of the previous SHA from CI
+  (`knowledge/runbooks/rollback-deploy.md`); nothing rehearses it on a schedule.
 - Even `development` deploys go through CI, trading a little iteration speed for one deploy path
   that behaves the same for every environment and every producing model.
 - `scripts/deploy.sh` is deliberately inert (a guard plus a placeholder echo) until an adopter

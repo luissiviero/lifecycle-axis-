@@ -3,7 +3,7 @@ type: doc
 title: Author brief for chain artifacts
 description: The brief given to the subagents that drafted Batch A intents, specs and plans.
 tags: [sdlc, handoff, playbook-comparison]
-timestamp: 2026-09-04T22:13:39Z
+timestamp: 2026-09-04T22:13:40Z
 ---
 
 # Brief for chain-artifact authors (Batch A)
