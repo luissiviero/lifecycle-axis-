@@ -43,12 +43,29 @@ timestamp: 2026-09-05T04:48:42Z
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-05 ~05:55 UTC)
-- Step 0 and WI-1 to WI-11 are all merged: Batch A on PRs 24 to 29, Batch B on PRs 31 to 37, Step 0's
-  index regeneration on PR 38. The plan of 2026-09-04 is complete.
-- Open: `work/batch-b-followups` (PR 39), the three leftovers Batch B recorded — the untrusted `sdlc-gate`
-  triage step, the adopter placeholder that can approve, and the chain check rejecting a fully retired item.
-- Owner's remaining manual checks: one `agent-evals` run and one `bands` run on `main` from the Actions tab.
+## Task state (2026-09-05 ~07:10 UTC)
+- **The 2026-09-04 plan is complete and merged**: Step 0 (PR 38), WI-1 to WI-6 (Batch A, PRs 24 to 29),
+  WI-7 to WI-11 (Batch B, PRs 31 to 37), and `work/batch-b-followups` (PR 39), which closed the three
+  leftovers Batch B recorded: the untrusted `sdlc-gate` triage step, the adopter placeholder that could
+  approve, and the chain check rejecting a fully retired item. No work item is open.
+- **Both manual checks are done, and each found a defect.**
+  - `bands`: every run since WI-7 had failed. `bands.yml` granted `contents: read`, `issues: write` and
+    `actions: read`, but `pr_cycle_time_hours` reads `repos/.../pulls`, so `gh` returned HTTP 403 and the
+    job died before collecting a series; the other two metrics were unaffected and hid it. The owner added
+    `pull-requests: read` directly on `main` (07c7275). Run 7 is the first green one, and the first time the
+    Maintain stage ran end to end: it detected a 3sigma breach (21.31h against a trailing mean of 2.67h),
+    diagnosed it read-only, and filed issue 40 with a drafted `pr-review-bottleneck` intent. That issue is
+    open for the owner to answer or close; note the baseline is thin, since the burst of merges on
+    2026-09-05 dominates the series.
+  - `agent-evals`: the manual run (118) passed on 0a311fb, `EVALS: 39 pass, 0 fail`. The nightly run (119)
+    on **the same commit** failed one case: `skill-spec-flags-concerns`, "C1 is missing or still the
+    template placeholder". Same code, same sha, different result, so that prompt case is
+    non-deterministic. First observed 2026-09-05; it will make the nightly red intermittently until the
+    case is made robust or its oracle loosened.
+- Nothing is pending on the session. What remains is future work, none of it started: the B13 list in
+  `lifecycle-axis-vs-playbook.md`, the Phase 2 roadmap, the flaky eval above, and a check for control
+  bytes in tracked text (a raw NUL byte in this file went unnoticed by `check_okf.py` and
+  `check_front_matter.py`, which both read with `errors="replace"`).
 
 ## Owner routine (the owner works from a phone; keep every ask to taps)
 - Approvals: send GitHub web-editor links (`https://github.com/luissiviero/lifecycle-axis-/edit/<branch>/work/<slug>/<artifact>.md`)
