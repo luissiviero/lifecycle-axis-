@@ -4,11 +4,11 @@ id: approval-gate
 title: Only a human can flip an artifact to approved
 description: New protect-approvals.sh hook, approver check in require-plan.sh, wiring in three settings files, tests, eval and decision record.
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 risk-class: low
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
