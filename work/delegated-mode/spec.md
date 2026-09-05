@@ -4,10 +4,10 @@ id: delegated-mode
 title: A second way to run a work item, where I approve the start and the AI signs the rest under its own name
 description: "Requirements and design for delegated mode: the policy file, the grant on the intent, the delegated status and the agent signing script, the hook and chain-check rules that accept it, the revision gate, and the CI merge workflow."
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 skills-applied: [security-standards]
 skills-version: c420e3c
 prompt: "Drafted from the approved plan of the 2026-09-05 session (Claude plan file), the architect review of that plan against .claude/hooks/_lib.sh, protect-approvals.sh, require-plan.sh, production-gate.sh, scripts/approve.py, approvers.py, check_artifact_chain.py, log_ledger.py, check_control_plane.sh, check_workflow_permissions.py, sdlc-gate.yml and the decision records; owner answers recorded in intent.md."
