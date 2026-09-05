@@ -10,8 +10,9 @@ the first gate and say which.
 
 1. `/sdlc-spec`, then `python3 scripts/sign.py <slug> spec.md`.
 2. `/sdlc-plan`, then `python3 scripts/sign.py <slug> plan.md` (the plan gate opens on a signed plan under the grant).
-3. Implement on a `claude/` branch. Log a file-list or order deviation as a ledger line in the same commit,
-   capped by the policy's `max-deviations`.
+3. Implement on the session's own branch, whose prefix is in `AGENT_BRANCH_PREFIXES` (`.sdlc/config.env`, for
+   example `claude/`): the merge workflow refuses any other head, and `work/<slug>` stays the human's branch. Log
+   a file-list or order deviation as a ledger line in the same commit, capped by the policy's `max-deviations`.
 4. Run `scripts/verify.sh`, `python3 scripts/check_artifact_chain.py --base origin/main`, `scripts/run_evals.sh`,
    `python3 scripts/check_okf.py`.
 5. `/sdlc-review`, with reviewer subagents run on a different model from the writer where possible. Post the

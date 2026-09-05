@@ -53,7 +53,8 @@ are in `docs/sdlc/templates/`. Do not start an artifact until a human has approv
 previous one, or the agent has signed it under a delegation grant.
 
 ## Conventions
-- Branch: `work/<slug>`. PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
+- Branch: `work/<slug>` for a human; an agent session's branch carries a prefix from `AGENT_BRANCH_PREFIXES`
+  (`claude/`). PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
 - `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a

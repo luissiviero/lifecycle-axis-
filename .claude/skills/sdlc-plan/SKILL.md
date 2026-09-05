@@ -14,8 +14,9 @@ Precondition: `work/<slug>/spec.md` is approved. Work in plan mode; do not edit 
    and continue implementing — the plan gate opens on a signed plan under the grant. Otherwise stop: implementation
    hooks stay closed until a human sets `status: approved`.
 
-During implementation: if you must deviate, edit `## Files that change` and `## Deviations log` in the same commit
-as the code change; under a delegation grant, a file-list or order deviation also gets a ledger line, capped by the
+During implementation: if you must deviate, edit `## Files that change` and
+`## Deviations log (append during implementation; same commit as the deviation)` in the same commit as the code
+change; under a delegation grant, a file-list or order deviation also gets a ledger line, capped by the
 policy's `max-deviations`. Anything larger (a step dropped or added, an acceptance test changed, a different
 approach, a spec requirement touched) is a plan revision, the last resort: see `/sdlc-run` for the full rule and
 `docs/sdlc/templates/revision.md` for the record it requires.
