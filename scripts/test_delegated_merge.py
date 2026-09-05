@@ -440,10 +440,12 @@ class GrantCommit(unittest.TestCase):
         self.assertEqual(verdict, dm.REFUSED)
         self.assertIn("someone-else", detail)
 
-    def test_fallback_commit_says_so_in_the_detail(self):
-        verdict, detail = dm.check_grant_commit(make_grant_commit(), self.approvers, exact=False)
-        self.assertEqual(verdict, dm.OK, detail)
-        self.assertIn("no commit in the window", detail)
+    def test_no_commit_adding_the_grant_line_is_refused_not_approximated(self):
+        # Pull request 45 plan-conformance pass, finding 3: a commit that merely touches intent.md
+        # is never judged as the grant; when none in the window adds the line, the condition refuses.
+        verdict, detail = dm.check_grant_commit(None, self.approvers)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("no commit adding the grant line", detail)
 
     def test_commit_adds_grant_reads_the_patch_of_that_file_only(self):
         self.assertTrue(dm.commit_adds_grant(make_grant_commit(), INTENT_PATH))
@@ -604,8 +606,8 @@ class Checkout(object):
         self.set_fixture("GET", "repos/%s/contents/%s?ref=%s" % (REPO, INTENT_PATH, HEAD_SHA),
                          {"encoding": "base64",
                           "content": base64.b64encode(INTENT_TEXT.encode("utf-8")).decode("ascii")})
-        self.set_fixture("GET", "repos/%s/commits?path=%s&sha=%s&per_page=20"
-                         % (REPO, INTENT_PATH, HEAD_SHA), [{"sha": GRANT_SHA}])
+        self.set_fixture("GET", "repos/%s/commits?path=%s&sha=%s&per_page=%d"
+                         % (REPO, INTENT_PATH, HEAD_SHA, dm.GRANT_WINDOW), [{"sha": GRANT_SHA}])
         self.set_fixture("GET", "repos/%s/commits/%s" % (REPO, GRANT_SHA), make_grant_commit())
         self.set_fixture("GET", "repos/%s/pulls/12/files?per_page=100" % REPO,
                          [{"filename": "scripts/sdlc_metrics.py"}, {"filename": "work/%s/plan.md" % SLUG}])

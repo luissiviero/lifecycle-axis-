@@ -53,7 +53,8 @@ permissions:
 # One evaluation per head SHA at a time, and never cancel one in flight: a cancelled run between the
 # merge call and the comment would leave the pull request merged with no record of the grant.
 concurrency:
-  group: delegated-merge-${{ github.event.workflow_run.head_sha }}
+  # workflow_run carries the head sha; a dispatch dry run keys on the sha it was given instead.
+  group: delegated-merge-${{ github.event.workflow_run.head_sha || inputs.head_sha }}
   cancel-in-progress: false
 
 jobs:

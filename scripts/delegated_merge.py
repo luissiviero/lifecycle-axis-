@@ -347,30 +347,28 @@ def commit_adds_grant(commit_detail, path):
     return False
 
 
-def check_grant_commit(commit_detail, approvers_file, exact=True, expected_handle=None):
+def check_grant_commit(commit_detail, approvers_file, expected_handle=None):
     """5b. The grant commit is GitHub-verified and authored by a product owner -- server-side, not
     git-authored: a local `git commit --author` cannot satisfy `commit.verification.verified`, and
     `author.login` is the account GitHub attributed the commit to (spec D2, decision 6).
     `expected_handle` is the intent's `delegated-by`: the file's own claim of who granted must be
-    the login that wrote it, or the ledger would name one human and the commit another.
-    `exact=False` means no commit in the window added the line and the newest one touching the
-    file was judged instead, which the detail then says."""
+    the login that wrote it, or the ledger would name one human and the commit another."""
     if not commit_detail:
-        return REFUSED, "no commit found that touches the intent"
+        return REFUSED, ("no commit adding the grant line in the last %d commits touching the intent"
+                         % GRANT_WINDOW)
     sha = commit_detail.get("sha") or "?"
-    how = "" if exact else " (no commit in the window adds 'mode: delegated'; using the newest one touching the file)"
     if not _get(commit_detail, "commit", "verification", "verified"):
         reason = _get(commit_detail, "commit", "verification", "reason") or "unverified"
-        return REFUSED, "grant commit %s is not GitHub-verified (%s)%s" % (sha[:12], reason, how)
+        return REFUSED, "grant commit %s is not GitHub-verified (%s)" % (sha[:12], reason)
     login = _get(commit_detail, "author", "login") or ""
     ok, reason = approvers_file.has_role("product-owner", login)
     if not ok:
-        return REFUSED, "grant commit %s author '%s': %s%s" % (sha[:12], login, reason, how)
+        return REFUSED, "grant commit %s author '%s': %s" % (sha[:12], login, reason)
     norm = approvers.Approvers.normalize
     if expected_handle is not None and norm(expected_handle) != norm(login):
-        return REFUSED, "intent.md says delegated-by '%s' but the grant commit %s is by '%s'%s" % (
-            expected_handle, sha[:12], login, how)
-    return OK, "granted in verified commit %s by %s%s" % (sha[:12], login, how)
+        return REFUSED, "intent.md says delegated-by '%s' but the grant commit %s is by '%s'" % (
+            expected_handle, sha[:12], login)
+    return OK, "granted in verified commit %s by %s" % (sha[:12], login)
 
 
 def check_locked_paths(files, prefixes):
@@ -504,20 +502,22 @@ def _decode_contents(payload):
         return None
 
 
+GRANT_WINDOW = 100
+
+
 def _grant_commit(repo, slug, head_sha):
-    """The commit that wrote the grant -- the newest whose patch adds `mode: delegated` -- as
-    (commit_detail, exact). The fallback to the newest commit touching the file keeps a squashed
-    history from reading as "no grant"; the detail then says which commit was judged."""
+    """The commit that wrote the grant: the newest of the last GRANT_WINDOW commits touching the
+    intent whose patch adds `mode: delegated`, or None. There is no fallback to "the newest commit
+    touching the file": a commit that never wrote the grant is not the grant, however trusted its
+    author (pull request 45 plan-conformance pass, finding 3)."""
     path = "work/%s/intent.md" % slug
-    listed = items(gh_api("GET", "repos/%s/commits?path=%s&sha=%s&per_page=20" % (repo, path, head_sha)))
-    newest = None
+    listed = items(gh_api("GET", "repos/%s/commits?path=%s&sha=%s&per_page=%d"
+                          % (repo, path, head_sha, GRANT_WINDOW)))
     for entry in listed:  # the commits endpoint is newest first
         detail = gh_api("GET", "repos/%s/commits/%s" % (repo, entry.get("sha")))
-        if newest is None:
-            newest = detail
         if commit_adds_grant(detail, path):
-            return detail, True
-    return newest, False
+            return detail
+    return None
 
 
 def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=None):
@@ -566,10 +566,9 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
         grant_result = check_grant_front_matter(front, policy)
         if grant_result[0] == OK:
             grant_handle = (front.get("delegated-by") or "").strip()
-            detail, exact = _grant_commit(repo, slug, head_sha)
+            detail = _grant_commit(repo, slug, head_sha)
             grant_sha = (detail or {}).get("sha") or ""
-            grant_result = check_grant_commit(detail, approvers_file, exact=exact,
-                                              expected_handle=grant_handle)
+            grant_result = check_grant_commit(detail, approvers_file, expected_handle=grant_handle)
         ok = out.record("grant", grant_result)
         if not out.keep_going(ok):
             return out.finish()

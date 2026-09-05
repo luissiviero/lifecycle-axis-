@@ -55,7 +55,10 @@ timestamp: 2026-09-05T04:48:42Z
 - **`.sdlc/delegation.yaml` is the one tuning surface for the mode**, and it stays `enabled: false` on
   `main` — the owner's own commit, 9e405fa — until the owner flips it back. Until then every delegated path
   stays closed: `sign.py`, the hooks and `delegated_merge.py` all treat the disabled policy the same as a
-  missing one, so every artifact goes through the supervised path regardless.
+  missing one, so every artifact goes through the supervised path regardless. When the owner flips it, the
+  same edit sets `require-checks: [sdlc-gate, pr-review]`: the live file still lists `agent-evals`, whose
+  `paths:` filter means a docs-only pull request has no run for it, and the merge script refuses a missing
+  required run (the template already carries the trimmed list).
 - **The owner's routine for a grant**, once the policy is on: `python3 scripts/approve.py <slug> intent.md
   --delegate --activate --as <handle>` from a shell, or the same four keys (`risk-class`, `mode`,
   `delegated-by`, `delegated-on`) plus the ledger note edited in the GitHub web editor — either way, on
