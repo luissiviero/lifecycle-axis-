@@ -15,3 +15,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>` (
 - 2026-09-05T00:00:00Z | intent.md | in-review -> approved | luissiviero | 15bf507 | approved from the GitHub web editor
 - 2026-09-05T00:00:00Z | spec.md | in-review -> approved | luissiviero | 15bf507 | approved from the GitHub web editor
 - 2026-09-05T00:00:00Z | plan.md | in-review -> approved | luissiviero | 15bf507 | approved from the GitHub web editor
+- 2026-09-05T00:05:33Z | plan.md | build -> in-review | claude | a8c76db | implementation of steps 1-9 complete; six deviations recorded in plan.md (one pre-existing glob-expansion defect fixed); needs control-plane-approved (hooks, .sdlc/config.env, settings, verify loop)

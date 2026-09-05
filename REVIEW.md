@@ -7,7 +7,9 @@ Run four passes and tag each finding with its pass:
 - **Bugs**: logic errors, broken edge cases, subtle regressions. Evidence: an input and the wrong output.
 - **Security**: injection, authentication or authorization gaps, secrets, PII in logs. Apply `.claude/skills/security-standards/SKILL.md`.
 - **Compliance**: the change matches `spec.md` (every requirement row has its acceptance test), `plan.md`
-  (no unplanned files; deviations logged), and our design principles.
+  (no unplanned files; deviations logged), and our design principles. A diff that touches `scripts/verify.sh`,
+  `scripts/checks/`, `scripts/run_tests.py` or `scripts/run_evals.sh`, or under `kind: fix` an existing test file,
+  is **Important** unless `plan.md` names that file.
 - **Memory**: a mistake seen for the second time in this repo gets a line in `CLAUDE.md` "Lessons learned" in this PR;
   flag when the change has made `CLAUDE.md` outdated.
 

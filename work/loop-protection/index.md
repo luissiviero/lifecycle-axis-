@@ -11,4 +11,4 @@ timestamp: 2026-09-04T21:53:54Z
 - [spec.md](spec.md) — status: approved; approved-by: luissiviero; Protect the verify loop and the session settings as control plane, lock only existing tests under a fix, pre-approve the loop and deny egress in settings, and make a skipped check or a failing eval speak.
 - [plan.md](plan.md) — status: approved; approved-by: luissiviero; Files, order, proof and risks for protecting the verify loop and settings, the existing-only test lock, permissions in settings, and loud skipped checks and failing evals.
 
-Last gate: - 2026-09-05T00:00:00Z | plan.md | in-review -> approved | luissiviero | 15bf507 | approved from the GitHub web editor
+Last gate: - 2026-09-05T00:05:33Z | plan.md | build -> in-review | claude | a8c76db | implementation of steps 1-9 complete; six deviations recorded in plan.md (one pre-existing glob-expansion defect fixed); needs control-plane-approved (hooks, .sdlc/config.env, settings, verify loop)

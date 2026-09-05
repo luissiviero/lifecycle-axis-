@@ -104,6 +104,24 @@ class BashWriteGuardBlocks(unittest.TestCase):
         # one the $FILE branch applies to Edit/Write.
         self._block("printf x > deploy.key", "deploy.key")
 
+    def test_blocks_edit_of_verify_script(self):
+        # work/loop-protection R-1: the verify loop is control plane; a file entry in
+        # PROTECTED_PATHS matches as is on the Edit branch.
+        payload = {
+            "session_id": "test-session",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Edit",
+            "tool_input": {"file_path": "scripts/verify.sh", "old_string": "a", "new_string": "b"},
+        }
+        with fake_repo() as root:
+            result = run_hook(HOOK, payload, root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("scripts/verify.sh", result.stderr)
+            self.assertNotIn("Bash command", result.stderr)
+
+    def test_blocks_redirect_into_checks_dir(self):
+        self._block("echo 'exit 0' > scripts/checks/zz.sh", "scripts/checks/zz.sh")
+
     def test_blocks_python_heredoc_that_opens_a_protected_path_for_writing(self):
         # `python3 - <<EOF` has no redirection target at all: the script *is* the
         # heredoc body, so the guard falls back to protected prefixes named

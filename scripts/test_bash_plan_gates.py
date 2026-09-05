@@ -23,6 +23,8 @@ from hooktest import fake_repo, run_hook  # noqa: E402
 PLAN_IN_REVIEW = {"work/foo/plan.md": "---\nstatus: in-review\n---\n"}
 PLAN_APPROVED = {"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\n---\n"}
 PLAN_FIX = {"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\nkind: fix\n---\n"}
+# Only an existing test is locked under kind: fix (work/loop-protection R-5).
+PLAN_FIX_WITH_TESTS = {**PLAN_FIX, "src/foo.test.ts": "x\n", "tests/test_a.py": "pass\n"}
 PLAN_FEATURE = {"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\nkind: feature\n---\n"}
 FOO = {"SDLC_WORK_ITEM": "foo"}
 
@@ -115,17 +117,23 @@ class RequirePlanBashBranch(unittest.TestCase):
 class ProtectTestsBashBranch(unittest.TestCase):
     HOOK = "protect-tests.sh"
 
-    def test_blocks_sed_in_place_on_test_file_during_fix(self):
-        with fake_repo(**PLAN_FIX) as root:
+    def test_blocks_sed_in_place_on_existing_test_file_during_fix(self):
+        with fake_repo(**PLAN_FIX_WITH_TESTS) as root:
             r = run_hook(self.HOOK, bash("sed -i 's/expect/skip/' src/foo.test.ts"), root, env=FOO)
             self.assertEqual(r.returncode, 2, r.stderr)
             self.assertIn("kind: fix", r.stderr)
+            self.assertIn("existing test file", r.stderr)
             self.assertIn("Bash command", r.stderr)
 
     def test_blocks_redirect_into_tests_dir_during_fix(self):
-        with fake_repo(**PLAN_FIX) as root:
+        with fake_repo(**PLAN_FIX_WITH_TESTS) as root:
             r = run_hook(self.HOOK, bash("cat > tests/test_a.py <<'EOF'\npass\nEOF"), root, env=FOO)
             self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_allows_redirect_creating_new_test_during_fix(self):
+        with fake_repo(**PLAN_FIX_WITH_TESTS) as root:
+            r = run_hook(self.HOOK, bash("cat > tests/test_new.py <<'EOF'\npass\nEOF"), root, env=FOO)
+            self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_allows_reading_test_file_during_fix(self):
         with fake_repo(**PLAN_FIX) as root:
