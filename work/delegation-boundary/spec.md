@@ -4,10 +4,10 @@ id: delegation-boundary
 title: Decide whether a subagent may ever write code in this kit
 description: "Requirements and design for the provisional answer: one writer per work item, subagents read-only, with an expiry and a named measurement, written once in knowledge/decisions and pointed at by both spikes, the roadmap and the rule fragments."
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Drafted from the owner's intent (four open questions answered provisionally by the session, marked for the owner to edit), the approved 2026-09-04 implementation plan section WI-10, consensus item 9, and a survey of what the hooks read from the tool-call payload; reviewed by the orchestrator."
