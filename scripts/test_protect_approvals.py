@@ -185,6 +185,14 @@ class BashBranch(unittest.TestCase):
             r = run_hook(HOOK, bash("env -u CLAUDECODE python3 scripts/approve.py foo plan.md"), root)
             self.assertEqual(r.returncode, 2, r.stderr)
 
+    def test_blocks_glued_env_unset_forms(self):
+        # PR #25 review: GNU env accepts `-uCLAUDECODE` and `--unset=CLAUDECODE` too.
+        for cmd in ("env -uCLAUDECODE python3 scripts/x.py", "env --unset=CLAUDECODE python3 scripts/x.py"):
+            with fake_repo(**DRAFT_INTENT) as root:
+                r = run_hook(HOOK, bash(cmd), root)
+                self.assertEqual(r.returncode, 2, cmd + "\n" + r.stderr)
+                self.assertIn("CLAUDECODE", r.stderr)
+
     def test_blocks_claudecode_reassignment(self):
         with fake_repo(**DRAFT_INTENT) as root:
             r = run_hook(HOOK, bash("CLAUDECODE= python3 scripts/x.py"), root)

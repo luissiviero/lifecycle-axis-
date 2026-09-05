@@ -40,7 +40,11 @@ reads the same keys from the file on disk, and blocks on an approval-shaped chan
 regex rules run first (`approve.py`, `CLAUDECODE`), then, when `BASH_WRITE_GUARD` is on, every write
 candidate from `bash_write_candidates` that matches the artifact pattern is checked against the whole
 command text. The human unlock is never consulted. `require-plan.sh` gains one line pair after its
-status check that validates `approved-by` against the plan's role. Appendix A1, verbatim:
+status check that validates `approved-by` against the plan's role. Appendix A1, verbatim as approved
+(the shipped hook diverges after the PR #25 review, as recorded in `plan.md`'s deviations log and in
+`knowledge/decisions/human-only-approvals.md`: the edit branch applies the edit to the current text and
+judges every approval key of the resulting front matter; the Bash branch refuses any write candidate that
+is an already-approved artifact; the `env` unset rule also matches the glued `-uCLAUDECODE` form):
 
 ```bash
 #!/usr/bin/env bash

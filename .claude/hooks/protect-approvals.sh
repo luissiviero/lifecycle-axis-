@@ -18,7 +18,8 @@
 . "$(dirname "$0")/_lib.sh"
 ARTIFACT_RE='^work/[^/]+/(intent|spec|plan|incident)\.md$'
 APPROVE_PY_RE='(^|[/[:space:]])approve\.py([[:space:]]|$)'
-CLAUDECODE_RE='(env[[:space:]]+(-u|--unset)[[:space:]]+CLAUDECODE|unset[[:space:]]+CLAUDECODE|(^|[[:space:];&|])CLAUDECODE=)'
+# GNU env also takes the glued `-uCLAUDECODE` and `--unset=CLAUDECODE` forms (PR #25 review).
+CLAUDECODE_RE='(env[[:space:]]+(-u|--unset)[[:space:]=]*CLAUDECODE|unset[[:space:]]+CLAUDECODE|(^|[[:space:];&|])CLAUDECODE=)'
 
 # compare_fields <repo-relative path> <new status> <new approved-by> <new approved-on> <where>
 # Blocks when the new values are an approval-shaped change from the file's current front matter.
