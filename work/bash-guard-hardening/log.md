@@ -15,3 +15,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>` (
 - 2026-09-05T00:30:00Z | intent.md | in-review -> approved | luissiviero | 7dde0cf | approved from the GitHub web editor
 - 2026-09-05T00:30:00Z | spec.md | in-review -> approved | luissiviero | 7dde0cf | approved from the GitHub web editor
 - 2026-09-05T00:30:00Z | plan.md | in-review -> approved | luissiviero | 7dde0cf | approved from the GitHub web editor
+- 2026-09-05T00:47:22Z | plan.md | build -> in-review | claude | 960e4f8 | implementation of steps 1-8 complete; seven deviations recorded in plan.md; needs control-plane-approved (three hooks, .sdlc/active)

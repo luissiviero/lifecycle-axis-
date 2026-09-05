@@ -67,4 +67,10 @@ timestamp: 2026-09-04T21:48:41Z
 - Revert the PR's commits; the hooks return to the previous `_lib.sh`, and no state outside the repo changes. If `_lib.sh` is broken mid-implementation, `git checkout -- .claude/hooks/_lib.sh` from the second shell.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- 2026-09-05: `control-plane-visibility` had already given `_lib.sh` the `notebook_path` fallback for `FILE`, the `CWD` field and a `rel()` with a cwd base; this item adds `CWD_CANON` (cwd as `canon()` sees it) and points `rel()` and `bash_write_candidates` at it, so the spec's `CWD=` line was not added a second time.
+- 2026-09-05: appendix A4's pre-split `s="${s//&&/ && }"` is not portable: under bash 5.2's `patsub_replacement` an `&` in the replacement is the match itself, so the operators were glued (`&&&&`) and `true&&cp …` reported nothing. The pre-split is one `sed -E` with `\&\&`; the newline fold stays in bash.
+- 2026-09-05: no `{` / `}` split (spec G3): `{ cmd; }` already tokenises since the shell requires the blanks, so `}` only joined the two separator lists; `${SRC}` stays one token, pinned by `test_blocks_cp_with_variable_source`.
+- 2026-09-05: the `cp|install|rsync` destination scan (spec D3) also skips the word after a bare redirection operator, so `cp a .sdlc/x > /tmp/log` reports `.sdlc/x`, not `/tmp/log`; `test_blocks_cp_with_trailing_redirect` covers `2>/dev/null` and `2>&1`. `tee` and `ln` joined the operand arm with the widened skip class; their verdicts are unchanged.
+- 2026-09-05: `bash_write_targets` is 125 lines (bound 140); no arm was dropped, so spec Q2 did not arise.
+- 2026-09-05: the owner's web-editor ledger line for the intent approval carried a doubled bullet (`- - 2026-…`), which `log_ledger.py` reports as malformed; the stray prefix was removed in 960e4f8 with time, artifact, actor and note untouched, and the chain check passed from there.
+- 2026-09-05: `.sdlc/active` was set by the implementing session when merging main (d0b35ae), not by `approve.py --activate`; the in-progress mode of the chain check allows it.

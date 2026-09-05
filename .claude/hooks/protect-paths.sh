@@ -53,7 +53,7 @@ check_target() { # check_target <repo-relative canonical path> <where>
 }
 
 if [ -n "$FILE" ]; then
-  check_target "$(canon "$FILE")" ""
+  check_target "$(rel "$FILE")" ""   # rel: relative to the session's cwd when the input has one
   finish
 fi
 

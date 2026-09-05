@@ -130,6 +130,27 @@ class ProtectTestsBashBranch(unittest.TestCase):
             r = run_hook(self.HOOK, bash("cat > tests/test_a.py <<'EOF'\npass\nEOF"), root, env=FOO)
             self.assertEqual(r.returncode, 2, r.stderr)
 
+    def test_blocks_rm_of_test_file_during_fix(self):
+        with fake_repo(**PLAN_FIX_WITH_TESTS) as root:
+            r = run_hook(self.HOOK, bash("rm src/foo.test.ts"), root, env=FOO)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("existing test file", r.stderr)
+
+    def test_blocks_git_rm_of_test_file_during_fix(self):
+        with fake_repo(**PLAN_FIX_WITH_TESTS) as root:
+            r = run_hook(self.HOOK, bash("git rm src/foo.test.ts"), root, env=FOO)
+            self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_blocks_mv_of_test_file_to_tmp_during_fix(self):
+        with fake_repo(**PLAN_FIX_WITH_TESTS) as root:
+            r = run_hook(self.HOOK, bash("mv src/foo.test.ts /tmp/"), root, env=FOO)
+            self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_blocks_perl_pi_on_test_file_during_fix(self):
+        with fake_repo(**PLAN_FIX_WITH_TESTS) as root:
+            r = run_hook(self.HOOK, bash("perl -pi -e s/a/b/ src/foo.test.ts"), root, env=FOO)
+            self.assertEqual(r.returncode, 2, r.stderr)
+
     def test_allows_redirect_creating_new_test_during_fix(self):
         with fake_repo(**PLAN_FIX_WITH_TESTS) as root:
             r = run_hook(self.HOOK, bash("cat > tests/test_new.py <<'EOF'\npass\nEOF"), root, env=FOO)

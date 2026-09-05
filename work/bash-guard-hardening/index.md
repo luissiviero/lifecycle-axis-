@@ -11,4 +11,4 @@ timestamp: 2026-09-04T21:48:41Z
 - [spec.md](spec.md) — status: approved; approved-by: luissiviero; Requirements and design for closing the verified silent-allow shapes of the Bash write guard within a 140-line bound, reading the hook input's cwd, covering NotebookEdit, and recording the accepted residuals.
 - [plan.md](plan.md) — status: approved; approved-by: luissiviero; Files, order of work, proof and risks for closing the verified Bash write-guard gaps within a 140-line bound; design and test strings live in spec.md.
 
-Last gate: - 2026-09-05T00:30:00Z | plan.md | in-review -> approved | luissiviero | 7dde0cf | approved from the GitHub web editor
+Last gate: - 2026-09-05T00:47:22Z | plan.md | build -> in-review | claude | 960e4f8 | implementation of steps 1-8 complete; seven deviations recorded in plan.md; needs control-plane-approved (three hooks, .sdlc/active)

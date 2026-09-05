@@ -78,9 +78,11 @@ canon() {
     *) printf '%s' "$abs";;
   esac
 }
-# Path relative to repo root, for matching. A relative file_path is relative to the session's
-# cwd when the input carries one, else to the repo root.
-rel() { canon "$1" "${CWD:-}"; }
+# The session's cwd as canon() sees it (repo-relative, or absolute outside ROOT): the base for a
+# relative file_path and for every Bash write candidate (work/bash-guard-hardening). Empty when the
+# input carries no cwd, which leaves today's ROOT-relative reading.
+CWD_CANON=""; [ -n "${CWD:-}" ] && CWD_CANON="$(canon "$CWD")"
+rel() { canon "$1" "${CWD_CANON:-}"; }
 under_any() { # under_any <relpath> <space-separated prefixes>
   local p="$1" prefix; for prefix in $2; do
     case "$p" in "$prefix"|"$prefix"/*) return 0;; esac; done; return 1; }
@@ -159,25 +161,31 @@ bash_write_targets() {
   local cmd="${1:0:16384}" prefixes="${2-$PROTECTED_PATHS}" s t q e n i j k cpos noglob=0
   local -a toks=() out=()
 
-  # 1. Redirections. Neutralise the descriptor forms first, so `2>&1`, `>&2` and `&>log` can
-  #    never look like a file write, then take the word after each surviving `>` or `>>`.
-  s="${cmd//>&/ }"; s="${s//2>/ }"; s="${s//&>/ }"
+  # 1. Redirections. Drop descriptor duplications (`2>&1`, `>&2`, `<&0`) and normalise `>&` to
+  #    `&>`; every surviving `>`, `>>`, `>|`, `N>`, `&>` is a write to the word after it. /dev/*
+  #    targets are dropped in step 4.
+  s="$(printf '%s' "$cmd" | sed -E 's/[0-9]*>&[0-9-]+//g; s/[0-9]*<&[0-9-]+//g; s/>&/\&>/g')"
   while IFS= read -r t; do
-    t="${t#*>}"; t="${t#>}"; t="${t#"${t%%[![:space:]]*}"}"
-    out+=("$t")
-  done < <(printf '%s' "$s" | grep -Eo '>>?[[:space:]]*[^[:space:]|;&<>()]+')
+    t="${t#*>}"; t="${t#[>|]}"; t="${t#"${t%%[![:space:]]*}"}"; out+=("$t")
+  done < <(printf '%s' "$s" | grep -Eo '(&|[0-9])?>(>|\|)?[[:space:]]*[^[:space:]|;&<>()]+')
 
-  # 2. Command-position rules. Tokenise on whitespace with globbing off: no subshell and no
-  #    process per token. This is a heuristic, not a shell parser.
+  # 2. Command-position rules. Newlines, glued `;` / `&&` / `|` and parentheses are spaced out
+  #    first so each command is seen in command position; braces are already words when the
+  #    shell accepts them (`{ cmd; }`) and `${VAR}` must stay one token. Tokenise on whitespace
+  #    with globbing off: no subshell and no process per token. A heuristic, not a shell parser.
+  #    (sed, not ${s//&&/ && }: with bash 5.2's patsub_replacement an `&` in the replacement is
+  #    the match itself, so that spelling glued the operators instead of spacing them.)
+  s="${cmd//$'\n'/ ; }"
+  s="$(printf '%s' "$s" | sed -E 's/;/ ; /g; s/&&/ \&\& /g; s/\(/ ( /g; s/\)/ ) /g; s/\|/ | /g; s/ \|  \| / || /g')"
   case "$-" in *f*) noglob=1;; *) set -f;; esac
   # shellcheck disable=SC2206
-  toks=( $cmd )
+  toks=( $s )
   [ "$noglob" = 1 ] || set +f
   n=${#toks[@]}; i=0; cpos=1
   while [ "$i" -lt "$n" ]; do
     t="${toks[i]}"
     case "$t" in
-      '|'|'||'|';'|'&&'|'&'|'('|'{'|'!') cpos=1; i=$((i+1)); continue;;
+      '|'|'||'|';'|'&&'|'&'|'('|')'|'{'|'}'|'!') cpos=1; i=$((i+1)); continue;;
     esac
     if [ "$cpos" != 1 ]; then i=$((i+1)); continue; fi
     case "$t" in                                  # prefixes that keep command position
@@ -186,50 +194,61 @@ bash_write_targets() {
     cpos=0
     e=$((i+1))                                    # end of this command's argument list
     while [ "$e" -lt "$n" ]; do
-      case "${toks[e]}" in '|'|'||'|';'|'&&'|'&') break;; esac
+      case "${toks[e]}" in '|'|'||'|';'|'&&'|'&'|')'|'}') break;; esac
       e=$((e+1))
     done
     case "$t" in
-      tee)                                        # tee [-a] <paths...>
-        for ((j=i+1; j<e; j++)); do
-          case "${toks[j]}" in -*|'<'*|'>'*) continue;; esac
+      tee|ln|rm|unlink|rmdir|chmod|chown|chgrp|mv) # every non-option operand: tee targets, link
+        for ((j=i+1; j<e; j++)); do               # names, deletes, mode changes, both ends of a move
+          case "${toks[j]}" in -*|'<'*|'>'*|'&'*|[0-9]'>'*) continue;; esac
           out+=("${toks[j]}")
         done ;;
       dd)                                         # dd of=<path>
         for ((j=i+1; j<e; j++)); do
           case "${toks[j]}" in of=*) out+=("${toks[j]#of=}");; esac
         done ;;
-      sed|perl)                                   # in-place edit: every non-option argument
-        k=0
+      sed|perl)                                   # in-place (-i, -i.bak, -pi, -0pi.bak, --in-place):
+        k=0                                       # every non-option argument
         for ((j=i+1; j<e; j++)); do
-          case "${toks[j]}" in -i*) k=1;; esac
+          case "${toks[j]}" in -i*|-[!-]*i*|--in-place*) k=1;; esac
         done
         if [ "$k" = 1 ]; then
           for ((j=i+1; j<e; j++)); do
-            case "${toks[j]}" in -*|'<'*|'>'*) continue;; esac
+            case "${toks[j]}" in -*|'<'*|'>'*|'&'*|[0-9]'>'*) continue;; esac
             out+=("${toks[j]}")
           done
         fi ;;
-      cp|mv|install|rsync)                        # destination is the last argument
-        q="${toks[e-1]}"
-        case "$q" in -*|'<'*|'>'*) ;; *) out+=("$q");; esac ;;
-      ln)                                         # a symlink into a guarded path is a write there
+      cp|install|rsync)                           # destination: the last argument that is not a
+        for ((j=e-1; j>i; j--)); do               # redirection or the word after one; plus -t DIR
+          case "${toks[j]}" in -*|'<'*|'>'*|'&'*|[0-9]'>'*) continue;; esac
+          case "${toks[j-1]}" in '<'*|'>'*|'&>'*|[0-9]'>'*) continue;; esac
+          out+=("${toks[j]}"); break
+        done
         for ((j=i+1; j<e; j++)); do
-          case "${toks[j]}" in -*) continue;; esac
-          out+=("${toks[j]}")
+          case "${toks[j]}" in
+            -t|--target-directory) [ $((j+1)) -lt "$e" ] && out+=("${toks[j+1]}");;
+            --target-directory=*) out+=("${toks[j]#--target-directory=}");;
+            -t?*) out+=("${toks[j]#-t}");;
+          esac
+        done ;;
+      sort)                                       # sort -o <path> / --output=<path>
+        for ((j=i+1; j<e; j++)); do
+          case "${toks[j]}" in
+            -o) [ $((j+1)) -lt "$e" ] && out+=("${toks[j+1]}");;
+            -o?*) out+=("${toks[j]#-o}");; --output=*) out+=("${toks[j]#--output=}");;
+          esac
         done ;;
       truncate)                                   # truncate [-s N] <path>
         for ((j=i+1; j<e; j++)); do
           case "${toks[j]}" in -*|[0-9]*|'<'*|'>'*) continue;; esac
           out+=("${toks[j]}")
         done ;;
-      git)                                        # git checkout|restore <ref> -- <path>
-        case "${toks[i+1]}" in
-          checkout|restore)
+      git)                                        # git rm|mv|clean|checkout|restore: every
+        case "${toks[i+1]}" in                    # non-option operand, `--` optional
+          rm|mv|clean|checkout|restore)
             for ((j=i+2; j<e; j++)); do
-              [ "${toks[j]}" = "--" ] || continue
-              for ((k=j+1; k<e; k++)); do out+=("${toks[k]}"); done
-              break
+              case "${toks[j]}" in -*) continue;; esac
+              out+=("${toks[j]}")
             done ;;
         esac ;;
     esac
@@ -248,9 +267,15 @@ bash_write_targets() {
     done < <(printf '%s' "$cmd" | grep -Eo "$OPEN_WRITE_RE")
   fi
 
-  # 4. Strip quotes and drop what can never be a repo write.
+  # 4. Strip quotes, expand a `$PWD/` or `~/` prefix (the two forms a session actually types),
+  #    and drop what can never be a repo write.
   for t in "${out[@]}"; do
-    t="${t%\"}"; t="${t#\"}"; t="${t%\'}"; t="${t#\'}"
+    t="${t//\"/}"; t="${t//\'/}"
+    case "$t" in
+      '$PWD/'*) t="${CWD:-$ROOT}/${t#\$PWD/}";;
+      '${PWD}/'*) t="${CWD:-$ROOT}/${t#\$\{PWD\}/}";;
+      '~/'*) t="${HOME:-~}/${t#\~/}";;
+    esac
     case "$t" in
       ''|/dev/*|\$*|*'${'*) continue;;
     esac
@@ -261,17 +286,20 @@ bash_write_targets() {
 # bash_write_candidates <command> [<prefixes>] -- every candidate from bash_write_targets as a
 # canonical repo-relative path (canon), one per line, each also resolved against every `cd` or
 # `pushd` target in the command, so `cd src && echo x > a.ts` is seen as a write to `src/a.ts`.
+# When the input carries a cwd, every candidate is also resolved against it, and each `cd` target
+# is itself resolved from it; without one, the repo root is the base as before.
 bash_write_candidates() {
-  local cmd="$1" prefixes="${2-$PROTECTED_PATHS}" cand d cd_dirs
+  local cmd="$1" prefixes="${2-$PROTECTED_PATHS}" cand d cd_dirs base="${CWD_CANON:-}"
   cd_dirs="$(printf '%s' "${cmd:0:16384}" | grep -Eo '(^|[;&|[:space:]()])(cd|pushd)[[:space:]]+[^[:space:];&|)]+' \
     | sed -E 's/^[^[:alnum:]]*(cd|pushd)[[:space:]]+//' | tr -d '"'"'"'')"
   while IFS= read -r cand; do
     [ -z "$cand" ] && continue
-    canon "$cand"; printf '\n'
+    canon "$cand" "$base"; printf '\n'
+    [ -n "$base" ] && { canon "$cand"; printf '\n'; }
     while IFS= read -r d; do
       [ -z "$d" ] && continue
       case "$d" in \$*|*'${'*) continue;; esac
-      canon "$cand" "$(canon "$d")"; printf '\n'
+      canon "$cand" "$(canon "$d" "$base")"; printf '\n'
     done <<EOF
 $cd_dirs
 EOF
