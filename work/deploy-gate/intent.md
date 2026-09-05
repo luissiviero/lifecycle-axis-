@@ -4,10 +4,10 @@ id: deploy-gate
 title: The deploy path fails open; every route to production must fail closed on a named human
 description: RELEASE_APPROVAL is derived from the commit it is meant to approve, the gate hook misses the gh and deploy.sh routes, deploy.sh is satisfied by three exported variables, and a release authorization file is never checked against the approvers list.
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude from the 2026-09-04 consensus list (item 4)
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 supersedes:
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
