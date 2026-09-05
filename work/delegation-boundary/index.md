@@ -11,4 +11,4 @@ timestamp: 2026-09-05T03:39:55Z
 - [spec.md](spec.md) — status: approved; approved-by: luissiviero; Requirements and design for the provisional answer: one writer per work item, subagents read-only, with an expiry and a named measurement, written once in knowledge/decisions and pointed at by both spikes, the roadmap and the rule fragments.
 - [plan.md](plan.md) — status: approved; approved-by: luissiviero; Files, order, proof and risks for the one-writer-until-ledger decision record, the four pointer lines, the two rule sentences, the index entries and the identity-blindness test.
 
-Last gate: - 2026-09-05T04:05:00Z | PR #35 | draft -> in-review | claude | 20c1f78 | implementation of steps 1-7 complete (plan.md stays approved); four deviations recorded in plan.md; needs control-plane-approved (.sdlc/active only)
+Last gate: - 2026-09-05T03:53:35Z | PR #35 | in-review -> approved | luissiviero | 4c386fa | the chain PR was merged with the three approvals; the implementation opens as a new PR from main
