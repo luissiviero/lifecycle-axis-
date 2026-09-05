@@ -4,11 +4,11 @@ id: docs-reconcile
 title: The docs say what the code does
 description: "Files, order, proof and risks for the twelve rewrites, the front-matter checker and its wrapper, the timestamp pass, the eight lesson files and their fragment, the roadmap marks and the .gitattributes rule."
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 risk-class: low
 record:
 resource: https://claude.ai/code/session_01Te8oN2GdvRupSixH4kjR8Y
