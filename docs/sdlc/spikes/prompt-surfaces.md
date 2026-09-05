@@ -196,6 +196,9 @@ becomes micromanagement. The answer this spike takes: **route by role, not by mo
 role; the per-task decision stays with the lead.** Control sits at exactly three points and everything else is
 left to the session agent.
 
+> **Overruled provisionally** by [`knowledge/decisions/one-writer-until-ledger.md`](../../../knowledge/decisions/one-writer-until-ledger.md) on 2026-09-05: the `implementer` role stays designed, not scheduled, until
+> that record expires.
+
 **Point 1 - roles, as the existing agent files.** Rule 8 already gives every subagent a named role, bounded tools and
 an evidence contract. Each agent file gains a `model:` and an effort pin in its front matter, read from
 `.sdlc/config.env` so a model change is one line in the control plane, not an edit to a prompt:

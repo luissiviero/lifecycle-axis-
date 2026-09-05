@@ -42,6 +42,8 @@ constrained agents it was never designed for; and its global CLAUDE.md demanded 
 | The playbook's one deterministic gap in `claude-agents` was the test-file lock; this kit already has it | `ai-native-sdlc-2026-09-02.md` item 1; `.claude/hooks/protect-tests.sh` | Nothing to bring for hooks. |
 | Delegation fails silently in 41.8% of deep-agent failures (E2) | `docs/wiki/ROUTING.md` research-recon row | Keep one writer per work item; delegate reads only. |
 
+> **Confirmed provisionally** by [`knowledge/decisions/one-writer-until-ledger.md`](../../../knowledge/decisions/one-writer-until-ledger.md) on 2026-09-05, with an expiry and a named measurement.
+
 ## 3. What to implement, ranked cheap-first
 
 ### 3.1 `/sdlc-build`: the `/task` shape as the missing Build-stage skill
@@ -55,6 +57,8 @@ constrained agents it was never designed for; and its global CLAUDE.md demanded 
 `allowed-tools` limited to Read, Edit, Write, Glob, Grep, `Agent(explorer)`, `Agent(verifier)`, and Bash for
 `git status/diff/log/add/commit`, `scripts/verify.sh`, `scripts/run_evals.sh`, `python3 scripts/check_artifact_chain.py`.
 No `git push`. No implementation delegation: one writer per work item keeps rule 2 checkable.
+
+> **Confirmed provisionally** by [`knowledge/decisions/one-writer-until-ledger.md`](../../../knowledge/decisions/one-writer-until-ledger.md) on 2026-09-05, with an expiry and a named measurement.
 
 **Steps, mapped from `/task`:**
 

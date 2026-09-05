@@ -42,7 +42,9 @@ are what remains once all of that is built. Ordered by how soon a complex projec
    they run: canonical prompt blocks, a `prompting-standards` skill, a prompt-surface lint in `verify.sh`, templates,
    a conditional review pass, per-role model and effort pins with a delegation policy and caps, and evals for each.
    **Designed, not scheduled:** [`spikes/prompt-surfaces.md`](spikes/prompt-surfaces.md) (accepted 2026-09-03; the
-   set-aside alternatives are listed at its end). Becomes work item `prompt-surfaces` when scheduled. Numbered `1b`
+   set-aside alternatives are listed at its end). Becomes work item `prompt-surfaces` when scheduled. Its `implementer` role is
+   provisionally overruled by [`knowledge/decisions/one-writer-until-ledger.md`](../../knowledge/decisions/one-writer-until-ledger.md)
+   until item 1's ledger exists. Numbered `1b`
    rather than `2` because the item numbers here are stable identifiers cited from commits and spikes; a bare `1b.`
    is not a Markdown list marker, so it is indented as a block of item 1, whose ledger judges it.
 2. **Computed risk tiers.** "Routine vs higher risk" and "small blast radius" decide who approves and what auto-merges,

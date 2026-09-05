@@ -72,6 +72,8 @@ previous one.
   satisfied only by `work/<slug>/plan.md` with `status: approved` set by a human.
 - Subagents live in `.gemini/agents/` (read-only mirrors of `.claude/agents/`); the
   `/sdlc-*` procedures are the SKILL.md files under `.claude/skills/`: read and follow them.
+  Keep one writer per work item: subagents read and return evidence, the session holding the plan
+  makes every edit (`knowledge/decisions/one-writer-until-ledger.md`, provisional, with an expiry).
 - Antigravity (IDE and `agy`) reads this file but ignores `.gemini/settings.json`, so there
   the rules above are advisory only and `sdlc-gate` plus the merge click are the gates.
 <!-- END GENERATED -->
