@@ -5,7 +5,8 @@ title: <title>
 description: <one sentence>
 stage: maintain
 status: draft
-band-breached: <metric> @ <sigma>σ    # or: ticket / channel / scan finding
+# band-breached: <metric> @ <sigma>σ, or the ticket / channel / scan finding that raised it
+band-breached: <metric> @ <sigma>σ
 detected-on:
 severity: sev1 | sev2 | sev3
 owner:

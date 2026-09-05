@@ -209,6 +209,26 @@ class RunEvalsScript(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0)
 
+    def test_failing_check_prints_its_output(self):
+        """work/loop-protection R-9: a red eval says why; a green one prints nothing extra."""
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _write_case(
+                root,
+                "loud-fail",
+                "name: loud-fail\nkind: hook\ncheck: |\n  echo boom-out; echo boom-err >&2; false\n",
+            )
+            _write_case(root, "quiet-pass", "name: quiet-pass\nkind: hook\ncheck: |\n  echo not-shown\n")
+            result = _run(root)
+            lines = result.stdout.splitlines()
+            self.assertIn("✘ loud-fail", lines)
+            i = lines.index("✘ loud-fail")
+            self.assertEqual(lines[i + 1:i + 3], ["    boom-out", "    boom-err"])
+            self.assertIn("✔ quiet-pass", lines)
+            self.assertNotIn("not-shown", result.stdout)
+            self.assertEqual(_last_line(result.stdout), "EVALS: 1 pass, 1 fail, 0 skipped")
+            self.assertEqual(result.returncode, 1)
+
     def test_multiline_check_with_pipe_inside_a_string_runs_verbatim(self):
         """Pins that field() reads a `check: |` block verbatim even when its
         content contains the literal string "a | b" (regression for the

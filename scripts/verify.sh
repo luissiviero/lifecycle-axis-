@@ -12,7 +12,14 @@ while IFS= read -r cmd; do
 done <<< "$(printf '%s\n' "$VERIFY_CMDS" | tr ';' '\n')"
 shopt -s nullglob
 for check in "$ROOT"/scripts/checks/*.sh; do
-  [ -x "$check" ] || continue
+  # A check that lost its executable bit used to vanish silently, which is one way to weaken the
+  # loop. It is reported and fails the run; VERIFY_ALLOW_SKIPPED_CHECKS=1 is the escape for an
+  # adopter mid-migration (work/loop-protection).
+  if [ ! -x "$check" ]; then
+    echo "  skipped (not executable): $check"
+    [ "${VERIFY_ALLOW_SKIPPED_CHECKS:-0}" = 1 ] || { echo "  ✘ FAIL"; fail=1; }
+    continue
+  fi
   echo "▶ $check"
   if bash -c "$check"; then echo "  ✔ pass"; else echo "  ✘ FAIL"; fail=1; fi
 done

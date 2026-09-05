@@ -1,0 +1,12 @@
+{
+  "_note": "NotebookEdit tool_input shape (notebook_path + cell_id + new_source + edit_mode) is taken from the Claude Code hooks reference as of 2026-09 and should be re-verified against a live session; the hooks read notebook_path as the file and new_source as the text.",
+  "session_id": "test-session",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "NotebookEdit",
+  "tool_input": {
+    "notebook_path": "notebooks/example.ipynb",
+    "cell_id": "c1",
+    "new_source": "print(1)",
+    "edit_mode": "replace"
+  }
+}
