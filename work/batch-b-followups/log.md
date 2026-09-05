@@ -16,3 +16,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 - 2026-09-05T05:40:00Z | intent.md | in-review -> approved | luissiviero | 876c936 | approved from the GitHub web editor; both proposed answers accepted unchanged
 - 2026-09-05T05:40:00Z | spec.md | in-review -> approved | luissiviero | 94bb857 | approved from the GitHub web editor
 - 2026-09-05T05:40:00Z | plan.md | in-review -> approved | luissiviero | a74d40e | approved from the GitHub web editor
+- 2026-09-05T06:05:00Z | PR #39 | draft -> in-review | claude | 363dac9 | implementation of steps 1-8 complete (plan.md stays approved); nine deviations recorded in plan.md, including the R-2 mechanism change; needs control-plane-approved (sdlc-gate.yml, .sdlc/active)
