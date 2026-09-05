@@ -36,9 +36,9 @@ CLAUDECODE_RE='(env[[:space:]]+(-u|--unset)[[:space:]=]*CLAUDECODE|unset[[:space
 GH_API_WRITE_RE='(^|[;&|(){}!]|[[:space:]])gh[[:space:]]+api[[:space:]]+[^;&|]*(contents/|git/)'
 GH_MUT_RE='(-X|--method)[[:space:]=]*(POST|PUT|PATCH|DELETE)|(^|[[:space:]])(-f|-F|--field|--raw-field|--input)([[:space:]]|=)'
 # The GraphQL route to the same commit: createCommitOnBranch, createRef and updateRef write file
-# contents or move a ref through `gh api graphql`, server-signed and attributed to the token's owner
+# contents, move or delete a ref, or merge a pull request through `gh api graphql`, server-signed and attributed to the token's owner
 # exactly as the REST call is (PR #43 security pass, finding 3). A read-only GraphQL query is untouched.
-GH_GRAPHQL_WRITE_RE='(^|[;&|(){}!]|[[:space:]])gh[[:space:]]+api[[:space:]]+[^;&|]*(createCommitOnBranch|createRef|updateRef)'
+GH_GRAPHQL_WRITE_RE='(^|[;&|(){}!]|[[:space:]])gh[[:space:]]+api[[:space:]]+[^;&|]*(createCommitOnBranch|createRef|updateRef|deleteRef|mergePullRequest)'
 
 # compare_fields <repo-relative path> <new status> <new approved-by> <new approved-on> <where>
 # Blocks when the new values are an approval-shaped change from the file's current front matter.

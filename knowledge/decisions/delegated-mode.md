@@ -99,8 +99,8 @@ the owner's attention was never the scarce resource.
   would carry the owner's authentication. Delegated mode is therefore built to require the session
   to hold an agent identity — the remote Claude app identity, or a bot token locally — never the
   owner's login; `protect-approvals.sh`'s Bash branch refuses a mutating `gh api` call against a
-  `contents/` or `git/` path, and a GraphQL `createCommitOnBranch`, `createRef` or `updateRef`
-  mutation, regardless; a raw `curl` to the same endpoints is not caught, which is the identity
+  `contents/` or `git/` path, and a GraphQL `createCommitOnBranch`, `createRef`, `updateRef`,
+  `deleteRef` or `mergePullRequest` mutation, regardless; a raw `curl` to the same endpoints is not caught, which is the identity
   residual restated: the boundary is which login the session holds, not the hook.
 - **The Bash guard's blind spot is unchanged, and now covers one more honest-path script.**
   `human-only-approvals.md` already notes that the write-candidate parser cannot see a command it
