@@ -4,10 +4,13 @@ id: <slug>
 title: <title>
 description: <one sentence>
 stage: build
-status: draft            # implementation hook refuses code edits until 'approved'
-kind: feature            # feature | fix   (fix ⇒ hook blocks edits to test files)
+# status: draft | in-review | approved | superseded  (require-plan.sh refuses code edits until approved)
+status: draft
+# kind: feature | fix  (fix: protect-tests.sh refuses edits to existing test files)
+kind: feature
 reads: spec.md
-approved-by:             # engineer for routine; tech lead/architect for medium/high risk
+# approved-by: engineer for routine; tech lead/architect for medium/high risk; set only by a human
+approved-by:
 approved-on:
 risk-class: low
 record:

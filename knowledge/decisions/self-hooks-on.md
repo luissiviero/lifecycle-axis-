@@ -52,13 +52,19 @@ Two gaps stood in the way of simply putting the wiring back:
 ## Consequences
 
 - The guards are live again in this repo: no credential-shaped content in any write, no writes to
-  secret-looking files, plan required for code under `PLAN_REQUIRED_PATHS` (none exist here yet),
+  secret-looking files, plan required for code under `PLAN_REQUIRED_PATHS` (`scripts`, the kit's own product code),
   test files locked during a `kind: fix` item, force pushes and hard resets refused, a push to
   `main` prompts the owner, and a turn that changed plan-required code without a verify run is
   sent back.
 - Rule 3 in `CLAUDE.md` stays advisory in this repo, now with evidence: every control-plane write
-  by an agent leaves an audit line in the transcript. CI's `check_control_plane.sh` and CODEOWNERS
-  routing to the owner remain the deterministic gate, as before.
+  by an agent is appended to `.sdlc/hook-decisions.log` (git-ignored; one tab-separated line per
+  block, ask or unlock, with the session id) and reported to the session as a `systemMessage`. The
+  stderr audit line is kept for the tests, but an exit-0 hook's stderr never reaches the transcript,
+  so the log is the record (`work/control-plane-visibility`). The unlock never covers
+  `.sdlc/release-authorizations/`, `.sdlc/approvers.yaml` or the log itself. CI's
+  `check_control_plane.sh` (which now treats `kit/`, `spike/` and `claude/` branches and Claude
+  commit trailers as agent-authored) and CODEOWNERS routing to the owner remain the deterministic
+  gate, as before.
 - `.claude/settings.json` is not itself under `PROTECTED_PATHS`. An agent in any adopter repo could
   already delete the `hooks` block; adding an `env` unlock is the same class of act and the same
   answer applies: the hook stops the accident, review and CI stop the intent.

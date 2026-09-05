@@ -19,7 +19,8 @@ human sets `status: approved`. The active work item is named in `.sdlc/active`.
    also locks test files: reproduce the bug as a failing test first, then fix the code.
 2. If implementation deviates from `plan.md`, update `plan.md` in the same commit.
    CI fails a PR whose diff touches files not listed in the plan.
-3. Never edit `.claude/hooks/`, `.gemini/`, `.github/workflows/`, `.sdlc/`, or secret
+3. Never edit `.claude/hooks/`, `.gemini/`, `.github/workflows/`, `.sdlc/`, `.claude/settings.json`,
+   `scripts/verify.sh`, `scripts/run_tests.py`, `scripts/run_evals.sh`, `scripts/checks/`, or secret
    files. Propose the change in the PR description instead.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.
@@ -53,6 +54,8 @@ previous one.
 - `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
   handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
   `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.
-- Humans approve with `python3 scripts/approve.py <slug> <artifact>` from their own shell, then commit. It refuses
-  to run inside an agent session; an agent asks for approval and waits.
+- Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone:
+  `git config sdlc.approver <github-handle>`, or pass `--as <handle>`; it enforces intent → spec → plan order), or by
+  editing the artifact plus `log.md` in the GitHub web editor; then commit as themselves. The script refuses to run
+  inside an agent session; an agent asks for approval and waits. CI checks the approval commit's author.
 <!-- END GENERATED -->

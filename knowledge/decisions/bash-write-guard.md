@@ -48,12 +48,15 @@ same hole covered `>>` appends into `.claude/hooks/_lib.sh`, `sed -i` on `.sdlc/
 
 ## Why both, and why a heuristic is acceptable here
 
-- **The CI job never fires for the case that matters most.** `scripts/check_control_plane.sh`
-  blocks an agent-authored diff only when it can tell the author is an agent —
-  `SDLC_PR_AUTHOR_TYPE == 'Bot'` or a `claude/*` head ref. In this kit the agent runs *as the
-  owner*, on a `work/<slug>` branch, under the owner's identity (decision 4). For that PR the
-  control-plane job takes the human-authored path and passes. The hook is the only thing standing
-  between an agent and `.sdlc/config.env` in the session where the edit happens.
+- **The CI job cannot see every agent PR.** `scripts/check_control_plane.sh` blocks an
+  agent-authored diff only when it can tell the author is an agent: `SDLC_PR_AUTHOR_TYPE == 'Bot'`,
+  a head ref starting with an entry of `AGENT_BRANCH_PREFIXES` (`claude/ kit/ spike/` in
+  `.sdlc/config.env`), or a commit in `base..HEAD` carrying a `Co-Authored-By: … Claude` or
+  `Claude-Session:` trailer (`work/control-plane-visibility`). In this kit the agent runs *as the
+  owner*, under the owner's identity (decision 4); before the prefix list and the trailer scan,
+  11 of its 13 control-plane PRs took the human-authored path. A session that commits without a
+  trailer on a `work/<slug>` branch is still invisible to CI, so the hook remains the only thing
+  standing between an agent and `.sdlc/config.env` in the session where the edit happens.
 - **A hook alone is not enough either.** The heuristic reads shell text; shell text can always be
   obfuscated (a path assembled from two variables, base64, a helper script written elsewhere and
   then executed). Nothing pattern-based defeats an agent that is *trying* to get through. The hook
@@ -75,7 +78,9 @@ same hole covered `>>` appends into `.claude/hooks/_lib.sh`, `sed -i` on `.sdlc/
   `ln` targets included) and both switches are captured from the process environment before the
   config is sourced. A command the agent runs sets variables in *its own* shell, not in the hook's,
   so an agent cannot turn the guard off from inside a session. Every allow prints the audit line
-  above to stderr, where it appears in the transcript. `BASH_WRITE_GUARD=0` is the other off switch,
+  above to stderr, appends an `unlock` line to `.sdlc/hook-decisions.log` and reports one
+  `systemMessage` per hook run; stderr from an exit-0 hook is not shown in the transcript, so the
+  log is the record. `BASH_WRITE_GUARD=0` is the other off switch,
   and it lives in `.sdlc/config.env`, which the canonicalised guard keeps agents out of.
   Regression tests: `scripts/test_control_plane_hardening.py`.
 

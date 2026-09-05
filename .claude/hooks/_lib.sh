@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Shared helpers for hooks. Hooks read one JSON object on stdin (Claude Code hook input).
 # Exit 0 = allow, exit 2 = block (stderr is shown to the agent), JSON on stdout for "ask".
+# Every block, ask and control-plane unlock is also appended to .sdlc/hook-decisions.log
+# (git-ignored TSV, one line per decision; log_decision below), because stderr from an exit-0
+# hook never reaches the transcript (work/control-plane-visibility).
 #
 # Human-only switches are captured from the process environment BEFORE the repo config is
 # sourced, so a line planted in .sdlc/config.env can never grant them (security review,
@@ -46,8 +49,12 @@ if ! command -v jq >/dev/null 2>&1; then
   esac
 fi
 TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')"
-FILE="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty')"
+FILE="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')"
 CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
+# cwd is the session's working directory and session_id its correlation id (both Claude Code
+# hook-input fields; Gemini sends neither, so both may be empty). Backslashes fold like ROOT.
+{ IFS= read -r CWD; IFS= read -r SESSION_ID; } < <(printf '%s' "$INPUT" | jq -r '(.cwd // ""), (.session_id // "")')
+CWD="${CWD//\\//}"
 # canon <path> [<dir>] -> repo-relative canonical path with `..`, `.` and symlinks resolved, or
 # the absolute path when it lies outside ROOT. <dir> is the directory the path is relative to
 # (a `cd` target inside a Bash command); default: the repo root. Prefix matching on anything
@@ -71,13 +78,66 @@ canon() {
     *) printf '%s' "$abs";;
   esac
 }
-# Path relative to repo root, for matching.
-rel() { canon "$1"; }
+# Path relative to repo root, for matching. A relative file_path is relative to the session's
+# cwd when the input carries one, else to the repo root.
+rel() { canon "$1" "${CWD:-}"; }
 under_any() { # under_any <relpath> <space-separated prefixes>
   local p="$1" prefix; for prefix in $2; do
     case "$p" in "$prefix"|"$prefix"/*) return 0;; esac; done; return 1; }
-block() { printf 'SDLC hook blocked this action: %s\n' "$1" >&2; exit 2; }
-ask()   { jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'; exit 0; }
+# Decision log: one tab-separated line per block, ask or unlock -- UTC time, verdict, hook,
+# tool, session id, detail. Written by the hook process, never by a tool call (the path is on
+# protect-paths.sh's never-unlock list). A failed append (no .sdlc/, read-only, a directory in
+# the way) is swallowed: the log never changes a verdict or an exit code.
+DECISION_LOG="$ROOT/.sdlc/hook-decisions.log"
+log_decision() {  # <verdict> <detail>; never fails the hook
+  # The detail may carry a whole Bash command (an ask() reason); tabs and newlines in it are
+  # folded to spaces so one decision is always one row.
+  local d="${2//$'\n'/ }"; d="${d//$'\r'/ }"; d="${d//$'\t'/ }"
+  { printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$(basename "$0")" "${TOOL:-?}" "${SESSION_ID:-?}" "$d" >> "$DECISION_LOG"; } 2>/dev/null || true
+}
+block() { log_decision block "$1"; printf 'SDLC hook blocked this action: %s\n' "$1" >&2; exit 2; }
+ask()   { log_decision ask "$1"; jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'; exit 0; }
+
+# ---------------------------------------------------------------------------------------------
+# Artifact and approver readers, shared by the gates that read work/<slug>/*.md and
+# .sdlc/approvers.yaml (approval gate, release gate). awk, not python: python3 may be the Store
+# stub on Windows, and scripts/check_artifact_chain.py runs git at import time.
+# fm_value <file|-> <key> [any] -> the key's value with CR, a trailing ` # comment` and matching
+# quotes stripped, casefolded. Without `any` only the leading front-matter block is read; with it
+# the whole text is, which is what an Edit's new_string (no `---`) needs.
+fm_value() {
+  awk -v k="$2" -v any="${3:-}" '
+    { sub(/\r$/, "") }
+    !any && /^---[[:space:]]*$/ { c++; if (c == 2) exit; next }
+    (any || c == 1) && index($0, k ":") == 1 {
+      v = substr($0, length(k) + 2)
+      sub(/^[[:space:]]+/, "", v); sub(/[[:space:]]+#.*$/, "", v); if (v ~ /^#/) v = ""
+      sub(/[[:space:]]+$/, "", v)
+      if (length(v) >= 2 && substr(v, 1, 1) == substr(v, length(v), 1) && (substr(v, 1, 1) == "\"" || substr(v, 1, 1) == "\047")) v = substr(v, 2, length(v) - 2)
+      print tolower(v); exit }' "$1" 2>/dev/null
+}
+# artifact_role <artifact> -> the role under `artifacts:` in APPROVERS_FILE (empty when unlisted).
+artifact_role() {
+  awk -v a="$1" '{ sub(/\r$/, "") } /^[A-Za-z]/ { top = $0; sub(/:.*/, "", top) }
+    top == "artifacts" && index($0, "  " a ":") == 1 { v = $0; sub(/^[^:]*:[[:space:]]*/, "", v); sub(/[[:space:]]*#.*$/, "", v); print v; exit }' \
+    "$ROOT/${APPROVERS_FILE:-.sdlc/approvers.yaml}" 2>/dev/null
+}
+# approver_has_role <handle> <role> -> 0 when the handle is listed under roles.<role> and not
+# under never-approve; a missing file or an empty handle fails closed (1).
+approver_has_role() {
+  local f="$ROOT/${APPROVERS_FILE:-.sdlc/approvers.yaml}" h="$1"
+  h="${h//\"/}"; h="${h//\'/}"; h="${h#"${h%%[![:space:]]*}"}"; h="${h%%[[:space:]]*}"; h="${h#@}"; h="${h,,}"
+  [ -n "$h" ] && [ -f "$f" ] || return 1
+  awk -v role="$2" -v h="$h" '
+    function norm(x) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", x); gsub(/^["\047]|["\047]$/, "", x); sub(/^@/, "", x); return tolower(x) }
+    function has(list,   n, a, i) { sub(/^[[:space:]]*\[/, "", list); sub(/\][[:space:]]*(#.*)?$/, "", list)
+      n = split(list, a, ","); for (i = 1; i <= n; i++) if (norm(a[i]) == h) return 1; return 0 }
+    { sub(/\r$/, "") }
+    /^[A-Za-z]/ { top = $0; sub(/:.*/, "", top) }
+    /^never-approve:/ { v = $0; sub(/^never-approve:/, "", v); if (has(v)) bad = 1 }
+    top == "roles" && index($0, "  " role ":") == 1 { v = $0; sub(/^[^:]*:/, "", v); if (has(v)) ok = 1 }
+    END { exit (ok && !bad) ? 0 : 1 }' "$f"
+}
 
 # ---------------------------------------------------------------------------------------------
 # Bash write-target extraction, shared by protect-paths.sh, require-plan.sh and protect-tests.sh.

@@ -72,7 +72,15 @@ for f in evals/cases/*.yaml; do
       echo "– $name (skipped: prompt case, no Claude runner)"; skip=$((skip+1)); continue
     fi
   fi
-  if [ -n "$check" ] && bash -c "$check" >/dev/null 2>&1; then echo "✔ $name"; pass=$((pass+1)); else echo "✘ $name"; fail=$((fail+1)); fi
+  # The oracle's output is kept and printed under a failing case, so a red eval says why in the
+  # CI log; a passing case prints nothing extra (work/loop-protection).
+  out="$(mktemp)"
+  if [ -n "$check" ] && bash -c "$check" >"$out" 2>&1; then
+    echo "✔ $name"; pass=$((pass+1))
+  else
+    echo "✘ $name"; sed 's/^/    /' "$out"; fail=$((fail+1))
+  fi
+  rm -f "$out"
 done
 if [ "$list_only" = 1 ]; then exit 0; fi
 echo "EVALS: $pass pass, $fail fail, $skip skipped"

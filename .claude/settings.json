@@ -2,6 +2,16 @@
   "env": {
     "SDLC_CONTROL_PLANE_UNLOCK": "1"
   },
+  "permissions": {
+    "deny": [
+      "Read(./.env)", "Read(./.env.*)", "Read(./secrets/**)", "Read(~/.ssh/**)", "Read(~/.aws/**)",
+      "WebFetch", "Bash(curl *)", "Bash(wget *)"
+    ],
+    "allow": [
+      "Bash(scripts/verify.sh)", "Bash(python3 scripts/run_tests.py*)", "Bash(scripts/run_evals.sh*)",
+      "Bash(python3 scripts/check_artifact_chain.py*)", "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {

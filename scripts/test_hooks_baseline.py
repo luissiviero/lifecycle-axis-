@@ -14,7 +14,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from hooktest import fake_repo, run_hook  # noqa: E402
+from hooktest import REAL_ROOT, fake_repo, run_hook  # noqa: E402
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "hook_inputs")
 
@@ -28,6 +28,24 @@ def load_fixture(name, **tool_input_overrides):
         payload = json.load(f)
     payload["tool_input"].update(tool_input_overrides)
     return payload
+
+
+class Harness(unittest.TestCase):
+    """scripts/hooktest.py itself: what every fake repo carries (work/front-matter spec R-10)."""
+
+    def test_fake_repo_carries_approvers_yaml(self):
+        with open(os.path.join(REAL_ROOT, ".sdlc", "approvers.yaml"), encoding="utf-8") as f:
+            real = f.read()
+        with fake_repo() as root:
+            with open(os.path.join(root, ".sdlc", "approvers.yaml"), encoding="utf-8") as f:
+                self.assertEqual(f.read(), real)
+        with fake_repo(approvers_yaml="roles:\n  tech-lead: [alice]\n") as root:
+            with open(os.path.join(root, ".sdlc", "approvers.yaml"), encoding="utf-8") as f:
+                self.assertEqual(f.read(), "roles:\n  tech-lead: [alice]\n")
+        # A test's own file wins over the copy.
+        with fake_repo(**{".sdlc/approvers.yaml": "roles:\n"}) as root:
+            with open(os.path.join(root, ".sdlc", "approvers.yaml"), encoding="utf-8") as f:
+                self.assertEqual(f.read(), "roles:\n")
 
 
 class ProtectPathsHook(unittest.TestCase):
@@ -103,10 +121,38 @@ class RequirePlanHook(unittest.TestCase):
             self.assertIn("in-review", result.stderr)
 
     def test_allows_when_plan_approved(self):
-        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\n---\n"}) as root:
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\n---\n"}) as root:
             payload = load_fixture("edit", file_path="src/a.ts")
             result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_status_with_trailing_comment_is_read(self):
+        """work/loop-protection R-6: require-plan.sh reads status: through fm_value."""
+        plan = "---\nstatus: approved   # set by scripts/approve.py\napproved-by: luissiviero\n---\n"
+        with fake_repo(**{"work/foo/plan.md": plan}) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_status_in_review_with_comment_blocks_with_clean_value(self):
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: in-review # c\n---\n"}) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("status 'in-review'", result.stderr)
+            self.assertNotIn("#", result.stderr)
+
+    def test_template_derived_plan_reads_clean_status(self):
+        """A plan.md copied verbatim from docs/sdlc/templates/ reads as 'draft', not as
+        'draft   # ...' (work/front-matter spec R-5): today's awk reader sees a bare value."""
+        with open(os.path.join(REAL_ROOT, "docs", "sdlc", "templates", "plan.md"), encoding="utf-8") as f:
+            template = f.read()
+        with fake_repo(**{"work/foo/plan.md": template}) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("status 'draft', not 'approved'", result.stderr)
+            self.assertNotIn("#", result.stderr)
 
     def test_allows_path_outside_plan_required_paths(self):
         with fake_repo() as root:
@@ -115,27 +161,67 @@ class RequirePlanHook(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
 
 
+FIX_PLAN = "---\nstatus: approved\napproved-by: luissiviero\nkind: fix\n---\n"
+FEATURE_PLAN = "---\nstatus: approved\napproved-by: luissiviero\nkind: feature\n---\n"
+# Under kind: fix only an EXISTING test is locked (work/loop-protection R-5): the fixtures that
+# expect a block create the file first, the fixtures that expect an allow do not.
+EXISTING_TEST = {"src/foo.test.ts": "it('x', () => {})\n"}
+
+
 class ProtectTestsHook(unittest.TestCase):
     HOOK = "protect-tests.sh"
 
-    def test_blocks_test_file_when_kind_fix(self):
-        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\nkind: fix\n---\n"}) as root:
-            payload = load_fixture("edit", file_path="src/foo.test.ts")
-            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
-            self.assertEqual(result.returncode, 2, result.stderr)
-            self.assertIn("kind: fix", result.stderr)
+    def _run(self, files, path):
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path=path)
+            return run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+
+    def test_blocks_existing_test_file_when_kind_fix(self):
+        result = self._run({"work/foo/plan.md": FIX_PLAN, **EXISTING_TEST}, "src/foo.test.ts")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("kind: fix", result.stderr)
+        self.assertIn("existing test file", result.stderr)
+
+    def test_allows_new_test_file_when_kind_fix(self):
+        result = self._run({"work/foo/plan.md": FIX_PLAN}, "src/new.test.ts")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_allows_new_eval_case_when_kind_fix(self):
+        result = self._run({"work/foo/plan.md": FIX_PLAN}, "evals/cases/incident-42.yaml")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_blocks_existing_eval_case_when_kind_fix(self):
+        result = self._run({"work/foo/plan.md": FIX_PLAN, "evals/cases/x.yaml": "name: x\n"}, "evals/cases/x.yaml")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("existing test file", result.stderr)
+
+    def test_kind_with_trailing_comment_locks(self):
+        plan = "---\nstatus: approved\napproved-by: luissiviero\nkind: fix   # feature | fix\n---\n"
+        result = self._run({"work/foo/plan.md": plan, **EXISTING_TEST}, "src/foo.test.ts")
+        self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_quoted_kind_locks(self):
+        plan = '---\nstatus: approved\napproved-by: luissiviero\nkind: "Fix"\n---\n'
+        result = self._run({"work/foo/plan.md": plan, **EXISTING_TEST}, "src/foo.test.ts")
+        self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_capitalised_kind_locks(self):
+        plan = "---\nstatus: approved\napproved-by: luissiviero\nkind: Fix\n---\n"
+        result = self._run({"work/foo/plan.md": plan, **EXISTING_TEST}, "src/foo.test.ts")
+        self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_crlf_plan_locks(self):
+        plan = "---\r\nstatus: approved\r\napproved-by: luissiviero\r\nkind: fix\r\n---\r\n"
+        result = self._run({"work/foo/plan.md": plan, **EXISTING_TEST}, "src/foo.test.ts")
+        self.assertEqual(result.returncode, 2, result.stderr)
 
     def test_allows_non_test_file_when_kind_fix(self):
-        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\nkind: fix\n---\n"}) as root:
-            payload = load_fixture("edit", file_path="src/foo.ts")
-            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
-            self.assertEqual(result.returncode, 0, result.stderr)
+        result = self._run({"work/foo/plan.md": FIX_PLAN}, "src/foo.ts")
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_allows_test_file_when_kind_feature(self):
-        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\nkind: feature\n---\n"}) as root:
-            payload = load_fixture("edit", file_path="src/foo.test.ts")
-            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
-            self.assertEqual(result.returncode, 0, result.stderr)
+        result = self._run({"work/foo/plan.md": FEATURE_PLAN, **EXISTING_TEST}, "src/foo.test.ts")
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class ProductionGateHook(unittest.TestCase):

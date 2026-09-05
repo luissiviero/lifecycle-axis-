@@ -19,7 +19,8 @@ human sets `status: approved`. The active work item is named in `.sdlc/active`.
    also locks test files: reproduce the bug as a failing test first, then fix the code.
 2. If implementation deviates from `plan.md`, update `plan.md` in the same commit.
    CI fails a PR whose diff touches files not listed in the plan.
-3. Never edit `.claude/hooks/`, `.gemini/`, `.github/workflows/`, `.sdlc/`, or secret
+3. Never edit `.claude/hooks/`, `.gemini/`, `.github/workflows/`, `.sdlc/`, `.claude/settings.json`,
+   `scripts/verify.sh`, `scripts/run_tests.py`, `scripts/run_evals.sh`, `scripts/checks/`, or secret
    files. Propose the change in the PR description instead.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.
@@ -53,8 +54,10 @@ previous one.
 - `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
   handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
   `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.
-- Humans approve with `python3 scripts/approve.py <slug> <artifact>` from their own shell, then commit. It refuses
-  to run inside an agent session; an agent asks for approval and waits.
+- Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone:
+  `git config sdlc.approver <github-handle>`, or pass `--as <handle>`; it enforces intent → spec → plan order), or by
+  editing the artifact plus `log.md` in the GitHub web editor; then commit as themselves. The script refuses to run
+  inside an agent session; an agent asks for approval and waits. CI checks the approval commit's author.
 
 ## Workflow entry points (skills)
 `/sdlc-intent` → `/sdlc-spec` → `/sdlc-plan` → implement → `/sdlc-review` → `/sdlc-incident`
@@ -65,8 +68,9 @@ previous one.
 <!-- END GENERATED -->
 
 ## Lessons learned (append; one line each; delete when a hook makes it impossible)
-- This repo runs its own hooks with `SDLC_CONTROL_PLANE_UNLOCK=1` set in `.claude/settings.json` (`knowledge/decisions/self-hooks-on.md`): control-plane writes pass with one audit line each, so rule 3 is advisory here and CI plus the owner's review guard the control plane. Restart the session after changing hook wiring.
+- This repo runs its own hooks with `SDLC_CONTROL_PLANE_UNLOCK=1` set in `.claude/settings.json` (`knowledge/decisions/self-hooks-on.md`): control-plane writes pass, each appended to `.sdlc/hook-decisions.log` and reported as a `systemMessage` (an exit-0 hook's stderr never reaches the transcript), so rule 3 is advisory here and CI plus the owner's review guard the control plane. Restart the session after changing hook wiring.
 - A guard that compares paths must compare one spelling: three separate bypasses came from a Windows path form the comparison did not recognise (`C:\...` read as relative; a POSIX path under an MSYS mount like `/tmp` left unconverted by `winpath()`), and each one made the hook *allow* silently. Normalise through `canon()`/`winpath()` and never widen a guard's input without a test. A skipped guard test is not a passing one: the third hid behind a test that could not run on Windows until Developer Mode was enabled.
 - The hooks need `jq` and refuse every edit without it (`knowledge/decisions/gemini-hooks.md`). Test a `_lib.sh` change from a second shell before the session that made it relies on it: a bad edit there locks the session out of Edit, Write and Bash at once.
 - A drift check that compares bytes is wrong on a Windows checkout: `core.autocrlf` hands back CRLF while the generators write LF, so `gen_context_files.py --check` and then `gen_index.py --check` each reported drift on a clean tree until CRLF was normalised before comparing. Any new `--check` compares with `\r\n` folded to `\n`, and a drift report on a file nobody edited is the first thing to suspect.
 - A skill or agent that names a template's field or heading must spell it as the template does: `/sdlc-spec` said `standards-applied` where `templates/spec.md` says `skills-applied`, and `/sdlc-plan` plus both `plan-reviewer` agents said `## Files` and `## Verification` where `templates/plan.md` says `## Files that change` and `## Proof`; the wrong spelling shipped into `work/_example/spec.md` before anyone noticed. Eval `skill-names-match-templates` pins the spellings; when a template field or heading changes, grep `.claude/skills`, `.claude/agents` and `.gemini/agents` for the old one in the same PR.
+- A plan's `## Files that change` bullet is read up to the first ` — ` as the path, so it must start with the bare path: `scripts/x.py (new) — note` fails the chain check as the path `scripts/x.py (new)`; write `scripts/x.py — new; note`. The template's empty deviation bullet is `- ` with a trailing space; anchor an edit on it accordingly (tripped on WI-1 and WI-2).
