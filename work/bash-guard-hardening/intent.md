@@ -4,10 +4,10 @@ id: bash-guard-hardening
 title: The Bash write guard silently allows deletes, glued commands, stderr redirects and two-step cd into the control plane
 description: bash_write_targets misses eleven command shapes that write to or remove protected paths, the hooks ignore the cwd field, and NotebookEdit bypasses every edit hook; harden within a stated bound and document the residuals.
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude from the 2026-09-04 adversarial run of the live hooks
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 supersedes:
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
