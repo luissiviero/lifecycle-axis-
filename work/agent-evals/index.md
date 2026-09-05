@@ -11,4 +11,4 @@ timestamp: 2026-09-05T03:10:00Z
 - [spec.md](spec.md) — status: approved; approved-by: luissiviero; Requirements and design for five skill cases, a runner that can fail on a missing credential and can stage fixtures, effective negated assertions with a verify check, a complete workflow path filter, and a diff-line approval attribution.
 - [plan.md](plan.md) — status: approved; approved-by: luissiviero; Files, order, proof and risks for the five skill cases, the runner's setup field and --require-claude flag, the eval-cases verify check with the fifteen fixed assertions, the workflow path filter and trust step, and the diff-line approval attribution.
 
-Last gate: - 2026-09-05T03:20:00Z | plan.md | in-review -> approved | luissiviero | 9d95704 | approved from the GitHub web editor
+Last gate: - 2026-09-05T03:40:00Z | PR #34 | draft -> in-review | claude | 6980254 | implementation of steps 1-8 complete (plan.md stays approved); four deviations recorded in plan.md; needs control-plane-approved (run_evals.sh, scripts/checks/eval-cases.sh, agent-evals workflow, .sdlc/active)

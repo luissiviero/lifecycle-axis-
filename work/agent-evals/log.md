@@ -15,3 +15,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>` (
 - 2026-09-05T03:20:00Z | intent.md | in-review -> approved | luissiviero | 9d95704 | approved from the GitHub web editor
 - 2026-09-05T03:20:00Z | spec.md | in-review -> approved | luissiviero | 9d95704 | approved from the GitHub web editor
 - 2026-09-05T03:20:00Z | plan.md | in-review -> approved | luissiviero | 9d95704 | approved from the GitHub web editor
+- 2026-09-05T03:40:00Z | PR #34 | draft -> in-review | claude | 6980254 | implementation of steps 1-8 complete (plan.md stays approved); four deviations recorded in plan.md; needs control-plane-approved (run_evals.sh, scripts/checks/eval-cases.sh, agent-evals workflow, .sdlc/active)
