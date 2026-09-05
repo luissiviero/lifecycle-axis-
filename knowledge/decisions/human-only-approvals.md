@@ -20,15 +20,19 @@ session write `.sdlc/approvers.yaml` too. The consensus review with the playbook
 ## Decision
 
 1. **A hook, not a convention.** `.claude/hooks/protect-approvals.sh` runs on `Edit|Write|MultiEdit|NotebookEdit`
-   and on `Bash`, after `protect-tests.sh`. On the edit branch it reads `status`, `approved-by` and `approved-on`
-   from the new text and compares them with the file on disk: `approved` or `superseded` where the file says
+   and on `Bash`, after `protect-tests.sh`. On the edit branch it applies the edit to a copy of the file's current
+   text (Write and NotebookEdit carry the whole new text; Edit and MultiEdit carry literal replacements) and
+   compares the *resulting* front matter with the current one: `approved` or `superseded` where the file says
    otherwise, or a non-empty `approved-by`/`approved-on` that differs from the current value, is refused (exit 2).
-   Drafting, revising and `status: in-review` pass, and so does an edit that repeats an approved artifact's current
-   values, so a deviations log stays editable.
+   Judging the result rather than the words of the edit is what catches a bare-value edit such as
+   `luissiviero` → `mallory` on an approved plan (PR #25 review). Drafting, revising and `status: in-review` pass,
+   and so does a body edit on an approved artifact, so a deviations log stays editable.
 2. **The Bash branch refuses the act, not just the file.** Any command naming `approve.py`, or unsetting or
    reassigning `CLAUDECODE`, is refused before the write guard is consulted, so it holds with
-   `BASH_WRITE_GUARD=0`. With the guard on, every write candidate that is a chain artifact is checked the same
-   way as an Edit, and a write whose text mentions `approved` or `supersed` is refused outright.
+   `BASH_WRITE_GUARD=0`. With the guard on, a write candidate that is a chain artifact already carrying an
+   approval (`status: approved|superseded` or a non-empty `approved-by`) is refused outright: an approved
+   artifact changes only through Write/Edit, where the result can be checked. A write to a draft is checked
+   against the command text, and a write whose text mentions `approved` or `supersed` is refused.
 3. **No unlock.** `SDLC_CONTROL_PLANE_UNLOCK` is never read by this hook. The kit repo's own sessions cannot
    approve either; the owner approves from their shell (`scripts/approve.py`) or from the GitHub web editor.
 4. **`require-plan.sh` checks the approver.** An approved plan gates implementation only when `approved-by` holds
@@ -50,6 +54,12 @@ session write `.sdlc/approvers.yaml` too. The consensus review with the playbook
   chain check then reports. Accepted (spec C1).
 - **The word rule is broad.** A Bash heredoc that writes a chain artifact and merely quotes the word `approved`
   in prose is refused; drafts go through Write/Edit (spec C2).
+- **The Bash branch reads command text, so it can be obfuscated.** `F=appro; G=ve.py; python3 "scripts/$F$G" …`
+  never contains the substring the `approve.py` rule looks for, and a draft can be written through a command the
+  write-candidate parser does not recognise (a Python heredoc, say). The rule is a tripwire for the honest path,
+  not a sandbox: `scripts/approve.py` itself refuses to run with `CLAUDECODE` set, an approved artifact refuses
+  every Bash write regardless of wording, and CI's `check_artifact_chain.py` rejects an approval whose commit
+  author is an agent identity or whose ledger entry is missing. Those are the backstops (PR #25 review).
 - **Evals that run `approve.py` on purpose** (`approve-refuses-in-agent-session.yaml`) are executed by
   `scripts/run_evals.sh`, not by an agent's Bash call, so the normal path is unaffected; an agent typing the
   same line by hand is refused, which is the point (spec C3).

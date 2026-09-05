@@ -5,6 +5,11 @@ but never `status: approved|superseded`, `approved-by:` or `approved-on:` (spec 
 runs scripts/approve.py or unsets CLAUDECODE (R-3), and cannot route the same change through a
 Bash write (R-4). The human unlock changes no verdict (R-5).
 
+The edit branch applies the edit to the file's current text and judges the RESULTING front matter,
+so a bare-value edit (`luissiviero` -> `mallory`) is caught by what it does, not by the words it
+uses (PR #25 review). The Bash branch refuses any write candidate that is an already-approved
+artifact and checks the command text for writes to drafts.
+
 The hook is driven as a subprocess through scripts/hooktest.py (fake_repo + run_hook), which strips
 SDLC_* from the environment first, so the kit repo's own settings.json unlock cannot leak in.
 Builders follow scripts/test_bash_plan_gates.py.
@@ -19,7 +24,7 @@ from hooktest import REAL_ROOT, fake_repo, run_hook  # noqa: E402
 HOOK = "protect-approvals.sh"
 DRAFT_INTENT = {"work/foo/intent.md": "---\nstatus: draft\napproved-by:\napproved-on:\n---\n# Intent\n"}
 APPROVED_PLAN = {
-    "work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-04\n---\n# Plan\n"
+    "work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-04\n---\n# Plan\n\n## Deviations log\n- \n"
 }
 # BASH_WRITE_GUARD off: the two cheap Bash rules must still fire (spec D4).
 GUARD_OFF_CONFIG = (
@@ -42,8 +47,11 @@ def bash(command):
     return _payload("Bash", {"command": command})
 
 
-def edit(path, new_string, old_string="a"):
-    return _payload("Edit", {"file_path": path, "old_string": old_string, "new_string": new_string})
+def edit(path, old_string, new_string, replace_all=None):
+    tool_input = {"file_path": path, "old_string": old_string, "new_string": new_string}
+    if replace_all is not None:
+        tool_input["replace_all"] = replace_all
+    return _payload("Edit", tool_input)
 
 
 def write(path, content):
@@ -60,20 +68,32 @@ def template(name):
 
 
 class EditBranch(unittest.TestCase):
-    """R-1, R-2, R-5: Edit/Write/MultiEdit on a chain artifact."""
+    """R-1, R-2, R-5: Edit/Write/MultiEdit on a chain artifact, judged by the resulting front matter."""
 
     def test_blocks_status_approved(self):
         with fake_repo(**DRAFT_INTENT) as root:
-            r = run_hook(HOOK, edit("work/foo/intent.md", "status: approved", "status: draft"), root)
+            r = run_hook(HOOK, edit("work/foo/intent.md", "status: draft", "status: approved"), root)
             self.assertEqual(r.returncode, 2, r.stderr)
             self.assertIn("status: approved", r.stderr)
             self.assertIn("Only a human approves", r.stderr)
 
     def test_blocks_approved_by(self):
         with fake_repo(**DRAFT_INTENT) as root:
-            r = run_hook(HOOK, edit("work/foo/intent.md", "approved-by: luissiviero"), root)
+            r = run_hook(HOOK, edit("work/foo/intent.md", "approved-by:", "approved-by: luissiviero"), root)
             self.assertEqual(r.returncode, 2, r.stderr)
             self.assertIn("approved-by", r.stderr)
+
+    def test_blocks_bare_value_edit_that_changes_the_approver(self):
+        # PR #25 review: neither string carries a key, only the resulting file shows the change.
+        with fake_repo(**APPROVED_PLAN) as root:
+            r = run_hook(HOOK, edit("work/foo/plan.md", "luissiviero", "mallory"), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("approved-by: mallory", r.stderr)
+
+    def test_blocks_replace_all_that_changes_the_approver(self):
+        with fake_repo(**APPROVED_PLAN) as root:
+            r = run_hook(HOOK, edit("work/foo/plan.md", "siviero", "mallory", replace_all=True), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
 
     def test_blocks_write_of_superseded_artifact(self):
         content = template("intent.md").replace("\nstatus: draft", "\nstatus: superseded", 1)  # not the comment line
@@ -92,7 +112,7 @@ class EditBranch(unittest.TestCase):
 
     def test_allows_status_in_review(self):
         with fake_repo(**DRAFT_INTENT) as root:
-            r = run_hook(HOOK, edit("work/foo/intent.md", "status: in-review", "status: draft"), root)
+            r = run_hook(HOOK, edit("work/foo/intent.md", "status: draft", "status: in-review"), root)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(r.stdout, "")
 
@@ -101,21 +121,27 @@ class EditBranch(unittest.TestCase):
             r = run_hook(HOOK, write("work/foo/intent.md", template("intent.md")), root)
             self.assertEqual(r.returncode, 0, r.stderr)
 
-    def test_allows_edit_that_repeats_current_approval_values(self):
-        # An approved plan's deviations log stays editable (spec D1): unchanged values are not a change.
+    def test_allows_body_edit_on_approved_plan(self):
+        # An approved plan's deviations log stays editable (spec D1): the front matter is unchanged,
+        # even when the new text quotes approval words in prose.
         with fake_repo(**APPROVED_PLAN) as root:
-            new = "status: approved\napproved-by: luissiviero\napproved-on: 2026-09-04\n"
-            r = run_hook(HOOK, edit("work/foo/plan.md", new), root)
+            new = "- \n- deviation: the approver (approved-by luissiviero) is unchanged; status stays approved"
+            r = run_hook(HOOK, edit("work/foo/plan.md", "- \n", new), root)
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_allows_edit_that_repeats_current_approval_values(self):
+        with fake_repo(**APPROVED_PLAN) as root:
+            r = run_hook(HOOK, edit("work/foo/plan.md", "approved-on: 2026-09-04", "approved-on: 2026-09-04"), root)
             self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_allows_file_outside_artifact_pattern(self):
         with fake_repo(**{"docs/x.md": "---\nstatus: draft\n---\n"}) as root:
-            r = run_hook(HOOK, edit("docs/x.md", "status: approved\napproved-by: luissiviero"), root)
+            r = run_hook(HOOK, edit("docs/x.md", "status: draft", "status: approved\napproved-by: luissiviero"), root)
             self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_unlock_set_still_blocks(self):
         with fake_repo(**DRAFT_INTENT) as root:
-            payload = edit("work/foo/intent.md", "status: approved", "status: draft")
+            payload = edit("work/foo/intent.md", "status: draft", "status: approved")
             r = run_hook(HOOK, payload, root, env={"SDLC_CONTROL_PLANE_UNLOCK": "1"})
             self.assertEqual(r.returncode, 2, r.stderr)
             self.assertNotIn("unlock", r.stderr.lower())
@@ -151,6 +177,19 @@ class BashBranch(unittest.TestCase):
             r = run_hook(HOOK, bash("sed -i 's/draft/approved/' work/foo/intent.md"), root)
             self.assertEqual(r.returncode, 2, r.stderr)
             self.assertIn("work/foo/intent.md", r.stderr)
+
+    def test_blocks_sed_rename_of_approver_on_approved_plan(self):
+        # PR #25 review: no approval word in the command; the target is already approved, so any
+        # Bash write to it is refused and the edit has to go through Write/Edit.
+        with fake_repo(**APPROVED_PLAN) as root:
+            r = run_hook(HOOK, bash("sed -i 's/luissiviero/mallory/' work/foo/plan.md"), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("approved chain artifact", r.stderr)
+
+    def test_blocks_append_to_approved_plan(self):
+        with fake_repo(**APPROVED_PLAN) as root:
+            r = run_hook(HOOK, bash("echo '- note' >> work/foo/plan.md"), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
 
     def test_blocks_heredoc_writing_approved_plan(self):
         cmd = "cat > work/foo/plan.md <<'EOF'\n---\nstatus: approved\napproved-by: luissiviero\n---\nEOF"
