@@ -15,7 +15,8 @@ timestamp: 2026-09-05T04:48:42Z
 2. Re-create the task list (12 items, statuses in "Task state" below).
 3. Re-arm an hourly `send_later` check-in and subscribe to each PR you open (`subscribe_pr_activity`).
    The previous session deleted its trigger on handoff so two sessions never act on the same PR.
-4. Continue at "Current state" below.
+4. Continue at "Task state" below. ("Current state" is history from 2026-09-05 ~01:50 UTC and
+   describes Batch B as still to open; it is kept as a record, not as instructions.)
 5. Helper scripts (copies in `docs/sdlc/handoff/`): `place.sh <slug> <title>` opens a chain
    branch from `origin/main`; `check_artifacts.py <dir>` checks template conformance. Copy them to
    the new session's scratchpad before use (they must not run from inside `docs/`).
@@ -23,7 +24,7 @@ timestamp: 2026-09-05T04:48:42Z
 7. First check in the new session: the new `protect-approvals.sh` is wired on `main`. An Edit that sets
    `status: approved` on any `work/<slug>/*.md` must be refused (exit 2). If it is not, stop and tell the owner.
 
-## Current state (2026-09-05 ~01:50 UTC)
+## Current state (2026-09-05 ~01:50 UTC) — HISTORY, superseded by "Task state" below
 - **Batch A is complete.** Merged into `main`: WI-1 front-matter (#24), WI-2 control-plane-visibility (#26),
   WI-3 loop-protection (#28), WI-4 bash-guard-hardening (#29), WI-5 deploy-gate (#27), WI-6 approval-gate (#25,
   merged 01:47 UTC). `main` now wires `protect-approvals.sh`; every session started before that merge runs the
@@ -43,12 +44,43 @@ timestamp: 2026-09-05T04:48:42Z
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-05 ~05:55 UTC)
-- Step 0 and WI-1 to WI-11 are all merged: Batch A on PRs 24 to 29, Batch B on PRs 31 to 37, Step 0's
-  index regeneration on PR 38. The plan of 2026-09-04 is complete.
-- Open: `work/batch-b-followups` (PR 39), the three leftovers Batch B recorded — the untrusted `sdlc-gate`
-  triage step, the adopter placeholder that can approve, and the chain check rejecting a fully retired item.
-- Owner's remaining manual checks: one `agent-evals` run and one `bands` run on `main` from the Actions tab.
+## Task state (2026-09-05 ~07:10 UTC)
+- **The 2026-09-04 plan is complete and merged**: Step 0 (PR 38), WI-1 to WI-6 (Batch A, PRs 24 to 29),
+  WI-7 to WI-11 (Batch B, PRs 31 to 37), and `work/batch-b-followups` (PR 39), which closed the three
+  leftovers Batch B recorded: the untrusted `sdlc-gate` triage step, the adopter placeholder that could
+  approve, and the chain check rejecting a fully retired item. No work item is open.
+- **Both manual checks are done, and each found a defect.**
+  - `bands`: every run since WI-7 had failed. `bands.yml` granted `contents: read`, `issues: write` and
+    `actions: read`, but `pr_cycle_time_hours` reads `repos/.../pulls`, so `gh` returned HTTP 403 and the
+    job died before collecting a series; the other two metrics were unaffected and hid it. The owner added
+    `pull-requests: read` directly on `main` (07c7275). Run 7 is the first green one, and the first time the
+    Maintain stage ran end to end: it detected a 3sigma breach (21.31h against a trailing mean of 2.67h),
+    diagnosed it read-only, and filed issue 40 with a drafted `pr-review-bottleneck` intent. That issue is
+    open for the owner to answer or close; note the baseline is thin, since the burst of merges on
+    2026-09-05 dominates the series.
+  - `agent-evals`: the manual run (118) passed on 0a311fb, `EVALS: 39 pass, 0 fail`. The nightly run (119)
+    on **the same commit** failed one case: `skill-spec-flags-concerns`, "C1 is missing or still the
+    template placeholder". Same code, same sha, different result, so that prompt case is
+    non-deterministic. First observed 2026-09-05; it will make the nightly red intermittently until the
+    case is made robust or its oracle loosened.
+- Nothing is pending on the session. What remains is future work, none of it started:
+  - **The stale active slug, and why it is not a one-liner.** `.sdlc/active` still reads
+    `batch-b-followups`, whose `plan.md` is `approved` although the item is merged and done.
+    `require-plan.sh` only blocks an edit under `PLAN_REQUIRED_PATHS` when the slug is *empty*, so a
+    future session's edits to `scripts/` are silently authorized by that finished plan instead of being
+    refused (rule 1). Clearing the file does not fix it on its own: with `.sdlc/active` empty and a PR
+    body carrying no `Work-Item:` line, `check_artifact_chain.py` resolves an empty slug and fails with
+    `work//spec.md is missing`. Both halves — retire the slug when an item completes, and make the chain
+    check handle an unset slug — belong in one work item. Found by the automated reviewer on PR 41 and
+    confirmed by running the check against an emptied file.
+  - **A pointer line for the newest lesson.** `knowledge/lessons/workflow-permissions-name-every-api.md`
+    is filed and indexed but has no bullet in `docs/sdlc/rules/60-lessons.md`, so it does not reach
+    `CLAUDE.md`, `GEMINI.md` or `AGENTS.md`. Rule 7 asks for the pointer in the same PR; it was left out
+    because that fragment regenerates `GEMINI.md` and `AGENTS.md`, which are not in the chain check's
+    `EXEMPT` list, so the line needs a plan naming them.
+  - **The flaky eval** (`skill-spec-flags-concerns`), the B13 list in `lifecycle-axis-vs-playbook.md`, the
+    Phase 2 roadmap, and a check for control bytes in tracked text (a raw NUL byte in this file went
+    unnoticed by `check_okf.py` and `check_front_matter.py`, which both read with `errors="replace"`).
 
 ## Owner routine (the owner works from a phone; keep every ask to taps)
 - Approvals: send GitHub web-editor links (`https://github.com/luissiviero/lifecycle-axis-/edit/<branch>/work/<slug>/<artifact>.md`)
@@ -63,8 +95,12 @@ timestamp: 2026-09-05T04:48:42Z
   made, and do not answer automated stop-hook prompts in the chat (the owner reads only the last message).
 
 ## Suggested first prompt for the new session
-"Resume the lifecycle-axis SDLC work. Read docs/sdlc/handoff/HANDOFF.md on branch claude/session-handoff
-first, then follow its resume steps. Batch A is merged; open Batch B starting with WI-7 band-detector."
+"Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Task state'. The 2026-09-04 plan is complete and
+no work item is open, so do not resume it: pick up whichever follow-up that section lists, or wait for me."
+
+(Superseded, kept as a record: the prompt that opened Batch B read "Resume the lifecycle-axis SDLC work.
+Read docs/sdlc/handoff/HANDOFF.md on branch claude/session-handoff first, then follow its resume steps.
+Batch A is merged; open Batch B starting with WI-7 band-detector.")
 
 ## What the earlier sessions did
 1. Compared the repo (`main` @ `64bcb17`) against Anthropic's AI-native SDLC playbook with eight read-only

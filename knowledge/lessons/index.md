@@ -27,3 +27,4 @@ single incident that yields more than one distinct lesson gets `<incident-slug>-
 - [plan-bullets-start-with-the-path.md](plan-bullets-start-with-the-path.md) — a plan bullet starts with the bare path
 - [ledger-slot-holds-status-only.md](ledger-slot-holds-status-only.md) — the ledger's from/to slot holds status values only
 - [send-ledger-lines-in-a-fenced-block.md](send-ledger-lines-in-a-fenced-block.md) — ledger lines go to the owner in a fenced block
+- [workflow-permissions-name-every-api.md](workflow-permissions-name-every-api.md) — a workflow's `permissions:` block names every API surface its scripts touch
