@@ -4,10 +4,10 @@ id: batch-b-followups
 title: Close the three leftovers Batch B surfaced
 description: "The sdlc-gate triage step runs untrusted, the adopter placeholder handle can approve, and the chain check rejects a fully retired item; three small fixes the last work items named but could not make."
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude from the follow-ups recorded on pull requests 37 and 38
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 supersedes:
 record:
 resource: https://github.com/luissiviero/lifecycle-axis-/pull/37
