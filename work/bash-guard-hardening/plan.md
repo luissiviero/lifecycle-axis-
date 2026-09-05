@@ -4,11 +4,11 @@ id: bash-guard-hardening
 title: Bounded hardening of bash_write_targets, cwd-aware candidates, NotebookEdit coverage
 description: Files, order of work, proof and risks for closing the verified Bash write-guard gaps within a 140-line bound; design and test strings live in spec.md.
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 risk-class: low
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
