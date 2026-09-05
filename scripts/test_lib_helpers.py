@@ -125,6 +125,93 @@ class Approvers(unittest.TestCase):
             self.assertEqual(r.stdout.strip(), "rc=1")
 
 
+# work/delegated-mode R-10: the five awk-based policy readers require-plan.sh and
+# protect-approvals.sh share, read straight from `$ROOT/.sdlc/delegation.yaml` -- the template's
+# exact content (docs/sdlc/templates/delegation.yaml), so a fixture built from it is what an
+# owner's real policy looks like.
+DELEGATION_POLICY = """\
+enabled: true
+agents: [claude, claude[bot]]
+signable: [spec.md, plan.md, incident.md]
+risk-classes: [low]
+max-deviations: 5
+revisions: consensus
+min-reviewers: 2
+merge:
+  enabled: true
+  require-review: true
+  require-checks: [sdlc-gate, agent-evals, pr-review]
+  method: merge
+  cool-off-hours: 0
+locked-paths: [scripts/check_artifact_chain.py]
+"""
+POLICY_DISABLED = DELEGATION_POLICY.replace("enabled: true", "enabled: false", 1)
+
+
+class DelegationHelpers(unittest.TestCase):
+    def test_delegation_on_reads_the_policy_file(self):
+        with fake_repo(**{".sdlc/delegation.yaml": DELEGATION_POLICY}) as root:
+            r = lib("delegation_on; echo rc=$?", root)
+            self.assertEqual(r.stdout.strip(), "rc=0", r.stderr)
+        with fake_repo() as root:
+            r = lib("delegation_on; echo rc=$?", root)
+            self.assertEqual(r.stdout.strip(), "rc=1", "no policy file at all")
+        with fake_repo(**{".sdlc/delegation.yaml": POLICY_DISABLED}) as root:
+            r = lib("delegation_on; echo rc=$?", root)
+            self.assertEqual(r.stdout.strip(), "rc=1", "enabled: false")
+
+    def test_policy_value_reads_a_scalar(self):
+        with fake_repo(**{".sdlc/delegation.yaml": DELEGATION_POLICY}) as root:
+            r = lib("policy_value enabled", root)
+            self.assertEqual(r.stdout.strip(), "true", r.stderr)
+
+    def test_policy_list_reads_a_flow_list(self):
+        with fake_repo(**{".sdlc/delegation.yaml": DELEGATION_POLICY}) as root:
+            r = lib("policy_list agents", root)
+            self.assertEqual(r.stdout.strip().splitlines(), ["claude", "claude[bot]"], r.stderr)
+            r = lib("policy_list signable", root)
+            self.assertEqual(r.stdout.strip().splitlines(), ["spec.md", "plan.md", "incident.md"], r.stderr)
+
+    def test_policy_list_does_not_see_keys_nested_under_merge(self):
+        # `require-checks` lives two levels deep, under `merge:`; policy_list reads only the
+        # top-level keys the way fm_all reads only the first front-matter block.
+        with fake_repo(**{".sdlc/delegation.yaml": DELEGATION_POLICY}) as root:
+            r = lib("policy_list require-checks", root)
+            self.assertEqual(r.stdout.strip(), "", r.stderr)
+
+    def test_agent_handle_ok_checks_the_agents_list(self):
+        with fake_repo(**{".sdlc/delegation.yaml": DELEGATION_POLICY}) as root:
+            r = lib('agent_handle_ok claude; echo rc=$?', root)
+            self.assertEqual(r.stdout.strip(), "rc=0", r.stderr)
+            r = lib('agent_handle_ok luissiviero; echo rc=$?', root)
+            self.assertEqual(r.stdout.strip(), "rc=1", r.stderr)
+            # Normalised the way approver handles are: a leading '@' and capitals do not matter.
+            r = lib('agent_handle_ok "@Claude"; echo rc=$?', root)
+            self.assertEqual(r.stdout.strip(), "rc=0", r.stderr)
+
+    def test_artifact_signable_checks_the_signable_list(self):
+        with fake_repo(**{".sdlc/delegation.yaml": DELEGATION_POLICY}) as root:
+            r = lib('artifact_signable plan.md; echo rc=$?', root)
+            self.assertEqual(r.stdout.strip(), "rc=0", r.stderr)
+            r = lib('artifact_signable intent.md; echo rc=$?', root)
+            self.assertEqual(r.stdout.strip(), "rc=1", r.stderr)
+
+    def test_intent_mode_reads_the_items_intent(self):
+        delegated_intent = "---\nstatus: approved\napproved-by: luissiviero\nmode: delegated\n---\n# Intent\n"
+        supervised_intent = "---\nstatus: approved\napproved-by: luissiviero\nmode: supervised\n---\n# Intent\n"
+        with fake_repo(**{"work/demo/intent.md": delegated_intent}) as root:
+            r = lib("intent_mode demo", root)
+            self.assertEqual(r.stdout.strip(), "delegated", r.stderr)
+        with fake_repo(**{"work/demo/intent.md": supervised_intent}) as root:
+            r = lib("intent_mode demo", root)
+            self.assertEqual(r.stdout.strip(), "supervised", r.stderr)
+        with fake_repo() as root:
+            # No work/demo/intent.md at all: an empty mode defaults to supervised (spec: "Data
+            # and migrations" -- existing items with no `mode` key stay supervised).
+            r = lib("intent_mode demo", root)
+            self.assertEqual(r.stdout.strip(), "supervised", r.stderr)
+
+
 class DecisionLog(unittest.TestCase):
     def test_log_decision_appends_six_tab_fields(self):
         with fake_repo() as root:

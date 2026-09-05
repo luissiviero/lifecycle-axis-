@@ -12,6 +12,7 @@ sys.path.insert(0, HERE)
 import log_ledger  # noqa: E402
 
 TEMPLATE_INTENT = os.path.join(REPO, "docs", "sdlc", "templates", "intent.md")
+TEMPLATE_POLICY = os.path.join(REPO, "docs", "sdlc", "templates", "delegation.yaml")
 
 ARTIFACT = """---
 type: sdlc/{kind}
@@ -174,6 +175,83 @@ class Approve(unittest.TestCase):
         self.assertEqual(approved[0].actor, "luissiviero")
         line = [l for l in self.read("work/demo/log.md").splitlines() if "-> approved" in l][0]
         self.assertEqual(line.count("|"), 4, line)  # five fields, no note
+
+
+def with_risk_class(text, risk_class):
+    """Insert a `risk-class:` line into an ARTIFACT-shaped front matter block (spec D2's grant
+    key), right after `approved-on:`, the way docs/sdlc/templates/intent.md places it."""
+    return text.replace("approved-on:\n", f"approved-on:\nrisk-class: {risk_class}\n", 1)
+
+
+class ApproveDelegate(unittest.TestCase):
+    """scripts/approve.py --delegate (spec R-8): the human-only grant on intent.md. Only
+    intent.md may carry it; it refuses a risk class the policy does not delegate, and refuses
+    outright when there is no policy to check the risk class against."""
+
+    def setUp(self):
+        self.root = make_repo()
+        shutil.copy(os.path.join(HERE, "delegation.py"), os.path.join(self.root, "scripts", "delegation.py"))
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def read(self, rel):
+        with open(os.path.join(self.root, rel), encoding="utf-8") as f:
+            return f.read()
+
+    def write_policy(self, content=None):
+        if content is None:
+            with open(TEMPLATE_POLICY, encoding="utf-8") as f:
+                content = f.read()
+        with open(os.path.join(self.root, ".sdlc", "delegation.yaml"), "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def set_intent_risk_class(self, risk_class):
+        path = os.path.join(self.root, "work", "demo", "intent.md")
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(with_risk_class(text, risk_class))
+
+    def test_delegate_writes_grant_keys_and_ledger_note(self):
+        self.write_policy()
+        self.set_intent_risk_class("low")
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero", "--delegate")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        text = self.read("work/demo/intent.md")
+        self.assertIn("status: approved", text)
+        self.assertIn("approved-by: luissiviero", text)
+        self.assertIn("mode: delegated", text)
+        self.assertIn("delegated-by: luissiviero", text)
+        self.assertRegex(text, r"delegated-on: \d{4}-\d{2}-\d{2}")
+        log = self.read("work/demo/log.md")
+        self.assertIn("mode: delegated", log)
+
+    def test_delegate_refuses_risk_class_outside_policy(self):
+        self.write_policy()
+        self.set_intent_risk_class("medium")
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero", "--delegate")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("medium", r.stderr)
+        text = self.read("work/demo/intent.md")
+        self.assertNotIn("mode: delegated", text)
+        self.assertNotIn("status: approved", text)
+
+    def test_delegate_refuses_with_spec_md(self):
+        self.write_policy()
+        r = run(self.root, "demo", "spec.md", "--as", "luissiviero", "--delegate")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("intent.md", r.stderr)
+        self.assertIn("status: in-review", self.read("work/demo/spec.md"))
+
+    def test_delegate_refuses_when_policy_missing(self):
+        # No write_policy() call: .sdlc/delegation.yaml is absent.
+        self.set_intent_risk_class("low")
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero", "--delegate")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("delegation", r.stderr.lower())
+        text = self.read("work/demo/intent.md")
+        self.assertNotIn("mode: delegated", text)
 
 
 if __name__ == "__main__":

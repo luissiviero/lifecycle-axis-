@@ -321,6 +321,13 @@ class NeverUnlock(unittest.TestCase):
         with fake_repo() as root:
             self._blocked(root, edit(".sdlc/approvers.yaml"))
 
+    def test_delegation_yaml_blocked_under_unlock(self):
+        # work/delegated-mode R-10: .sdlc/delegation.yaml joins the never-unlock list, so the
+        # owner is the only writer of the policy even from inside the kit repo's own session.
+        with fake_repo() as root:
+            self._blocked(root, edit(".sdlc/delegation.yaml"))
+            self._blocked(root, bash("cd .sdlc && cat > delegation.yaml <<'EOF'\nenabled: true\nEOF"))
+
     def test_decision_log_blocked_under_unlock(self):
         with fake_repo() as root:
             self._blocked(root, edit(".sdlc/hook-decisions.log"))

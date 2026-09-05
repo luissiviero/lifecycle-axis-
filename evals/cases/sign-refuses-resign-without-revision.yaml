@@ -1,0 +1,20 @@
+name: sign-refuses-resign-without-revision
+kind: hook
+source: work/delegated-mode/spec.md R-7, R-5, D4 (re-signing an already delegated/approved artifact needs --revision)
+check: |
+  R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"
+  mkdir -p "$d/.sdlc" "$d/work/demo"
+  cp "$R/.sdlc/config.env" "$R/.sdlc/approvers.yaml" "$d/.sdlc/"
+  cp "$R/docs/sdlc/templates/delegation.yaml" "$d/.sdlc/delegation.yaml"
+  printf 'demo\n' > "$d/.sdlc/active"
+  printf -- '---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-01\nrisk-class: low\nmode: delegated\ndelegated-by: luissiviero\ndelegated-on: 2026-09-01\n---\n# Intent\n' > "$d/work/demo/intent.md"
+  # spec.md already carries a signature; no --revision is passed.
+  printf -- '---\nstatus: delegated\napproved-by: claude\napproved-on: 2026-09-02\n---\n# Spec\n' > "$d/work/demo/spec.md"
+  printf -- '---\ntype: sdlc/log\nid: demo-log\n---\n# Log\n\n- 2026-09-02T00:00:00Z | spec.md | in-review -> delegated | claude | abc1234 |\n' > "$d/work/demo/log.md"
+  (cd "$d" && python3 "$R/scripts/sign.py" demo spec.md) >/tmp/sign-refuses-resign-without-revision.out 2>&1
+  rc=$?
+  ok=1
+  [ "$rc" -eq 1 ] || ok=0
+  grep -q "status: delegated" "$d/work/demo/spec.md" || ok=0
+  rm -rf "$d"
+  [ "$ok" = 1 ]

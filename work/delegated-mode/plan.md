@@ -62,7 +62,8 @@ Pull request 1b, the act (label: hooks, settings):
 - scripts/test_protect_approvals.py — class `Delegated` (R-9)
 - scripts/test_hooks_baseline.py — require-plan delegated cases (R-10)
 - scripts/test_lib_helpers.py — the five helpers (R-10)
-- scripts/test_protect_paths_bash.py — never-unlock entry (R-10)
+- scripts/test_protect_paths_bash.py — never-unlock entry (R-10; see deviation 4: the case lives in test_bash_plan_gates.py)
+- scripts/test_bash_plan_gates.py — the never-unlock case for `.sdlc/delegation.yaml`, next to the existing `NeverUnlock` class (deviation 4)
 - evals/cases/sign-refuses-without-grant.yaml — new (R-7)
 - evals/cases/sign-refuses-human-handle.yaml — new (R-7)
 - evals/cases/sign-refuses-intent.yaml — new (R-7)
@@ -136,4 +137,5 @@ This item's own artifacts:
 - 2026-09-05 — step 1: the owner's `.sdlc/active` edit on `main` did not land (two attempts from the phone; `main` still names `batch-b-followups`), while the three approvals did. The session sets `.sdlc/active` to `delegated-mode` on this branch instead, as `batch-b-followups` did. The chain check treats `.sdlc/active` naming this slug as this item's own file; `check_control_plane.sh` does not, so pull request 1a needs `control-plane-approved` for that one line. The precondition's purpose holds: from this commit the plan gate reads this item's approved plan, not the finished one.
 - 2026-09-05 — step 2, out of order: CI's `front-matter.sh` went red on the generated `work/delegated-mode/index.md` because `gen_index.py` wrote this item's description, which holds `: `, as a plain YAML scalar. Fixed in `gen_index.py` (`_yaml_scalar`: quote a title or description PyYAML could not read back, leave plain values plain) with a round-trip test; the golden for a title holding `: ` now expects the quoted form, since the old golden pinned invalid YAML. Both files are in the list above for R-2; the fix lands before the rest of pull request 1a because the chain PR was red on it.
 - 2026-09-05 — step 3: `.sdlc/delegation.yaml` is shipped by the session in pull request 1b (a byte-for-byte copy of `docs/sdlc/templates/delegation.yaml`, written under the control-plane unlock and logged in `.sdlc/hook-decisions.log`) instead of being created by the owner on `main`: a 70-line paste is not a phone action, and the owner's label plus merge click on this pull request is the human act. From the moment 1b's `protect-paths.sh` lands, the file is on the never-unlock list and no session can write it again; every later edit is the owner's.
+- 2026-09-05 — step 3: the never-unlock test for `.sdlc/delegation.yaml` is in `scripts/test_bash_plan_gates.py`, where the existing `NeverUnlock` class already tests `.sdlc/approvers.yaml`, not in `scripts/test_protect_paths_bash.py` as listed; the plan named the wrong module. `test_protect_paths_bash.py` is unchanged.
 - 

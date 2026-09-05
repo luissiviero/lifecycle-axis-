@@ -1,0 +1,21 @@
+name: hook-allows-delegated-sign
+kind: hook
+source: work/delegated-mode/spec.md R-9, D5 (protect-approvals.sh opens on a valid delegated signature)
+check: |
+  # Exit codes are checked explicitly: under `set -e` a `! cmd` line that fails never ends the case.
+  R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"; mkdir -p "$d/.sdlc" "$d/work/demo"
+  cp "$R/.sdlc/config.env" "$R/.sdlc/approvers.yaml" "$d/.sdlc/"
+  cp "$R/docs/sdlc/templates/delegation.yaml" "$d/.sdlc/delegation.yaml"
+  printf -- '---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-01\nrisk-class: low\nmode: delegated\ndelegated-by: luissiviero\ndelegated-on: 2026-09-01\n---\n# Intent\n' > "$d/work/demo/intent.md"
+  printf -- '---\nstatus: in-review\napproved-by:\napproved-on:\n---\n# Spec\n' > "$d/work/demo/spec.md"
+  H="$R/.claude/hooks/protect-approvals.sh"
+  rc() { printf '%s' "$1" | CLAUDE_PROJECT_DIR="$d" "$H" >/dev/null 2>&1; echo $?; }
+  ok=1
+  # An agent's own signature, under a live grant, is allowed.
+  [ "$(rc '{"tool_name":"MultiEdit","tool_input":{"file_path":"work/demo/spec.md","edits":[{"old_string":"status: in-review","new_string":"status: delegated"},{"old_string":"approved-by:","new_string":"approved-by: claude"}]}}')" = 0 ] || ok=0
+  # sign.py, the script that would have made that same change, is not caught by the approve.py rule.
+  [ "$(rc '{"tool_name":"Bash","tool_input":{"command":"python3 scripts/sign.py demo spec.md"}}')" = 0 ] || ok=0
+  # approve.py is still refused exactly as today, even with a grant and policy in place.
+  [ "$(rc '{"tool_name":"Bash","tool_input":{"command":"python3 scripts/approve.py demo spec.md --as luissiviero"}}')" = 2 ] || ok=0
+  rm -rf "$d"
+  [ "$ok" = 1 ]

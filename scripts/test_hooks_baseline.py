@@ -30,6 +30,44 @@ def load_fixture(name, **tool_input_overrides):
     return payload
 
 
+# work/delegated-mode R-10: require-plan.sh's delegated branch opens the plan gate on a
+# `status: delegated` plan.md the same way it opens on a tech-lead-approved one, but only under a
+# human grant (mode: delegated on the item's intent.md) and an enabled policy that lists the
+# signer among `agents` and plan.md among `signable`.
+DELEGATION_POLICY = """\
+enabled: true
+agents: [claude, claude[bot]]
+signable: [spec.md, plan.md, incident.md]
+risk-classes: [low]
+max-deviations: 5
+revisions: consensus
+min-reviewers: 2
+merge:
+  enabled: true
+  require-review: true
+  require-checks: [sdlc-gate, agent-evals, pr-review]
+  method: merge
+  cool-off-hours: 0
+locked-paths: [scripts/check_artifact_chain.py]
+"""
+DELEGATED_INTENT = {
+    "work/foo/intent.md": (
+        "---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-04\n"
+        "risk-class: low\nmode: delegated\ndelegated-by: luissiviero\ndelegated-on: 2026-09-04\n"
+        "---\n# Intent\n"
+    )
+}
+SUPERVISED_INTENT = {
+    "work/foo/intent.md": (
+        "---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-04\n"
+        "risk-class: low\nmode: supervised\ndelegated-by:\ndelegated-on:\n"
+        "---\n# Intent\n"
+    )
+}
+DELEGATED_PLAN_CLAUDE = {"work/foo/plan.md": "---\nstatus: delegated\napproved-by: claude\n---\n# Plan\n"}
+DELEGATED_PLAN_MALLORY = {"work/foo/plan.md": "---\nstatus: delegated\napproved-by: mallory\n---\n# Plan\n"}
+
+
 class Harness(unittest.TestCase):
     """scripts/hooktest.py itself: what every fake repo carries (work/front-matter spec R-10)."""
 
@@ -210,6 +248,46 @@ class RequirePlanHook(unittest.TestCase):
             payload = load_fixture("edit", file_path="docs/readme.md")
             result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "nope"})
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    # -- work/delegated-mode R-10: the delegated branch --------------------------------------
+
+    def test_allows_when_plan_delegated_with_grant(self):
+        files = dict(DELEGATED_INTENT, **DELEGATED_PLAN_CLAUDE, **{".sdlc/delegation.yaml": DELEGATION_POLICY})
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_blocks_when_plan_delegated_but_policy_missing(self):
+        # No .sdlc/delegation.yaml: a signature with no policy behind it opens nothing.
+        files = dict(DELEGATED_INTENT, **DELEGATED_PLAN_CLAUDE)
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_blocks_when_plan_delegated_by_handle_outside_agents(self):
+        files = dict(DELEGATED_INTENT, **DELEGATED_PLAN_MALLORY, **{".sdlc/delegation.yaml": DELEGATION_POLICY})
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("mallory", result.stderr)
+
+    def test_blocks_when_intent_mode_is_supervised(self):
+        files = dict(SUPERVISED_INTENT, **DELEGATED_PLAN_CLAUDE, **{".sdlc/delegation.yaml": DELEGATION_POLICY})
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_blocks_when_plan_not_in_signable(self):
+        policy = DELEGATION_POLICY.replace("signable: [spec.md, plan.md, incident.md]", "signable: [spec.md, incident.md]")
+        files = dict(DELEGATED_INTENT, **DELEGATED_PLAN_CLAUDE, **{".sdlc/delegation.yaml": policy})
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
 
 
 FIX_PLAN = "---\nstatus: approved\napproved-by: luissiviero\nkind: fix\n---\n"

@@ -1,0 +1,19 @@
+name: sign-refuses-intent
+kind: hook
+source: work/delegated-mode/spec.md R-7, D-b (intent.md carries the grant and is never signable)
+check: |
+  R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"
+  mkdir -p "$d/.sdlc" "$d/work/demo"
+  cp "$R/.sdlc/config.env" "$R/.sdlc/approvers.yaml" "$d/.sdlc/"
+  cp "$R/docs/sdlc/templates/delegation.yaml" "$d/.sdlc/delegation.yaml"
+  printf 'demo\n' > "$d/.sdlc/active"
+  # A live grant is in place; even so, intent.md itself is never a valid sign.py target.
+  printf -- '---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-01\nrisk-class: low\nmode: delegated\ndelegated-by: luissiviero\ndelegated-on: 2026-09-01\n---\n# Intent\n' > "$d/work/demo/intent.md"
+  (cd "$d" && python3 "$R/scripts/sign.py" demo intent.md) >/tmp/sign-refuses-intent.out 2>&1
+  rc=$?
+  ok=1
+  [ "$rc" -eq 1 ] || ok=0
+  grep -q "status: approved" "$d/work/demo/intent.md" || ok=0
+  grep -q "status: delegated" "$d/work/demo/intent.md" && ok=0
+  rm -rf "$d"
+  [ "$ok" = 1 ]
