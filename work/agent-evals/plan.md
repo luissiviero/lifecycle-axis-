@@ -4,11 +4,11 @@ id: agent-evals
 title: Evals test the agent, and can go red
 description: "Files, order, proof and risks for the five skill cases, the runner's setup field and --require-claude flag, the eval-cases verify check with the fifteen fixed assertions, the workflow path filter and trust step, and the diff-line approval attribution."
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 risk-class: low
 record:
 resource: https://claude.ai/code/session_01Te8oN2GdvRupSixH4kjR8Y
