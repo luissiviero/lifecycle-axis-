@@ -15,7 +15,8 @@ timestamp: 2026-09-05T04:48:42Z
 2. Re-create the task list (12 items, statuses in "Task state" below).
 3. Re-arm an hourly `send_later` check-in and subscribe to each PR you open (`subscribe_pr_activity`).
    The previous session deleted its trigger on handoff so two sessions never act on the same PR.
-4. Continue at "Current state" below.
+4. Continue at "Task state" below. ("Current state" is history from 2026-09-05 ~01:50 UTC and
+   describes Batch B as still to open; it is kept as a record, not as instructions.)
 5. Helper scripts (copies in `docs/sdlc/handoff/`): `place.sh <slug> <title>` opens a chain
    branch from `origin/main`; `check_artifacts.py <dir>` checks template conformance. Copy them to
    the new session's scratchpad before use (they must not run from inside `docs/`).
@@ -23,7 +24,7 @@ timestamp: 2026-09-05T04:48:42Z
 7. First check in the new session: the new `protect-approvals.sh` is wired on `main`. An Edit that sets
    `status: approved` on any `work/<slug>/*.md` must be refused (exit 2). If it is not, stop and tell the owner.
 
-## Current state (2026-09-05 ~01:50 UTC)
+## Current state (2026-09-05 ~01:50 UTC) — HISTORY, superseded by "Task state" below
 - **Batch A is complete.** Merged into `main`: WI-1 front-matter (#24), WI-2 control-plane-visibility (#26),
   WI-3 loop-protection (#28), WI-4 bash-guard-hardening (#29), WI-5 deploy-gate (#27), WI-6 approval-gate (#25,
   merged 01:47 UTC). `main` now wires `protect-approvals.sh`; every session started before that merge runs the
@@ -62,10 +63,24 @@ timestamp: 2026-09-05T04:48:42Z
     template placeholder". Same code, same sha, different result, so that prompt case is
     non-deterministic. First observed 2026-09-05; it will make the nightly red intermittently until the
     case is made robust or its oracle loosened.
-- Nothing is pending on the session. What remains is future work, none of it started: the B13 list in
-  `lifecycle-axis-vs-playbook.md`, the Phase 2 roadmap, the flaky eval above, and a check for control
-  bytes in tracked text (a raw NUL byte in this file went unnoticed by `check_okf.py` and
-  `check_front_matter.py`, which both read with `errors="replace"`).
+- Nothing is pending on the session. What remains is future work, none of it started:
+  - **The stale active slug, and why it is not a one-liner.** `.sdlc/active` still reads
+    `batch-b-followups`, whose `plan.md` is `approved` although the item is merged and done.
+    `require-plan.sh` only blocks an edit under `PLAN_REQUIRED_PATHS` when the slug is *empty*, so a
+    future session's edits to `scripts/` are silently authorized by that finished plan instead of being
+    refused (rule 1). Clearing the file does not fix it on its own: with `.sdlc/active` empty and a PR
+    body carrying no `Work-Item:` line, `check_artifact_chain.py` resolves an empty slug and fails with
+    `work//spec.md is missing`. Both halves — retire the slug when an item completes, and make the chain
+    check handle an unset slug — belong in one work item. Found by the automated reviewer on PR 41 and
+    confirmed by running the check against an emptied file.
+  - **A pointer line for the newest lesson.** `knowledge/lessons/workflow-permissions-name-every-api.md`
+    is filed and indexed but has no bullet in `docs/sdlc/rules/60-lessons.md`, so it does not reach
+    `CLAUDE.md`, `GEMINI.md` or `AGENTS.md`. Rule 7 asks for the pointer in the same PR; it was left out
+    because that fragment regenerates `GEMINI.md` and `AGENTS.md`, which are not in the chain check's
+    `EXEMPT` list, so the line needs a plan naming them.
+  - **The flaky eval** (`skill-spec-flags-concerns`), the B13 list in `lifecycle-axis-vs-playbook.md`, the
+    Phase 2 roadmap, and a check for control bytes in tracked text (a raw NUL byte in this file went
+    unnoticed by `check_okf.py` and `check_front_matter.py`, which both read with `errors="replace"`).
 
 ## Owner routine (the owner works from a phone; keep every ask to taps)
 - Approvals: send GitHub web-editor links (`https://github.com/luissiviero/lifecycle-axis-/edit/<branch>/work/<slug>/<artifact>.md`)
