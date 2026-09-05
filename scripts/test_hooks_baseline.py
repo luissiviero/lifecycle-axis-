@@ -58,6 +58,18 @@ class ProtectPathsHook(unittest.TestCase):
             self.assertEqual(result.returncode, 2, result.stderr)
             self.assertIn(path, result.stderr)
 
+    def test_verdict_ignores_caller_identity_fields(self):
+        """The hooks read tool_name, tool_input, cwd and session_id and nothing about the caller, so a
+        subagent's tool call meets the same gate as the lead's (knowledge/decisions/one-writer-until-ledger.md;
+        work/delegation-boundary R-7)."""
+        with fake_repo() as root:
+            plain = load_fixture("edit", file_path=".sdlc/x")
+            tagged = dict(plain, agent_name="implementer", subagent_type="implementer", parent_tool_use_id="toolu_01")
+            a = run_hook(self.HOOK, plain, root)
+            b = run_hook(self.HOOK, tagged, root)
+            self.assertEqual(a.returncode, 2, a.stderr)
+            self.assertEqual((a.returncode, a.stdout, a.stderr), (b.returncode, b.stdout, b.stderr))
+
     def test_blocks_sdlc_config(self):
         self._block(".sdlc/x")
 

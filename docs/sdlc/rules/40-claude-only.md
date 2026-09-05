@@ -12,4 +12,6 @@ timestamp: 2026-09-02T00:00:00Z
 - Hooks in `.claude/hooks/` enforce rules 1, 3 and 4 as `PreToolUse` matchers on
   `Edit|Write|MultiEdit|Bash`, plus a `Stop` reminder for rule 5. They read
   `.sdlc/config.env` under `$CLAUDE_PROJECT_DIR`; a block is `exit 2` with the reason on stderr.
-- Subagents live in `.claude/agents/` with a named role and a bounded `tools:` list.
+- Subagents live in `.claude/agents/` with a named role and a bounded `tools:` list. Keep one writer per work item:
+  subagents read and return evidence, the session holding the plan makes every edit
+  (`knowledge/decisions/one-writer-until-ledger.md`, provisional, with an expiry).

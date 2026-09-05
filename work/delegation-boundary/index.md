@@ -7,8 +7,8 @@ timestamp: 2026-09-05T03:39:55Z
 ---
 # Decide whether a subagent may ever write code in this kit
 
-- [intent.md](intent.md) — status: in-review; approved-by: ; Two accepted-or-proposed spikes give opposite answers on delegating implementation; settle it before either is built.
-- [spec.md](spec.md) — status: in-review; approved-by: ; Requirements and design for the provisional answer: one writer per work item, subagents read-only, with an expiry and a named measurement, written once in knowledge/decisions and pointed at by both spikes, the roadmap and the rule fragments.
-- [plan.md](plan.md) — status: in-review; approved-by: ; Files, order, proof and risks for the one-writer-until-ledger decision record, the four pointer lines, the two rule sentences, the index entries and the identity-blindness test.
+- [intent.md](intent.md) — status: approved; approved-by: luissiviero; Two accepted-or-proposed spikes give opposite answers on delegating implementation; settle it before either is built.
+- [spec.md](spec.md) — status: approved; approved-by: luissiviero; Requirements and design for the provisional answer: one writer per work item, subagents read-only, with an expiry and a named measurement, written once in knowledge/decisions and pointed at by both spikes, the roadmap and the rule fragments.
+- [plan.md](plan.md) — status: approved; approved-by: luissiviero; Files, order, proof and risks for the one-writer-until-ledger decision record, the four pointer lines, the two rule sentences, the index entries and the identity-blindness test.
 
-Last gate: - 2026-09-05T03:39:55Z | plan.md | (none) -> in-review | claude | f9b1e9c | same
+Last gate: - 2026-09-05T03:50:00Z | plan.md | in-review -> approved | luissiviero | d535925 | approved from the GitHub web editor

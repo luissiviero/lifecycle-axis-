@@ -171,6 +171,22 @@ class EditBranch(unittest.TestCase):
             self.assertNotIn("unlock", r.stderr.lower())
 
 
+class ProtectApprovalsHook(unittest.TestCase):
+    """R-7 of work/delegation-boundary: the verdict depends on the tool call, never on who made it."""
+
+    def test_verdict_ignores_caller_identity_fields(self):
+        """The hook reads tool_name, tool_input, cwd and session_id and nothing about the caller, so a
+        subagent setting `status: approved` is refused exactly as the lead is
+        (knowledge/decisions/one-writer-until-ledger.md)."""
+        with fake_repo(**DRAFT_INTENT) as root:
+            plain = edit("work/foo/intent.md", "status: draft", "status: approved")
+            tagged = dict(plain, agent_name="implementer", subagent_type="implementer", parent_tool_use_id="toolu_01")
+            a = run_hook(HOOK, plain, root)
+            b = run_hook(HOOK, tagged, root)
+            self.assertEqual(a.returncode, 2, a.stderr)
+            self.assertEqual((a.returncode, a.stdout, a.stderr), (b.returncode, b.stdout, b.stderr))
+
+
 class BashBranch(unittest.TestCase):
     """R-3, R-4: the same act routed through a Bash command."""
 
