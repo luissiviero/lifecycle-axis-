@@ -4,10 +4,10 @@ id: band-detector
 title: The band detector cannot see the breach it exists for
 description: A zero-variance baseline never breaches, the baseline is the first N points forever, the PR series ignores --days, one Western Electric rule is missing, and the nightly job files a duplicate issue per night.
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude from the 2026-09-04 consensus list (item 6)
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 supersedes:
 record:
 resource: https://claude.ai/code/session_01Te8oN2GdvRupSixH4kjR8Y
