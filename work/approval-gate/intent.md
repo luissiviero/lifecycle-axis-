@@ -4,10 +4,10 @@ id: approval-gate
 title: Only a human can flip an artifact to approved
 description: No hook covers work/, so an agent can set status approved and approved-by itself or run approve.py with CLAUDECODE stripped, and the chain check does not catch a local agent; approval is a record, not a gate.
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude from the 2026-09-04 playbook comparison
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 supersedes:
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
