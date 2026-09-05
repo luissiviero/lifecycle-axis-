@@ -6,11 +6,12 @@ Two modes, chosen from the diff against --base:
                .sdlc/active when it now names <slug>), or there is no diff at all: the chain is
                checked as far as it exists. intent.md must exist; spec.md may exist only once
                intent.md is approved, plan.md only once spec.md is; every status is one of
-               draft | in-review | approved | superseded; approved-by only on approved or
-               superseded artifacts; log.md exists. This is what lets a work item be opened,
-               approved one stage per PR, activated, and finally superseded, as
-               docs/sdlc/README.md prescribes.
-  strict       anything else changed: the whole chain must be approved (the checks below).
+               draft | in-review | approved | delegated | superseded; approved-by only on
+               approved, delegated or superseded artifacts; log.md exists. This is what lets a
+               work item be opened, approved one stage per PR, activated, and finally
+               superseded, as docs/sdlc/README.md prescribes.
+  strict       anything else changed: the whole chain must be approved, or signed `delegated`
+               under a valid grant (the checks below).
 
 Checks, for the work item named by --slug (or .sdlc/active):
   1. intent.md, spec.md, plan.md exist and each has status: approved with an approved-by value
@@ -22,6 +23,13 @@ Checks, for the work item named by --slug (or .sdlc/active):
   3. Every changed file (vs --base) outside work/, docs/, evals/, monitoring/, knowledge/ matches
      a glob in plan.md's "## Files that change" list.
   4. Files under RELEASE_GATED_PATHS are listed in plan.md's "## Release-gated" section with a human owner.
+  5. Whenever any artifact is `delegated` -- an agent's signature rather than a human's approval --
+     the grant behind it holds (intent.md approved by a human, `mode: delegated`, a risk class the
+     policy delegates, a grant commit no agent authored), each signature is by an agent the policy
+     lists on an artifact the policy lists and is recorded in log.md, every re-signature has a
+     consensus record under work/<slug>/revisions/, and the item is under the deviation cap. The
+     policy is scripts/delegation.py's `.sdlc/delegation.yaml`; a missing one closes delegated mode
+     (work/delegated-mode R-4, R-5).
 Exit 0 on success, 1 on any failure. Output is meant to be pasted into a PR comment.
 
 Note: `--base HEAD` (the default when there is no `origin/main` to diff against, e.g. a local
@@ -37,7 +45,10 @@ ROOT = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=Tr
 # so a new case must appear in the approved plan's file list (security review, finding 4).
 EXEMPT = ("work/", "docs/", "monitoring/", "knowledge/", "CLAUDE.md", "REVIEW.md", "README.md")
 CHAIN = ("intent.md", "spec.md", "plan.md")
-STATUSES = ("draft", "in-review", "approved", "superseded")
+# `delegated` sits where an approval would: an agent signed it under a grant a human gave on
+# intent.md, which is why it is a word of its own rather than `approved` with an agent handle
+# (work/delegated-mode R-2, D-a).
+STATUSES = ("draft", "in-review", "approved", "delegated", "superseded")
 
 def _fm_value(raw):
     """Clean one front-matter value the way YAML reads it: a value that is only a comment is
@@ -105,6 +116,13 @@ def config():
 
 AGENT_EMAIL_PATTERNS = (r"@anthropic\.com$", r"\[bot\]@", r"^noreply@")
 
+# A revision record's reviewer sections and their verdicts (work/delegated-mode R-5, D4).
+# docs/sdlc/templates/revision.md writes `## Reviewer: <role> (<model>)`; a `###` heading is read
+# the same way, so a record that nests its reviewers under one `## Reviewers` heading still counts.
+REVIEWER_RE = re.compile(r"^#{2,3} +Reviewer\b")
+VERDICT_RE = re.compile(r"^\s*verdict:\s*(\S+)", re.IGNORECASE)
+REVISION_NOTE_RE = re.compile(r"^revision (\d+):")
+
 
 def is_agent_identity(author_name, author_email, av):
     """True when a commit author looks like an agent: a never-approve handle or an agent email."""
@@ -114,6 +132,208 @@ def is_agent_identity(author_name, author_email, av):
         return True
     email = (author_email or "").casefold()
     return any(re.search(p, email) for p in AGENT_EMAIL_PATTERNS)
+
+
+def _active_slug():
+    """The slug in .sdlc/active, or "" when the file is missing or empty."""
+    try:
+        with open(os.path.join(ROOT, ".sdlc", "active"), encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def _reviewer_verdicts(path):
+    """The verdict of each `## Reviewer:` section of a revision record, in file order.
+
+    A section with no `verdict:` line yields None, which counts as neither `revise` nor `keep`: an
+    unfinished record is too few reviewers, never a silent pass (work/delegated-mode R-5).
+    """
+    verdicts = []
+    inside = False
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            if REVIEWER_RE.match(line):
+                verdicts.append(None)
+                inside = True
+                continue
+            if line.startswith("#"):
+                inside = False
+                continue
+            m = VERDICT_RE.match(line)
+            if inside and m and verdicts[-1] is None:
+                verdicts[-1] = m.group(1).strip().casefold()
+    return verdicts
+
+
+def check_grant(slug, wd, policy, av, notes, errors):
+    """Validate the grant that every `delegated` signature in this item stands on.
+
+    A signature is worth exactly what the grant behind it is worth, so this runs in both modes as
+    soon as any artifact is `delegated` (work/delegated-mode R-4): intent.md is approved by a human
+    -- never `delegated` itself, or the agent would be signing the file that carries its own
+    permission (spec D-b) -- it says `mode: delegated`, its risk class is one the policy delegates,
+    and the commit that added `mode: delegated` is not an agent identity.
+    """
+    if not policy.exists:
+        errors.append(
+            f"work/{slug}: an artifact is 'delegated' but there is no delegation policy at "
+            f"{policy.path}; a signature with no policy behind it is nobody's decision"
+        )
+        return
+    if not policy.enabled:
+        errors.append(
+            f"work/{slug}: an artifact is 'delegated' but delegated mode is off in {policy.path}"
+        )
+        return
+    fm = front_matter(os.path.join(wd, "intent.md"))
+    if fm is None:
+        errors.append(f"work/{slug}/intent.md is missing; it is the file that carries the grant")
+        return
+    status = fm.get("status")
+    if status == "delegated":
+        errors.append(
+            f"work/{slug}/intent.md is 'delegated'; the intent carries the grant, so a human always "
+            f"signs it -- an agent never widens its own permission"
+        )
+    elif status != "approved":
+        errors.append(
+            f"work/{slug}/intent.md is '{status}', not 'approved': a delegated signature needs a "
+            f"human-approved intent behind it"
+        )
+    granted_by = fm.get("approved-by", "")
+    ok, reason = av.is_valid("intent.md", granted_by)
+    if not ok:
+        errors.append(
+            f"work/{slug}/intent.md approved-by '{granted_by}' cannot grant delegated mode: {reason}"
+        )
+    mode = fm.get("mode") or "supervised"
+    if mode != "delegated":
+        errors.append(
+            f"work/{slug}/intent.md has mode '{mode}', so this item is supervised; a human grants "
+            f"delegated mode on the intent before an agent signs anything"
+        )
+    ok, reason = policy.risk_ok(fm.get("risk-class", ""))
+    if not ok:
+        errors.append(f"work/{slug}/intent.md: {reason}")
+    # The grant is a human act, checked the way an approval is: `-G '^mode: delegated$'` finds the
+    # commit that added that exact line, and the HEAD guard keeps a commit that later removed it
+    # from being read as the grant. Not committed yet is a note, not a failure, as above.
+    rel = "/".join(("work", slug, "intent.md"))
+    head_text = subprocess.run(["git", "show", f"HEAD:{rel}"], capture_output=True, text=True, cwd=ROOT).stdout
+    who = ""
+    if front_matter_text(head_text).get("mode") == "delegated":
+        who = subprocess.run(
+            ["git", "log", "-n1", "--format=%an%x00%ae", "-G", "^mode: delegated$", "--", rel],
+            capture_output=True, text=True, cwd=ROOT,
+        ).stdout.strip()
+    if not who:
+        notes.append(f"work/{slug}/intent.md: grant not committed yet (author check skipped)")
+    else:
+        an, _, ae = who.partition("\x00")
+        if is_agent_identity(an, ae, av):
+            errors.append(
+                f"work/{slug}/intent.md: the commit that set mode: delegated is authored by an agent "
+                f"identity ({an} <{ae}>); a human grants delegated mode and commits"
+            )
+
+
+def check_signature(slug, name, fm, policy, entries, log_exists, errors):
+    """One `delegated` artifact: the policy lists it, the policy lists its signer, log.md records it.
+
+    No commit-author check and no approvers.yaml role here: this signature is the agent's own act,
+    and `.sdlc/approvers.yaml` lists `claude` under never-approve on purpose -- approving and
+    signing are different acts, judged by different files (spec gotchas, D-a).
+    """
+    import log_ledger  # main() put scripts/ on sys.path before calling this
+
+    signer = fm.get("approved-by", "")
+    ok, reason = policy.may_sign_artifact(name)
+    if not ok:
+        errors.append(f"work/{slug}/{name} is 'delegated' but {reason}")
+    ok, reason = policy.may_sign(signer)
+    if not ok:
+        errors.append(f"work/{slug}/{name} is signed by '{signer}', which may not sign: {reason}")
+        return
+    if not log_exists:
+        return
+    target = log_ledger.normalize(signer)
+    if any(log_ledger.normalize(e.actor) == target for e in log_ledger.signatures(entries, name)):
+        return
+    sha = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=ROOT,
+    ).stdout.strip()
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    line = log_ledger.render(
+        log_ledger.Entry(ts=ts, artifact=name, from_status="in-review", to_status="delegated",
+                         actor=signer, sha=sha, note="", lineno=0)
+    )
+    errors.append(f"work/{slug}/log.md has no entry recording {name} signed by '{signer}'; append: {line}")
+
+
+def check_revisions(slug, wd, name, policy, entries, errors):
+    """Every signature after the first is a recorded last resort (work/delegated-mode R-5, D4).
+
+    Re-signing means the agent changed a decision a signature or an approval already stood on, so
+    the ledger line names `revision <n>:` and work/<slug>/revisions/<n>.md carries the reviewers who
+    said `revise`. A `deviation:` line is not a re-decision -- it is an edit inside the approved
+    plan, bounded by the policy's cap -- so check_deviations counts it and this does not.
+    """
+    import log_ledger
+
+    sigs = log_ledger.signatures(entries, name)
+    resigns = [
+        e for i, e in enumerate(sigs)
+        if not e.note.strip().startswith("deviation:")
+        and (i > 0 or e.from_status in ("approved", "delegated"))
+    ]
+    if not resigns or policy.revisions == "free":
+        return
+    if policy.revisions == "never":
+        errors.append(
+            f"work/{slug}/{name} was signed again ({len(resigns)} time(s)) but {policy.path} says "
+            f"revisions: never; that decision is the owner's"
+        )
+        return
+    for e in resigns:
+        m = REVISION_NOTE_RE.match(e.note.strip())
+        if not m:
+            errors.append(
+                f"work/{slug}/log.md:{e.lineno}: re-signing {name} needs the note "
+                f"'revision <n>: <why>' naming a record in work/{slug}/revisions/"
+            )
+            continue
+        rel = f"work/{slug}/revisions/{m.group(1)}.md"
+        path = os.path.join(wd, "revisions", f"{m.group(1)}.md")
+        if not os.path.exists(path):
+            errors.append(
+                f"work/{slug}/log.md:{e.lineno} names revision {m.group(1)} but {rel} does not exist"
+            )
+            continue
+        verdicts = _reviewer_verdicts(path)
+        if "keep" in verdicts:
+            errors.append(
+                f"{rel}: a reviewer's verdict is 'keep'; a revision needs every reviewer to say "
+                f"'revise' -- otherwise stop and call the owner back"
+            )
+            continue
+        revise = verdicts.count("revise")
+        if revise < policy.min_reviewers:
+            errors.append(
+                f"{rel} has {revise} '## Reviewer:' section(s) with 'verdict: revise'; "
+                f"{policy.path} requires {policy.min_reviewers}"
+            )
+
+
+def check_deviations(slug, policy, entries, errors):
+    """Deviations are ledger lines noted `deviation:`; the policy caps how many an item may
+    accumulate before the plan itself has to be re-decided (work/delegated-mode R-5, D4)."""
+    devs = [e for e in entries if e.note.strip().startswith("deviation:")]
+    if len(devs) > policy.max_deviations:
+        errors.append(
+            f"work/{slug}/log.md records {len(devs)} deviation lines; {policy.path} allows "
+            f"{policy.max_deviations} -- re-plan instead of deviating again"
+        )
 
 
 def main():
@@ -126,7 +346,13 @@ def main():
         help="skip the approvers.yaml + log.md ledger checks (for early adopters without them)",
     )
     a = ap.parse_args()
-    slug = a.slug or open(os.path.join(ROOT, ".sdlc", "active")).read().strip()
+    slug = a.slug or _active_slug()
+    if not slug:
+        # Before anything else, and in one line: with no slug there is no item to check, which is a
+        # setup mistake rather than a broken chain (work/delegated-mode R-6).
+        print("  FAIL: no active work item (.sdlc/active is empty; pass --slug or set it)")
+        print("CHAIN: FAIL")
+        sys.exit(1)
     wd = os.path.join(ROOT, "work", slug)
     errors, notes = [], []
 
@@ -173,6 +399,33 @@ def main():
         )
 
     fms = {name: front_matter(os.path.join(wd, name)) for name in CHAIN}
+
+    # One `delegated` artifact anywhere in the item -- incident.md included, which the chain loop
+    # below does not walk -- puts the whole item under the delegation policy, in both modes
+    # (work/delegated-mode R-4). Nothing reads the policy until then, so a repository that never
+    # delegates needs no policy file at all.
+    delegated = {
+        name: fm
+        for name, fm in list(fms.items()) + [("incident.md", front_matter(os.path.join(wd, "incident.md")))]
+        if fm is not None and fm.get("status") == "delegated"
+    }
+    if delegated and not a.no_approvers:
+        import delegation  # lazy for the same reason as approvers above: it imports this module
+
+        try:
+            policy = delegation.load()
+        except ValueError as e:
+            policy = None
+            errors.append(f"malformed delegation policy: {e}")
+        if policy is not None:
+            check_grant(slug, wd, policy, av, notes, errors)
+            if not log_exists:
+                errors.append(f"work/{slug}/log.md is missing; every signature is recorded there")
+            for name, fm in delegated.items():
+                check_signature(slug, name, fm, policy, entries, log_exists, errors)
+                check_revisions(slug, wd, name, policy, entries, errors)
+            check_deviations(slug, policy, entries, errors)
+
     if in_progress and fms["intent.md"] is None:
         errors.append(f"work/{slug}/intent.md is missing; a work item starts with an intent")
     if in_progress and not a.no_approvers and not log_exists and any(fm is not None for fm in fms.values()):
@@ -193,23 +446,29 @@ def main():
                 prev_status = (fms[prev] or {}).get("status", "missing")
                 # 'superseded' counts like 'approved' here: it is what an approved artifact becomes when
                 # the item is retired, so a retired chain must stay checkable (work/batch-b-followups R-3).
-                if prev_status not in ("approved", "superseded"):
+                # 'delegated' counts too: under a grant it is what the previous stage's gate looks like
+                # (work/delegated-mode R-4); the grant itself is checked above.
+                if prev_status not in ("approved", "superseded", "delegated"):
                     errors.append(
                         f"work/{slug}/{name} exists but work/{slug}/{prev} is '{prev_status}', not "
-                        f"'approved' or 'superseded': one stage at a time -- a human approves each artifact "
-                        f"before the next is started"
+                        f"'approved', 'delegated' or 'superseded': one stage at a time -- each artifact "
+                        f"is signed off before the next is started"
                     )
-            if status == "approved" and not fm.get("approved-by"):
-                errors.append(f"work/{slug}/{name} is approved but has no approved-by")
-            # A superseded artifact keeps the approved-by it earned; a draft or in-review one has none.
-            if status not in ("approved", "superseded") and fm.get("approved-by"):
+            if status in ("approved", "delegated") and not fm.get("approved-by"):
+                errors.append(f"work/{slug}/{name} is {status} but has no approved-by")
+            # A superseded artifact keeps the approved-by it earned; a delegated one names the agent
+            # that signed it; a draft or in-review one has none.
+            if status not in ("approved", "delegated", "superseded") and fm.get("approved-by"):
                 errors.append(
                     f"work/{slug}/{name} has approved-by '{fm.get('approved-by')}' but status '{status}'; "
                     f"scripts/approve.py sets both together"
                 )
         else:
-            if status != "approved":
-                errors.append(f"work/{slug}/{name} status is '{status}', must be 'approved'")
+            if status not in ("approved", "delegated"):
+                errors.append(
+                    f"work/{slug}/{name} status is '{status}', must be 'approved'"
+                    f" (or 'delegated' under a valid grant)"
+                )
             if not fm.get("approved-by"):
                 errors.append(f"work/{slug}/{name} has no approved-by")
 

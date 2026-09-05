@@ -8,6 +8,11 @@ timestamp: 2026-09-05T01:38:56Z
 
 # Only a human can flip an artifact to approved
 
+> **Amended on 2026-09-05 by [`delegated-mode.md`](delegated-mode.md).** A second status word,
+> `delegated`, may be signed by an agent under a human's delegation grant on the intent;
+> `approved` stays exactly as this record decided — no hook, script or check ever lets an agent
+> write it.
+
 ## Context
 
 The artifact chain rests on `status: approved` and `approved-by` in `work/<slug>/{intent,spec,plan,incident}.md`.

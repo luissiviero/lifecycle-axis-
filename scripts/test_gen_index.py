@@ -81,7 +81,7 @@ GOLDEN_ZETA_INDEX = (
     "---\n"
     "type: sdlc/work-item\n"
     "id: zeta\n"
-    "title: Intent: zeta stands alone\n"
+    "title: \"Intent: zeta stands alone\"\n"
     "description: \n"
     "timestamp: 1970-01-01T00:00:00Z\n"
     "---\n"
@@ -229,6 +229,39 @@ class CheckMode(unittest.TestCase):
 
 
 class MissingArtifacts(unittest.TestCase):
+    def test_description_with_colon_is_quoted_and_round_trips(self):
+        # work/delegated-mode: an intent description holding `: ` was rendered as a plain scalar,
+        # which PyYAML reads as a nested mapping, so scripts/checks/front-matter.sh went red on the
+        # generated index. Quoted on the way out, read back unchanged by both readers.
+        desc = "Add a mode: the owner grants once, the agent signs the rest; see #40"
+        with tempfile.TemporaryDirectory() as root:
+            _write(
+                os.path.join(root, "work", "colon", "intent.md"),
+                textwrap.dedent(
+                    f"""\
+                    ---
+                    type: sdlc/intent
+                    id: colon
+                    title: Colon item
+                    description: "{desc}"
+                    status: draft
+                    ---
+                    # Intent: colon
+                    """
+                ),
+            )
+            rendered = gen_index.render_item_index(gen_index.build_item(root, "colon"))
+            self.assertIn(f'description: "{desc}"\n', rendered)
+            self.assertEqual(gen_index.cac.front_matter_text(rendered)["description"], desc)
+            try:
+                import yaml  # noqa: F401
+            except ImportError:
+                return
+            block = rendered.split("---\n")[1]
+            self.assertEqual(yaml.safe_load(block)["description"], desc)
+        for plain in ("Do the alpha thing", "a #1 priority", "x: y"):
+            self.assertEqual(gen_index._yaml_scalar(plain).startswith('"'), ": " in plain or " #" in plain)
+
     def test_missing_intent_falls_back_to_slug_title(self):
         with tempfile.TemporaryDirectory() as root:
             _write(
@@ -264,6 +297,48 @@ class MissingArtifacts(unittest.TestCase):
             self.assertEqual(item["timestamp"], gen_index.DEFAULT_TIMESTAMP)
             rendered = gen_index.render_item_index(item)
             self.assertIn("Last gate: —", rendered)
+
+
+class DelegatedStatus(unittest.TestCase):
+    """work/delegated-mode R-2: gen_index renders 'delegated' like any other status word --
+    no special-casing needed, but pinned here so a future refactor of render_item_index that
+    special-cases the status enum cannot silently drop it."""
+
+    def test_delegated_spec_renders_status_and_agent_handle(self):
+        with tempfile.TemporaryDirectory() as root:
+            _write(
+                os.path.join(root, "work", "signed", "intent.md"),
+                textwrap.dedent(
+                    """\
+                    ---
+                    type: sdlc/intent
+                    id: signed
+                    title: Signed item
+                    status: approved
+                    approved-by: luissiviero
+                    mode: delegated
+                    ---
+                    # Intent: signed
+                    """
+                ),
+            )
+            _write(
+                os.path.join(root, "work", "signed", "spec.md"),
+                textwrap.dedent(
+                    """\
+                    ---
+                    type: sdlc/spec
+                    id: signed
+                    status: delegated
+                    approved-by: claude
+                    ---
+                    # Spec: signed
+                    """
+                ),
+            )
+            item = gen_index.build_item(root, "signed")
+            rendered = gen_index.render_item_index(item)
+            self.assertIn("status: delegated; approved-by: claude", rendered)
 
 
 class UnicodeAndEscaping(unittest.TestCase):

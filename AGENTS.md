@@ -10,8 +10,10 @@ intent.md → spec.md → plan.md → diff + tests → PR + review findings → 
 
 Each work item lives in `work/<slug>/` and holds `intent.md`, `spec.md`, `plan.md`
 (and later `incident.md`). Every artifact has YAML front matter with `status`
-(`draft` | `in-review` | `approved` | `superseded`) and `approved-by`. Only a
-human sets `status: approved`; a hook refuses it from an agent. The active work item is named in `.sdlc/active`.
+(`draft` | `in-review` | `approved` | `delegated` | `superseded`) and `approved-by`. Only a
+human sets `status: approved`; a hook refuses it from an agent. An agent may set `delegated` only
+under a human's delegation grant on the intent (`.sdlc/delegation.yaml`). The active work item is
+named in `.sdlc/active`.
 
 ## Hard rules (enforced by hooks and CI, not by good intentions)
 1. No code edits under the paths in `.sdlc/config.env` (`PLAN_REQUIRED_PATHS`)
@@ -70,4 +72,6 @@ A mistake made twice becomes a file there and a pointer line here, in the same P
 - A plan bullet starts with the bare path, then ` — `; the empty deviation bullet is `- ` with a trailing space — knowledge/lessons/plan-bullets-start-with-the-path.md
 - The ledger's from/to slot holds `status` values only; log the build gate on the PR — knowledge/lessons/ledger-slot-holds-status-only.md
 - Send ledger lines to the owner in a fenced block, never as bullets; run `log_ledger.py` after the approval lands — knowledge/lessons/send-ledger-lines-in-a-fenced-block.md
+- `git add` every new file before `verify.sh`: the front-matter check reads `git ls-files`, and a colon in an unquoted value is what it catches — knowledge/lessons/stage-new-files-before-verify.md
+- A workflow's permissions block names every API surface its scripts touch, not only the one in mind when it was written — knowledge/lessons/workflow-permissions-name-every-api.md
 <!-- END GENERATED -->

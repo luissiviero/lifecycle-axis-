@@ -8,6 +8,10 @@ timestamp: 2026-09-05T04:48:42Z
 
 # CI is informational; the merge click is the gate
 
+> **Superseded for delegated items on 2026-09-05 by [`delegated-mode.md`](delegated-mode.md).** A
+> work item running under a delegation grant merges through a CI workflow, not a click; every
+> supervised pull request still merges exactly as this record describes.
+
 ## Context
 
 The playbook, `deploy.yml`, `.sdlc/environments.yaml` and the spike checklist in

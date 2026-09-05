@@ -9,7 +9,7 @@ timestamp: 2026-09-05T04:45:00Z
 # The ledger's from/to slot holds status values only
 
 ## What happened
-The `<from> -> <to>` slot of a `log.md` line holds `status` values (`draft | in-review | approved | superseded`),
+The `<from> -> <to>` slot of a `log.md` line holds `status` values (`draft | in-review | approved | delegated | superseded`),
 never a `stage` word. Two items logged the build gate as `plan.md | build -> in-review`, which a reader (and
 `scripts/log_ledger.py`) takes as an approved plan regressing to review.
 

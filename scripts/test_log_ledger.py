@@ -160,6 +160,43 @@ class RoundTrip(unittest.TestCase):
             self.assertEqual(log_ledger.render(entries[0]), line)
 
 
+class Signatures(unittest.TestCase):
+    """work/delegated-mode R-2: signatures() is the 'delegated' twin of approvals()."""
+
+    def test_filters_by_delegated_status_and_artifact(self):
+        content = HAPPY_PATH + (
+            "- 2026-01-01T03:00:00Z | spec.md | in-review -> delegated | claude | 1111111 | \n"
+            "- 2026-01-01T04:00:00Z | plan.md | in-review -> delegated | claude | 2222222 | \n"
+        )
+        with tempfile.TemporaryDirectory() as root:
+            path = _write(root, "log.md", content)
+            entries, malformed = log_ledger.parse(path)
+            self.assertEqual(malformed, [])
+            spec_sigs = log_ledger.signatures(entries, "spec.md")
+            self.assertEqual(len(spec_sigs), 1)
+            self.assertEqual(spec_sigs[0].to_status, "delegated")
+            self.assertEqual(spec_sigs[0].artifact, "spec.md")
+            self.assertEqual(spec_sigs[0].actor, "claude")
+            # intent.md reached 'approved' in the fixture, never 'delegated'
+            self.assertEqual(log_ledger.signatures(entries, "intent.md"), [])
+            # unknown artifact
+            self.assertEqual(log_ledger.signatures(entries, "incident.md"), [])
+
+    def test_does_not_confuse_approved_and_delegated(self):
+        content = (
+            "- 2026-01-01T00:00:00Z | spec.md | in-review -> approved | alice | abc1234\n"
+            "- 2026-01-01T01:00:00Z | plan.md | in-review -> delegated | claude | def5678\n"
+        )
+        with tempfile.TemporaryDirectory() as root:
+            path = _write(root, "log.md", content)
+            entries, malformed = log_ledger.parse(path)
+            self.assertEqual(malformed, [])
+            self.assertEqual(log_ledger.approvals(entries, "spec.md")[0].to_status, "approved")
+            self.assertEqual(log_ledger.signatures(entries, "spec.md"), [])
+            self.assertEqual(log_ledger.signatures(entries, "plan.md")[0].to_status, "delegated")
+            self.assertEqual(log_ledger.approvals(entries, "plan.md"), [])
+
+
 class RealLedgers(unittest.TestCase):
     def test_real_work_item_log_parses_with_zero_malformed(self):
         # The ledger is append-only and grows at every gate, so pin a floor, not an exact count.

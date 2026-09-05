@@ -229,7 +229,7 @@ class InProgressChain(unittest.TestCase):
             _commit(root, "bad status word")
             result = _run(root, "--slug", "new", "--base", "main")
             self.assertEqual(result.returncode, 1)
-            self.assertIn("must be one of draft, in-review, approved, superseded", result.stdout)
+            self.assertIn("must be one of draft, in-review, approved, delegated, superseded", result.stdout)
 
     def test_approved_by_on_a_draft_fails(self):
         with tempfile.TemporaryDirectory() as root:
@@ -482,6 +482,370 @@ class ApprovalAuthor(unittest.TestCase):
             result = _run(root, "--base", "HEAD")
             self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
             self.assertIn("authored by an agent identity (claude <noreply@anthropic.com>)", result.stdout)
+
+
+# --- work/delegated-mode R-4, R-5, R-6 ------------------------------------------------------
+# Written from spec.md's acceptance column before scripts/delegation.py and the chain-check
+# changes exist; every test below is expected to fail today and pass once they ship. See
+# NOTES.md for the assumptions this file bakes in (from_status on a "-> delegated" line is what
+# decides fresh-signature vs. re-sign; exact FAIL wording beyond what the spec pins down is
+# asserted loosely, by substring, not verbatim).
+
+HUMAN_NAME = "luissiviero"
+HUMAN_EMAIL = "69210737+luissiviero@users.noreply.github.com"
+AGENT_NAME = "Claude"
+AGENT_EMAIL = "noreply@anthropic.com"
+
+# Exactly spec.md design D1.
+DELEGATION_POLICY = """\
+enabled: true
+agents: [claude, claude[bot]]
+signable: [spec.md, plan.md, incident.md]
+risk-classes: [low]
+max-deviations: 5
+revisions: consensus
+min-reviewers: 2
+merge:
+  enabled: true
+  require-review: true
+  require-checks: [sdlc-gate, agent-evals, pr-review]
+  method: merge
+  cool-off-hours: 0
+locked-paths: [scripts/check_artifact_chain.py, scripts/approvers.py, scripts/log_ledger.py, scripts/approve.py, scripts/sign.py, scripts/delegation.py, scripts/delegated_merge.py, scripts/check_control_plane.sh, scripts/check_workflow_permissions.py, REVIEW.md, .claude-plugin]
+"""
+
+REVISION_TWO_REVIEWERS_REVISE = """\
+---
+type: sdlc/revision
+id: demo-revision-1
+title: Revise the spec
+artifact: spec.md
+trigger: blocking error found in review; evidence: scripts/run_tests.py:1 fake failure
+timestamp: 2026-09-05T02:00:00Z
+---
+## Proposal
+Change X because Y.
+
+## Reviewer: security (gpt-5)
+Findings noted.
+verdict: revise
+
+## Reviewer: architecture (gemini)
+Findings noted.
+verdict: revise
+"""
+
+REVISION_ONE_REVIEWER = """\
+---
+type: sdlc/revision
+id: demo-revision-1
+title: Revise the spec
+artifact: spec.md
+trigger: blocking error found in review
+timestamp: 2026-09-05T02:00:00Z
+---
+## Proposal
+Change X because Y.
+
+## Reviewer: security (gpt-5)
+Findings noted.
+verdict: revise
+"""
+
+REVISION_ONE_KEEP = """\
+---
+type: sdlc/revision
+id: demo-revision-1
+title: Revise the spec
+artifact: spec.md
+trigger: blocking error found in review
+timestamp: 2026-09-05T02:00:00Z
+---
+## Proposal
+Change X because Y.
+
+## Reviewer: security (gpt-5)
+Findings noted.
+verdict: revise
+
+## Reviewer: architecture (gemini)
+Disagrees; the plan is fine as is.
+verdict: keep
+"""
+
+
+def _write_delegation_policy(root, content=DELEGATION_POLICY):
+    _write(os.path.join(root, ".sdlc", "delegation.yaml"), content)
+
+
+def _commit_as(root, name, email, message):
+    _git(root, "add", "-A")
+    _git(root, "-c", f"user.email={email}", "-c", f"user.name={name}", "commit", "-q", "-m", message)
+
+
+def _grant_intent(approved_by=HUMAN_NAME, risk_class="low", mode="delegated",
+                   delegated_by=HUMAN_NAME, delegated_on="2026-09-05"):
+    """intent.md front matter carrying a delegated-mode grant (D2), still status: approved
+    with the same approved-by luissiviero already recorded and logged by _make_repo -- only
+    the grant fields are new, so the pre-existing 'status: approved' commit-authorship check
+    keeps pointing at _make_repo's original (non-agent) commit."""
+    return (
+        "---\n"
+        "status: approved\n"
+        f"approved-by: {approved_by}\n"
+        f"risk-class: {risk_class}\n"
+        f"mode: {mode}\n"
+        f"delegated-by: {delegated_by}\n"
+        f"delegated-on: {delegated_on}\n"
+        "---\n# artifact\n"
+    )
+
+
+def _apply_grant(root, wd, risk_class="low", mode="delegated", author=(HUMAN_NAME, HUMAN_EMAIL)):
+    """Write the grant onto work/<slug>/intent.md and commit it as `author` (name, email),
+    with a ledger line recording it, as spec.md D2 describes."""
+    _write(os.path.join(wd, "intent.md"), _grant_intent(risk_class=risk_class, mode=mode))
+    with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+        f.write(f"- 2026-09-05T00:00:00Z | intent.md | approved -> approved | {HUMAN_NAME} | abc1234 | mode: delegated\n")
+    _commit_as(root, author[0], author[1], "grant delegated mode")
+
+
+def _sign_delegated(root, wd, artifact="spec.md", handle="claude", from_status="in-review", note=""):
+    """Flip `artifact` to status: delegated, approved-by `handle`, committed by the agent
+    identity, with a matching '-> delegated' ledger line."""
+    content = _plan(handle, status="delegated") if artifact == "plan.md" else _artifact(handle, status="delegated")
+    _write(os.path.join(wd, artifact), content)
+    line = f"- 2026-09-05T01:00:00Z | {artifact} | {from_status} -> delegated | {handle} | abc1234"
+    if note:
+        line += f" | {note}"
+    with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+    _commit_as(root, AGENT_NAME, AGENT_EMAIL, f"sign {artifact} as {handle}")
+
+
+def _base_delegated_repo(root):
+    """demo, fully approved by _make_repo, then granted (human) and spec.md freshly signed
+    delegated by claude (in-review -> delegated, no revision record needed): the R-4 pass case."""
+    wd = _make_repo(root)
+    _write_delegation_policy(root)
+    _apply_grant(root, wd)
+    _sign_delegated(root, wd, artifact="spec.md", handle="claude", from_status="in-review")
+    return wd
+
+
+class DelegatedChain(unittest.TestCase):
+    """work/delegated-mode R-4 and R-5: the chain check accepts a delegated artifact only
+    when the policy, the grant and the ledger all agree, and requires a revision record for a
+    re-signature of an already-approved-or-delegated artifact."""
+
+    # --- R-4: the grant ---------------------------------------------------------------------
+
+    def test_valid_grant_and_fresh_signature_passes(self):
+        with tempfile.TemporaryDirectory() as root:
+            _base_delegated_repo(root)
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+
+    def test_signer_not_in_agents_fails_naming_the_signer(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _write_delegation_policy(root)
+            _apply_grant(root, wd)
+            _sign_delegated(root, wd, artifact="spec.md", handle="mallory", from_status="in-review")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+            self.assertIn("mallory", result.stdout)
+
+    def test_intent_itself_delegated_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _write_delegation_policy(root)
+            _apply_grant(root, wd)
+            _write(os.path.join(wd, "intent.md"), _artifact("claude", status="delegated"))
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-09-05T01:00:00Z | intent.md | approved -> delegated | claude | abc1234\n")
+            _commit_as(root, AGENT_NAME, AGENT_EMAIL, "bad: intent itself delegated")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+            self.assertIn("intent.md", result.stdout)
+
+    def test_no_delegated_ledger_line_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _write_delegation_policy(root)
+            _apply_grant(root, wd)
+            # spec.md's front matter says delegated, but no matching ledger line is appended.
+            _write(os.path.join(wd, "spec.md"), _artifact("claude", status="delegated"))
+            _commit_as(root, AGENT_NAME, AGENT_EMAIL, "sign spec.md with no ledger line")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+
+    def test_agent_authored_grant_commit_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _write_delegation_policy(root)
+            _apply_grant(root, wd, author=(AGENT_NAME, AGENT_EMAIL))
+            _sign_delegated(root, wd, artifact="spec.md", handle="claude", from_status="in-review")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+            self.assertIn("agent identity", result.stdout)
+
+    def test_risk_class_outside_policy_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _write_delegation_policy(root)
+            _apply_grant(root, wd, risk_class="medium")
+            _sign_delegated(root, wd, artifact="spec.md", handle="claude", from_status="in-review")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+            self.assertIn("medium", result.stdout)
+
+    def test_missing_policy_file_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            # No _write_delegation_policy(root) call: .sdlc/delegation.yaml is absent.
+            _apply_grant(root, wd)
+            _sign_delegated(root, wd, artifact="spec.md", handle="claude", from_status="in-review")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+            self.assertIn("delegation", result.stdout)
+
+    def test_artifact_only_diff_with_delegated_spec_and_no_grant_fails(self):
+        """R-4: the grant is checked in in-progress mode too, not only strict mode."""
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)  # unrelated 'demo' item, fully approved, on main
+            _write_delegation_policy(root)
+            # Committed on main *before* the branch, so the policy file itself is not part of the
+            # work/new branch's diff -- otherwise it would fail own_artifact() and force strict mode.
+            _commit(root, "add delegation policy")
+            _git(root, "checkout", "-q", "-b", "work/new")
+            wd = os.path.join(root, "work", "new")
+            _write(os.path.join(wd, "intent.md"), _artifact("", status="draft"))  # no grant at all
+            _write(os.path.join(wd, "spec.md"), _artifact("claude", status="delegated"))
+            log = (
+                "- 2026-09-05T00:00:00Z | intent.md | (none) -> draft | claude[bot] | abc1234 | drafted\n"
+                "- 2026-09-05T01:00:00Z | spec.md | draft -> delegated | claude | abc1234\n"
+            )
+            _write(os.path.join(wd, "log.md"), log)
+            _commit(root, "spec delegated with no grant on a fresh item")
+            result = _run(root, "--slug", "new", "--base", "main")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+            self.assertIn("mode: in-progress", result.stdout)
+
+    # --- R-5: the revision gate --------------------------------------------------------------
+
+    def test_resign_with_unanimous_revision_record_passes(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            _write(os.path.join(wd, "revisions", "1.md"), REVISION_TWO_REVIEWERS_REVISE)
+            _write(os.path.join(wd, "spec.md"), _artifact("claude", status="delegated"))
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-09-05T03:00:00Z | spec.md | delegated -> delegated | claude | abc1234 | revision 1: fixed X\n")
+            _commit_as(root, AGENT_NAME, AGENT_EMAIL, "revise spec per unanimous review")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+
+    def test_resign_with_one_reviewer_section_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            _write(os.path.join(wd, "revisions", "1.md"), REVISION_ONE_REVIEWER)
+            _write(os.path.join(wd, "spec.md"), _artifact("claude", status="delegated"))
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-09-05T03:00:00Z | spec.md | delegated -> delegated | claude | abc1234 | revision 1: fixed X\n")
+            _commit_as(root, AGENT_NAME, AGENT_EMAIL, "revise spec with only one reviewer")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+
+    def test_resign_with_a_keep_verdict_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            _write(os.path.join(wd, "revisions", "1.md"), REVISION_ONE_KEEP)
+            _write(os.path.join(wd, "spec.md"), _artifact("claude", status="delegated"))
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-09-05T03:00:00Z | spec.md | delegated -> delegated | claude | abc1234 | revision 1: fixed X\n")
+            _commit_as(root, AGENT_NAME, AGENT_EMAIL, "revise spec with a keep verdict")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+
+    def test_resign_with_no_revision_record_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            # No work/demo/revisions/1.md written at all.
+            _write(os.path.join(wd, "spec.md"), _artifact("claude", status="delegated"))
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-09-05T03:00:00Z | spec.md | delegated -> delegated | claude | abc1234 | revision 1: fixed X\n")
+            _commit_as(root, AGENT_NAME, AGENT_EMAIL, "revise spec with no record file")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+
+    # --- R-5: the deviation cap ---------------------------------------------------------------
+
+    def test_deviation_count_over_the_cap_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                for n in range(6):
+                    f.write(f"- 2026-09-05T{10 + n:02d}:00:00Z | plan.md | approved -> approved | claude | abc1234 | deviation: change {n}\n")
+            _commit(root, "six deviations, one over the cap of 5")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+
+    def test_deviation_count_at_the_cap_passes(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                for n in range(5):
+                    f.write(f"- 2026-09-05T{10 + n:02d}:00:00Z | plan.md | approved -> approved | claude | abc1234 | deviation: change {n}\n")
+            _commit(root, "five deviations, exactly the cap")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+
+
+class ActiveSlugRequired(unittest.TestCase):
+    """work/delegated-mode R-6: an empty or missing .sdlc/active with no --slug is one clear
+    failure line, not a cascade of "work//<artifact> is missing" errors."""
+
+    def test_empty_active_slug_is_one_clear_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _write(os.path.join(root, ".sdlc", "active"), "")
+            _commit(root, "blank .sdlc/active")
+            result = _run(root, "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            fail_lines = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
+            self.assertEqual(len(fail_lines), 1, result.stdout)
+            self.assertEqual(
+                fail_lines[0],
+                "  FAIL: no active work item (.sdlc/active is empty; pass --slug or set it)",
+            )
+
+    def test_missing_active_file_is_one_clear_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            os.remove(os.path.join(root, ".sdlc", "active"))
+            _commit(root, "remove .sdlc/active")
+            result = _run(root, "--base", "HEAD")
+            self.assertEqual(result.returncode, 1)
+            fail_lines = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
+            self.assertEqual(len(fail_lines), 1, result.stdout)
+            self.assertEqual(
+                fail_lines[0],
+                "  FAIL: no active work item (.sdlc/active is empty; pass --slug or set it)",
+            )
 
 
 if __name__ == "__main__":
