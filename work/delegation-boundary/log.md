@@ -14,3 +14,6 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 - 2026-09-05T03:39:55Z | intent.md | draft -> in-review | claude | f9b1e9c | the four answers proposed by the session and marked as such; the owner edits them before approving
 - 2026-09-05T03:39:55Z | spec.md | (none) -> in-review | claude | f9b1e9c | drafted from the approved 2026-09-04 implementation plan (WI-10) and consensus item 9; batched with intent and plan for the owner to approve from the GitHub web editor
 - 2026-09-05T03:39:55Z | plan.md | (none) -> in-review | claude | f9b1e9c | same
+- 2026-09-05T03:50:00Z | intent.md | in-review -> approved | luissiviero | d535925 | approved from the GitHub web editor; answers accepted or edited in place
+- 2026-09-05T03:50:00Z | spec.md | in-review -> approved | luissiviero | d535925 | approved from the GitHub web editor
+- 2026-09-05T03:50:00Z | plan.md | in-review -> approved | luissiviero | d535925 | approved from the GitHub web editor
