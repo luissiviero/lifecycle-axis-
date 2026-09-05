@@ -94,11 +94,11 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
 |---|---|---|---|
 | Nothing implemented without an accepted plan | rule 1, `/sdlc-plan`, plan mode | `require-plan.sh` blocks code edits unless `work/<active>/plan.md` is `approved` | approves plan |
 | Diff matches plan; deviations in the same commit | rule 2 | chain check fails PR on files outside "Files that change" | reads deviations log |
-| Agent never edits control plane or secrets | rule 3 | `protect-paths.sh`; CI rejects agent PRs touching hooks/workflows/.sdlc | applies via PR |
+| Agent never edits control plane or secrets | rule 3 | `protect-paths.sh` over `PROTECTED_PATHS` (hooks, workflows, `.sdlc`, `.gemini`, `.claude/settings.json`, `scripts/verify.sh`, the two runners, `scripts/checks/`); CI rejects agent PRs touching them | applies via PR |
 | Credentials never enter the diff | security-standards §1 | `block-secrets.sh` | — |
-| Agent cannot weaken the check on its own fix | Test play step 7 | `protect-tests.sh` when plan `kind: fix` | changes a wrong test |
+| Agent cannot weaken the check on its own fix | Test play step 7 | `protect-tests.sh` when plan `kind: fix`: an existing test file or eval case is locked, a new failing test is allowed | changes a wrong test |
 | Formatting never drifts | — | `post-edit-format.sh` (PostToolUse, one file) | — |
-| Verified before "done" | rule 5, CLAUDE.md verification block | Stop hook; CI runs `verify.sh` | reads the pasted line |
+| Verified before "done" | rule 5, CLAUDE.md verification block | Stop hook; CI runs `verify.sh`, which reports and fails a non-executable check (`VERIFY_ALLOW_SKIPPED_CHECKS=1` to tolerate); `run_evals.sh` prints a failing oracle's output | reads the pasted line |
 | Agent stops at the production gate | rule 4, environments.yaml | `production-gate.sh`: destructive → block; deploy → ask, or block when unattended, unless `.sdlc/release-authorizations/<sha>` or `RELEASE_APPROVAL=<sha>` | release manager |
 | Review has evidence, ≤5 nits, no self-approval | REVIEW.md, `/sdlc-review` | reviewer subagents have no write tools; branch protection | code owner |
 | Config that steers the agent is regression-tested | Test play | `agent-evals.yml` on every CLAUDE.md/skills/hooks change | config owner |

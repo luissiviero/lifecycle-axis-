@@ -128,5 +128,58 @@ class SwitchesAreEnvironmentOnly(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
 
 
+class LoopProtection(unittest.TestCase):
+    """work/loop-protection R-1, R-2, R-7: the verify loop is control plane, CODEOWNERS mirrors
+    PROTECTED_PATHS, and both settings files carry the same permissions."""
+
+    def _protected_paths(self):
+        for line in real_config().splitlines():
+            if line.startswith("PROTECTED_PATHS="):
+                return line.split("=", 1)[1].strip().strip('"').split()
+        self.fail("PROTECTED_PATHS not in .sdlc/config.env")
+
+    def test_settings_json_is_protected(self):
+        self.assertIn(".claude/settings.json", self._protected_paths())
+        with fake_repo() as root:
+            r = run_hook("protect-paths.sh", write(".claude/settings.json"), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn(".claude/settings.json", r.stderr)
+            r = run_hook("protect-paths.sh", bash("cat > .claude/settings.json <<'EOF'\n{}\nEOF"), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            for p in ("scripts/verify.sh", "scripts/run_tests.py", "scripts/run_evals.sh", "scripts/checks/x.sh"):
+                r = run_hook("protect-paths.sh", write(p), root)
+                self.assertEqual(r.returncode, 2, (p, r.stderr))
+            # scripts/ itself is product code here, plan-gated rather than protected.
+            r = run_hook("protect-paths.sh", write("scripts/other.py"), root)
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_codeowners_mirrors_protected_paths(self):
+        with open(os.path.join(REAL_ROOT, ".github", "CODEOWNERS"), encoding="utf-8") as f:
+            owned = [l.split()[0] for l in f if l.startswith("/")]
+        for p in self._protected_paths():
+            self.assertTrue(
+                any(o in ("/" + p, "/" + p + "/") for o in owned),
+                f"{p} (PROTECTED_PATHS) has no owner line in .github/CODEOWNERS",
+            )
+        self.assertIn("/.gemini/", owned)
+
+    def test_settings_files_carry_permissions_and_differ_only_by_env(self):
+        import json
+        with open(os.path.join(REAL_ROOT, ".claude", "settings.json"), encoding="utf-8") as f:
+            kit = json.load(f)
+        with open(os.path.join(REAL_ROOT, "docs", "sdlc", "templates", "claude-settings.json"), encoding="utf-8") as f:
+            template = json.load(f)
+        self.assertEqual(kit["permissions"], template["permissions"])
+        self.assertEqual(kit["env"], {"SDLC_CONTROL_PLANE_UNLOCK": "1"})
+        self.assertNotIn("env", template)
+        self.assertEqual({k: v for k, v in kit.items() if k != "env"}, template)
+        deny, allow = template["permissions"]["deny"], template["permissions"]["allow"]
+        for rule in ("WebFetch", "Bash(curl *)", "Bash(wget *)", "Read(./.env)", "Read(~/.ssh/**)"):
+            self.assertIn(rule, deny)
+        for rule in ("Bash(scripts/verify.sh)", "Bash(python3 scripts/run_tests.py*)", "Bash(git status*)"):
+            self.assertIn(rule, allow)
+        self.assertNotIn("Bash(git *)", allow)  # spec D4: pushes and commits still prompt
+
+
 if __name__ == "__main__":
     unittest.main()

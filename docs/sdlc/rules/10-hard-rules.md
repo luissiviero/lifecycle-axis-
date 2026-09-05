@@ -13,7 +13,8 @@ timestamp: 2026-09-02T00:00:00Z
    also locks test files: reproduce the bug as a failing test first, then fix the code.
 2. If implementation deviates from `plan.md`, update `plan.md` in the same commit.
    CI fails a PR whose diff touches files not listed in the plan.
-3. Never edit `.claude/hooks/`, `.gemini/`, `.github/workflows/`, `.sdlc/`, or secret
+3. Never edit `.claude/hooks/`, `.gemini/`, `.github/workflows/`, `.sdlc/`, `.claude/settings.json`,
+   `scripts/verify.sh`, `scripts/run_tests.py`, `scripts/run_evals.sh`, `scripts/checks/`, or secret
    files. Propose the change in the PR description instead.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.

@@ -16,7 +16,7 @@ check_plan_required() { # check_plan_required <repo-relative canonical path> <wh
   [ -z "$SLUG" ] && block "'$R' needs an approved plan$where, but no active work item is set. Run /sdlc-intent, or ask a human to set .sdlc/active."
   PLAN="$ROOT/work/$SLUG/plan.md"
   [ -f "$PLAN" ] || block "'$R' needs an approved plan$where, but work/$SLUG/plan.md does not exist. Run /sdlc-plan first."
-  STATUS="$(awk '/^---$/{c++; next} c==1 && /^status:/{sub(/^status:[ \t]*/,""); print; exit}' "$PLAN")"
+  STATUS="$(fm_value "$PLAN" status)"   # comment, quotes, capitals and CRLF stripped (_lib.sh)
   [ "$STATUS" = "approved" ] || block "'$R' needs an approved plan$where: work/$SLUG/plan.md has status '$STATUS', not 'approved'. A human must approve the plan before implementation starts."
 }
 

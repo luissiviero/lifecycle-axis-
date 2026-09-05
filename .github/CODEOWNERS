@@ -14,6 +14,12 @@
 /.claude/hooks/ @luissiviero
 /.github/workflows/ @luissiviero
 /.sdlc/ @luissiviero
+/.gemini/ @luissiviero
+/.claude/settings.json @luissiviero
+/scripts/verify.sh @luissiviero
+/scripts/run_tests.py @luissiviero
+/scripts/run_evals.sh @luissiviero
+/scripts/checks/ @luissiviero
 
 # RELEASE_GATED_PATHS in .sdlc/config.env: paths that always need a named
 # human approver in the PR per REVIEW.md.
