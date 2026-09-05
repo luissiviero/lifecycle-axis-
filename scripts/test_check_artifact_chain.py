@@ -279,6 +279,26 @@ class InProgressChain(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn("mode: in-progress", result.stdout)
 
+    def test_fully_superseded_chain_passes(self):
+        """Retiring a whole item: all three artifacts go approved -> superseded with their approved-by
+        kept and a ledger line each. The stage-order rule accepts a superseded predecessor, or an item
+        could be opened and approved but never retired (work/batch-b-followups R-3; PR #38)."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)  # 'demo' fully approved on main
+            _git(root, "checkout", "-q", "-b", "work/demo")
+            for name in ("intent.md", "spec.md", "plan.md"):
+                body = _plan("luissiviero", status="superseded") if name == "plan.md" \
+                    else _artifact("luissiviero", status="superseded")
+                _write(os.path.join(wd, name), body)
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                for name in ("intent.md", "spec.md", "plan.md"):
+                    f.write("- 2026-01-02T00:00:00Z | %s | approved -> superseded | luissiviero | abc1234 | retired\n" % name)
+            _commit(root, "retire the whole item")
+            result = _run(root, "--slug", "demo", "--base", "main")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("mode: in-progress", result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+
     def test_superseded_with_an_invalid_approver_fails(self):
         with tempfile.TemporaryDirectory() as root:
             wd = _make_repo(root)

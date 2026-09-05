@@ -69,4 +69,6 @@ timestamp: 2026-09-05T05:25:00Z
 - Revert the PR's commits and the owner's `approvers.yaml` commit; the three defects return as documented in the intent.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- 2026-09-05 — step 1: `git log -1 --format=%h -- .claude/skills` prints `c420e3c`, not `60ab0f5`. WI-11 changed `.claude/skills/sdlc-incident/SKILL.md` between the drafting of this spec and its approval; the `skills-version` in `spec.md` records the drafting value and is left as history.
+- 2026-09-05 — step 1: the reproduction command `check_artifact_chain.py --base 2190c0c --slug sdlc-kit-phase-1` no longer reproduces the defect on this branch. The branch's diff spans two work items, so `in_progress` is false and the check reports the full-mode rule instead (`status is 'superseded', must be 'approved'`). That rule is correct and stays: a retired plan must not authorize a code diff. The defect R-3 fixes lives only in the in-progress stage-order rule.
+- 2026-09-05 — step 3: the R-3 field oracle of record is therefore PR #38's exact head, checked in a detached worktree with the fixed script: `check_artifact_chain.py --base 2190c0c --slug sdlc-kit-phase-1` on `ef2db87` goes from `CHAIN: FAIL` (two stage-order lines) to `CHAIN: PASS`, in-progress mode. `test_fully_superseded_chain_passes` is the committed reproduction: red before the fix with the same message, green after.
