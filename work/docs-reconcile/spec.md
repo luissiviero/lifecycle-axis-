@@ -100,12 +100,18 @@ new Markdown file. The renderer (`gen_context_files.py`) picks the new fragment 
 - One-off, not committed: for each `docs/**/*.md` and `knowledge/**/*.md` on the branch, if the file is not edited
   by this item, set `timestamp:` to `git log -1 --format=%cI -- <file>` converted to UTC `Z`; if it is edited, set
   it to the edit instant. `work/**` is untouched (the ledger is its record).
-- Oracle (kept in the spec, not the repo):
+- Oracle (kept in the spec, not the repo). "Last change" means the last commit that changed a line other than
+  `timestamp:` itself; otherwise the pass that sets a timestamp to the commit date would move that date, and every
+  untouched file would read stale by construction (found in implementation; the plan's Deviations log has it):
   ```
-  for f in $(git ls-files 'docs/**/*.md' 'knowledge/**/*.md'); do
-    ts=$(sed -n 's/^timestamp:[[:space:]]*//p' "$f" | head -1); c=$(git log -1 --format=%cI -- "$f")
-    python3 -c 'import sys,datetime as d; a,b=[d.datetime.fromisoformat(x.replace("Z","+00:00")) for x in sys.argv[1:]]; sys.exit(abs((a-b).total_seconds())>86400)' "$ts" "$c" || echo "STALE $f $ts $c"
-  done | tee /dev/stderr | grep -c STALE | sed 's/^/TIMESTAMPS: stale=/'
+  n=0; for f in $(git ls-files 'docs/**/*.md' 'knowledge/**/*.md' 'docs/*.md' 'knowledge/*.md' | sort -u); do
+    ts=$(sed -n 's/^timestamp:[[:space:]]*//p' "$f" | head -1); [ -z "$ts" ] && continue
+    c=""; for sha in $(git log --format=%H -- "$f"); do
+      if git show --format= "$sha" -- "$f" | grep -E '^[-+]' | grep -vE '^(\+\+\+|---) |^[-+]timestamp:' | grep -q .; then c=$(git show -s --format=%cI "$sha"); break; fi
+    done
+    [ -z "$c" ] && c=$(git log -1 --format=%cI -- "$f")
+    python3 -c 'import sys,datetime as d; a,b=[d.datetime.fromisoformat(x.replace("Z","+00:00")) for x in sys.argv[1:]]; sys.exit(abs((a-b).total_seconds())>86400)' "$ts" "$c" || { echo "STALE $f $ts $c"; n=$((n+1)); }
+  done; echo "TIMESTAMPS: stale=$n"
   ```
   The expected last line is `TIMESTAMPS: stale=0`.
 - Index oracle: for each `knowledge/*/`, the set of non-index `.md` files in the directory (`ls`) equals the set of
