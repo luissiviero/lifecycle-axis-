@@ -4,10 +4,10 @@ id: delegation-boundary
 title: Decide whether a subagent may ever write code in this kit
 description: Two accepted-or-proposed spikes give opposite answers on delegating implementation; settle it before either is built.
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 supersedes:
 record:
 resource: https://github.com/luissiviero/lifecycle-axis-/pull/15
