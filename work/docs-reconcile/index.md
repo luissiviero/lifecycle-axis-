@@ -11,4 +11,4 @@ timestamp: 2026-09-05T04:25:00Z
 - [spec.md](spec.md) — status: approved; approved-by: luissiviero; Requirements and design for the twelve stale sentences, the strict front-matter check, honest OKF timestamps, the lessons move into knowledge/lessons/, the roadmap done marks and the .gitattributes text rule.
 - [plan.md](plan.md) — status: approved; approved-by: luissiviero; Files, order, proof and risks for the twelve rewrites, the front-matter checker and its wrapper, the timestamp pass, the eight lesson files and their fragment, the roadmap marks and the .gitattributes rule.
 
-Last gate: - 2026-09-05T04:30:00Z | plan.md | in-review -> approved | luissiviero | (web editor) | approved from the GitHub web editor
+Last gate: - 2026-09-05T04:55:00Z | PR #37 | draft -> in-review | claude | c420e3c | implementation of steps 1-8 complete (plan.md stays approved); six deviations recorded in plan.md; needs control-plane-approved (scripts/checks/front-matter.sh, .sdlc/active)
