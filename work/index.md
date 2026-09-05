@@ -2,7 +2,7 @@
 type: sdlc/index
 title: Work items
 description: Generated index of every work/<slug> item; run scripts/gen_index.py to refresh.
-timestamp: 2026-09-05T05:25:00Z
+timestamp: 2026-09-05T11:28:24Z
 ---
 # Work items
 
@@ -16,6 +16,7 @@ timestamp: 2026-09-05T05:25:00Z
 | [bash-guard-hardening](bash-guard-hardening/index.md) | The Bash write guard silently allows deletes, glued commands, stderr redirects and two-step cd into the control plane | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [batch-b-followups](batch-b-followups/index.md) | Close the three leftovers Batch B surfaced | plan | approved | approved | approved | PR #39 -> in-review by claude |
 | [control-plane-visibility](control-plane-visibility/index.md) | Hook decisions must be logged; the control-plane unlock must be visible; CI must recognise the kit's own agent PRs | plan | approved | approved | approved | plan.md -> in-review by claude |
+| [delegated-mode](delegated-mode/index.md) | A second way to run a work item, where I approve the start and the AI signs the rest under its own name | plan | in-review | in-review | in-review | plan.md -> in-review by claude |
 | [delegation-boundary](delegation-boundary/index.md) | Decide whether a subagent may ever write code in this kit | plan | approved | approved | approved | PR #36 -> in-review by claude |
 | [deploy-gate](deploy-gate/index.md) | The deploy path fails open; every route to production must fail closed on a named human | plan | approved | approved | approved | PR #27 -> in-review by claude |
 | [docs-reconcile](docs-reconcile/index.md) | The docs say what the code does | plan | approved | approved | approved | PR #37 -> in-review by claude |
