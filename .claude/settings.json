@@ -9,7 +9,9 @@
     ],
     "allow": [
       "Bash(scripts/verify.sh)", "Bash(python3 scripts/run_tests.py*)", "Bash(scripts/run_evals.sh*)",
-      "Bash(python3 scripts/check_artifact_chain.py*)", "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)"
+      "Bash(python3 scripts/check_artifact_chain.py*)", "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)",
+      "Bash(python3 scripts/sign.py*)", "Bash(gh pr ready*)", "Bash(gh pr comment*)", "Bash(gh pr create*)",
+      "Bash(git push -u origin claude/*)"
     ]
   },
   "hooks": {

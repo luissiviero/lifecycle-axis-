@@ -16,3 +16,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 - 2026-09-05T11:41:56Z | intent.md | in-review -> approved | luissiviero | 9b06825 | approved from the GitHub web editor; the four answers accepted unchanged
 - 2026-09-05T11:43:11Z | spec.md | in-review -> approved | luissiviero | ab2a93c | approved from the GitHub web editor
 - 2026-09-05T11:44:32Z | plan.md | in-review -> approved | luissiviero | 570636d | approved from the GitHub web editor
+- 2026-09-05T12:13:00Z | PR #42 | draft -> in-review | claude | b42b0cf | pull request 1a (the delegated status, its policy file, the chain check, 46 tests) ready for the owner; two deviations in plan.md; merged by the owner as fce28c0
