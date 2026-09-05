@@ -649,6 +649,26 @@ class AdoptScript(unittest.TestCase):
         self.assertEqual([(e.artifact, e.to_status, e.actor) for e in entries],
                          [(n, "in-review", "adopt.sh") for n in ("intent.md", "spec.md", "plan.md")])
 
+    def test_delegation_grant_fields_blanked_and_policy_not_shipped(self):
+        """work/delegated-mode R-3: adopt.sh blanks delegated-by/delegated-on on the copied
+        example the same way it blanks approved-by/approved-on, but does not itself ship
+        .sdlc/delegation.yaml -- an adopter turns delegated mode on by copying the template
+        by hand (docs/sdlc/github-setup.md), the same way they replace the approver handle."""
+        s = self.s["default"]
+        self.assertEqual(s.first.returncode, 0, s.first.stderr)
+        intent_text = _read(os.path.join(s.target, "work", "_example", "intent.md"))
+        self.assertIn("\nmode: supervised\n", intent_text)
+        self.assertIn("\ndelegated-by:\n", intent_text)
+        self.assertIn("\ndelegated-on:\n", intent_text)
+        self.assertFalse(
+            os.path.exists(os.path.join(s.target, ".sdlc", "delegation.yaml")),
+            "adopt.sh should not ship an enabled delegation policy into a fresh target",
+        )
+        self.assertTrue(
+            os.path.exists(os.path.join(s.target, "docs", "sdlc", "templates", "delegation.yaml")),
+            "the template must still be copied so an adopter can turn delegated mode on by hand",
+        )
+
     def test_approve_works_from_a_plain_shell(self):
         s = self.s["approve"]
         self.assertEqual(s.first.returncode, 0, s.first.stderr)

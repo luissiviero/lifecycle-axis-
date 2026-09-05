@@ -299,6 +299,48 @@ class MissingArtifacts(unittest.TestCase):
             self.assertIn("Last gate: —", rendered)
 
 
+class DelegatedStatus(unittest.TestCase):
+    """work/delegated-mode R-2: gen_index renders 'delegated' like any other status word --
+    no special-casing needed, but pinned here so a future refactor of render_item_index that
+    special-cases the status enum cannot silently drop it."""
+
+    def test_delegated_spec_renders_status_and_agent_handle(self):
+        with tempfile.TemporaryDirectory() as root:
+            _write(
+                os.path.join(root, "work", "signed", "intent.md"),
+                textwrap.dedent(
+                    """\
+                    ---
+                    type: sdlc/intent
+                    id: signed
+                    title: Signed item
+                    status: approved
+                    approved-by: luissiviero
+                    mode: delegated
+                    ---
+                    # Intent: signed
+                    """
+                ),
+            )
+            _write(
+                os.path.join(root, "work", "signed", "spec.md"),
+                textwrap.dedent(
+                    """\
+                    ---
+                    type: sdlc/spec
+                    id: signed
+                    status: delegated
+                    approved-by: claude
+                    ---
+                    # Spec: signed
+                    """
+                ),
+            )
+            item = gen_index.build_item(root, "signed")
+            rendered = gen_index.render_item_index(item)
+            self.assertIn("status: delegated; approved-by: claude", rendered)
+
+
 class UnicodeAndEscaping(unittest.TestCase):
     def test_unicode_title_survives(self):
         with tempfile.TemporaryDirectory() as root:
