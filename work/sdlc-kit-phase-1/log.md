@@ -18,3 +18,6 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>` (
 - 2026-09-02T23:00:00Z | intent.md | in-review -> approved | luissiviero | c2ad1b3 | approved from the GitHub web editor
 - 2026-09-02T23:00:00Z | spec.md | in-review -> approved | luissiviero | c2ad1b3 | approved from the GitHub web editor
 - 2026-09-02T23:00:00Z | plan.md | in-review -> approved | luissiviero | c2ad1b3 | approved from the GitHub web editor
+- 2026-09-05T05:30:00Z | intent.md | approved -> superseded | luissiviero | (web editor) | retired: every deliverable landed as its own work item, WI-1 to WI-11 (docs/sdlc/handoff/PLAN.md)
+- 2026-09-05T05:30:00Z | spec.md | approved -> superseded | luissiviero | (web editor) | retired with the intent
+- 2026-09-05T05:30:00Z | plan.md | approved -> superseded | luissiviero | (web editor) | retired with the intent
