@@ -4,11 +4,11 @@ id: band-detector
 title: The band detector cannot see the breach it exists for
 description: Files, order, proof and risks for the trailing-baseline four-rule detector, the honest GitHub metrics, the bands.yaml-driven workflow with issue deduplication, and the docs that match.
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 risk-class: low
 record:
 resource: https://claude.ai/code/session_01Te8oN2GdvRupSixH4kjR8Y
