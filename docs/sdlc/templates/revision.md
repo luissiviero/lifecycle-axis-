@@ -4,7 +4,7 @@ id: <slug>-revision-<n>
 title: <title>
 description: <one sentence>
 artifact: plan.md
-trigger: <the error or finding that blocks the plan, with evidence: command, output, file:line>
+trigger: "<the error or finding that blocks the plan, with evidence: command, output, file:line>"
 timestamp: 2026-09-04T22:38:45Z
 ---
 # Revision <n>: <title>
