@@ -92,7 +92,7 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
 
 | Behaviour | Advisory | Deterministic | Human |
 |---|---|---|---|
-| Nothing implemented without an accepted plan | rule 1, `/sdlc-plan`, plan mode | `require-plan.sh` blocks code edits unless `work/<active>/plan.md` is `approved` | approves plan |
+| Nothing implemented without an accepted plan | rule 1, `/sdlc-plan`, plan mode | `require-plan.sh` blocks code edits unless `work/<active>/plan.md` is `approved` by a handle holding the plan's role in `.sdlc/approvers.yaml` | approves plan |
 | Diff matches plan; deviations in the same commit | rule 2 | chain check fails PR on files outside "Files that change" | reads deviations log |
 | Agent never edits control plane or secrets | rule 3 | `protect-paths.sh` over `PROTECTED_PATHS` (hooks, workflows, `.sdlc`, `.gemini`, `.claude/settings.json`, `scripts/verify.sh`, the two runners, `scripts/checks/`); CI rejects agent PRs touching them | applies via PR |
 | Credentials never enter the diff | security-standards §1 | `block-secrets.sh` | — |
@@ -104,7 +104,7 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
 | Config that steers the agent is regression-tested | Test play | `agent-evals.yml` on every CLAUDE.md/skills/hooks change | config owner |
 | Mistake twice → memory | rule 7, REVIEW.md Memory pass | — | reviewer insists |
 | Detection stays deterministic; tier bounds the agent | — | `detect_bands.py` + `bands.yaml` tools/routes | service owner triages |
-| `approved-by` is a real human role, backed by a ledger entry | rule 8, `docs/sdlc/rules/30-conventions.md` | `check_artifact_chain.py` validates against `.sdlc/approvers.yaml` and requires a matching `work/<slug>/log.md` entry | approver named in the file |
+| `approved-by` is a real human role, backed by a ledger entry | rule 8, `docs/sdlc/rules/30-conventions.md` | `protect-approvals.sh` refuses an agent-side `status: approved|superseded`, `approved-by`, `approved-on` or `approve.py` call (no unlock); `check_artifact_chain.py` validates against `.sdlc/approvers.yaml` and requires a matching `work/<slug>/log.md` entry | approver named in the file |
 | Control-plane diff on an agent PR needs explicit human sign-off | rule 3 | CI blocks any agent-authored PR (head branch in `AGENT_BRANCH_PREFIXES`, a Bot author, or a Claude commit trailer) touching `PROTECTED_PATHS`; a human applying `control-plane-approved` is the only exemption | applies the label after reading the diff |
 | Context files stay one source, never hand-drift | CLAUDE.md play | `context-drift.sh` fails `verify.sh` when `CLAUDE.md`/`GEMINI.md`/`AGENTS.md` don't match `docs/sdlc/rules/*.md` | edits a fragment, not the generated file |
 | Workflows stay read-only and unprivileged | — | `workflow-permissions.sh`: every workflow declares `permissions:`, none grants `contents: write` outside an empty allowlist, none uses `pull_request_target` | reviews workflow diffs |

@@ -21,4 +21,5 @@ decisions land here as their task ships; this index is regenerated to add each o
 - [The kit repo does not wire its own hooks](self-enforcement-off.md) — superseded by self-hooks-on.md the same day; kept for the record
 - [CI is informational; the merge click is the gate](merge-click-is-the-gate.md) — private repo on the GitHub Free plan: no branch protection, rulesets or environment rules; the owner reads the checks and clicks, or tells the agent to
 - [The kit repo wires its own hooks, with the control-plane unlock](self-hooks-on.md) — .claude/settings.json restored with SDLC_CONTROL_PLANE_UNLOCK=1; the unlock covers Edit/Write too; require-plan and protect-tests gain a Bash branch
+- [Only a human can flip an artifact to approved](human-only-approvals.md) — protect-approvals.sh refuses agent-side approval edits and approve.py calls, the unlock never applies; require-plan.sh checks the approver's role
 - [Gemini CLI runs the same hook scripts through .gemini/settings.json](gemini-hooks.md) — BeforeTool/AfterAgent wiring, release gate fails closed under Gemini, hooks handle Windows drive-letter paths and refuse to run without jq

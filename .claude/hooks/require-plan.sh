@@ -18,6 +18,10 @@ check_plan_required() { # check_plan_required <repo-relative canonical path> <wh
   [ -f "$PLAN" ] || block "'$R' needs an approved plan$where, but work/$SLUG/plan.md does not exist. Run /sdlc-plan first."
   STATUS="$(fm_value "$PLAN" status)"   # comment, quotes, capitals and CRLF stripped (_lib.sh)
   [ "$STATUS" = "approved" ] || block "'$R' needs an approved plan$where: work/$SLUG/plan.md has status '$STATUS', not 'approved'. A human must approve the plan before implementation starts."
+  # work/approval-gate R-6: the approver must hold the plan's role (artifacts.plan.md in the approvers
+  # file) and not sit in never-approve; a missing approvers file fails closed (approver_has_role, _lib.sh).
+  BY="$(fm_value "$PLAN" approved-by)"; ROLE="$(artifact_role plan.md)"; ROLE="${ROLE:-tech-lead}"
+  approver_has_role "$BY" "$ROLE" || block "'$R' needs an approved plan$where: work/$SLUG/plan.md says approved-by '$BY', who is not a $ROLE in ${APPROVERS_FILE:-.sdlc/approvers.yaml} (or the file is missing). A listed human must approve with scripts/approve.py."
 }
 
 if [ -n "$FILE" ]; then

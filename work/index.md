@@ -9,6 +9,7 @@ timestamp: 2026-09-04T21:53:54Z
 | slug | title | stage | intent | spec | plan | last gate |
 |---|---|---|---|---|---|---|
 | [_example](_example/index.md) | Example work item | plan | approved | approved | approved | plan.md -> approved by luissiviero |
+| [approval-gate](approval-gate/index.md) | Only a human can flip an artifact to approved | plan | approved | approved | approved | PR #25 -> in-review by claude |
 | [bash-guard-hardening](bash-guard-hardening/index.md) | The Bash write guard silently allows deletes, glued commands, stderr redirects and two-step cd into the control plane | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [control-plane-visibility](control-plane-visibility/index.md) | Hook decisions must be logged; the control-plane unlock must be visible; CI must recognise the kit's own agent PRs | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [delegation-boundary](delegation-boundary/index.md) | Decide whether a subagent may ever write code in this kit | intent | draft | — | — | intent.md -> draft by claude[bot] |
