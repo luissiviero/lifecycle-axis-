@@ -15,3 +15,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>` (
 - 2026-09-05T02:15:00Z | intent.md | in-review -> approved | luissiviero | 91e3202 | approved from the GitHub web editor
 - 2026-09-05T02:15:00Z | spec.md | in-review -> approved | luissiviero | 91e3202 | approved from the GitHub web editor
 - 2026-09-05T02:15:00Z | plan.md | in-review -> approved | luissiviero | 91e3202 | approved from the GitHub web editor
+- 2026-09-05T02:40:00Z | PR #31 | draft -> in-review | claude | af0254f | implementation of steps 1-9 complete (plan.md stays approved); three deviations recorded in plan.md; needs control-plane-approved (bands workflow, .sdlc/active)
