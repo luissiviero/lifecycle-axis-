@@ -11,4 +11,4 @@ timestamp: 2026-09-02T18:00:00Z
 - [spec.md](spec.md) — status: superseded; approved-by: luissiviero; Requirements and design for turning the scaffold into a plugin-distributed kit with an OKF knowledge layer and model-neutral gates.
 - [plan.md](plan.md) — status: superseded; approved-by: luissiviero; Files, order of work, proof and risks for the phase-1 kit build; detailed task specs live in spec.md.
 
-Last gate: - 2026-09-02T23:00:00Z | plan.md | in-review -> approved | luissiviero | c2ad1b3 | approved from the GitHub web editor
+Last gate: - 2026-09-05T05:30:00Z | plan.md | approved -> superseded | luissiviero | (web editor) | retired with the intent
