@@ -16,6 +16,7 @@ permissions:
   contents: read
   issues: write
   actions: read
+  pull-requests: read
 
 jobs:
   # 0) Configure: one source of truth. scripts/bands_config.py (stdlib) prints the GitHub-sourced
