@@ -10,7 +10,7 @@
 # enabled: the master switch. false or absent turns every may_* query in scripts/delegation.py
 # False, closes the delegated branch in protect-approvals.sh and require-plan.sh, and makes
 # check_artifact_chain.py reject any status: delegated artifact outright.
-enabled: true
+enabled: false
 
 # agents: handles that may hold approved-by on a delegated artifact. Never list a human handle
 # here; scripts/sign.py refuses to run for a handle outside this list, and the hook checks every
