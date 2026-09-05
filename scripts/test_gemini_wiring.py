@@ -77,7 +77,7 @@ class GeminiSettings(unittest.TestCase):
                 for matcher, h in self._entries("BeforeTool")
                 if re.fullmatch(matcher, tool)
             }
-            for required in ("protect-paths.sh", "block-secrets.sh", "require-plan.sh", "protect-tests.sh"):
+            for required in ("protect-paths.sh", "block-secrets.sh", "require-plan.sh", "protect-tests.sh", "protect-approvals.sh"):
                 self.assertIn(required, scripts, f"{tool} misses {required}")
             if tool == "run_shell_command":
                 self.assertIn("production-gate.sh", scripts)

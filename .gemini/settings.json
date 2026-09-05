@@ -8,7 +8,8 @@
           { "name": "sdlc-protect-paths", "type": "command", "command": "bash .claude/hooks/protect-paths.sh" },
           { "name": "sdlc-block-secrets", "type": "command", "command": "bash .claude/hooks/block-secrets.sh" },
           { "name": "sdlc-require-plan", "type": "command", "command": "bash .claude/hooks/require-plan.sh" },
-          { "name": "sdlc-protect-tests", "type": "command", "command": "bash .claude/hooks/protect-tests.sh" }
+          { "name": "sdlc-protect-tests", "type": "command", "command": "bash .claude/hooks/protect-tests.sh" },
+          { "name": "sdlc-protect-approvals", "type": "command", "command": "bash .claude/hooks/protect-approvals.sh" }
         ]
       },
       {

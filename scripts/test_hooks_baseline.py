@@ -134,6 +134,37 @@ class RequirePlanHook(unittest.TestCase):
             result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    # work/approval-gate R-6: an approved plan counts only when approved-by holds the plan's role
+    # (artifacts.plan.md in .sdlc/approvers.yaml, tech-lead here) and is not in never-approve.
+    def test_blocks_when_plan_approved_by_claude(self):
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\napproved-by: claude\n---\n"}) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("approved-by 'claude'", result.stderr)
+            self.assertIn("tech-lead", result.stderr)
+
+    def test_blocks_when_plan_approved_by_unlisted_handle(self):
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\napproved-by: someone-else\n---\n"}) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("someone-else", result.stderr)
+
+    def test_blocks_when_approvers_file_missing(self):
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\n---\n"}) as root:
+            os.remove(os.path.join(root, ".sdlc", "approvers.yaml"))
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("approvers.yaml", result.stderr)
+
+    def test_allows_quoted_handle_with_at_and_capitals(self):
+        with fake_repo(**{"work/foo/plan.md": '---\nstatus: approved\napproved-by: "@LuisSiviero"\n---\n'}) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_status_with_trailing_comment_is_read(self):
         """work/loop-protection R-6: require-plan.sh reads status: through fm_value."""
         plan = "---\nstatus: approved   # set by scripts/approve.py\napproved-by: luissiviero\n---\n"

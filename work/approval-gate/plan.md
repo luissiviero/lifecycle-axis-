@@ -40,6 +40,7 @@ timestamp: 2026-09-04T21:49:27Z
 - work/approval-gate/index.md — regenerated
 - work/approval-gate/log.md — gate entries
 - work/approval-gate/plan.md — deviations log
+- .sdlc/active — set to `approval-gate` by the session after merging main (deviation 1)
 
 ## Release-gated
 (none)
@@ -72,4 +73,8 @@ timestamp: 2026-09-04T21:49:27Z
 - Revert the PR; remove the three settings entries first if a session is wedged, then restart it. Nothing outside this repo changes.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- `.sdlc/active` was set to `approval-gate` by the session, not by `approve.py --activate`: the owner approves from a phone through the GitHub web editor, which cannot run the script. The file is added to `## Files that change` above (same practice as `deploy-gate`).
+- Step 4's "second shell" was one atomic Bash call: copy the original aside, apply the edit, `bash -n`, run the full `scripts/run_tests.py` (443 tests), and restore the original on any failure. The hook stayed live for every later tool call.
+- `scripts/run_tests.py -p a -p b` runs only the last pattern, so the per-module checks in steps 4 and 5 were run one module per call; the full suite covers them all.
+- `scripts/test_protect_approvals.py` has 17 cases, not 14: the spec's list plus a `CLAUDECODE=` reassignment (R-3 names it), `approve.py` with `BASH_WRITE_GUARD=0` (spec D4), and a draft heredoc that never mentions approval (allow). The `superseded` Write case anchors its replacement at line start because `templates/intent.md` carries a commented `# status: draft | ...` line above the real field.
+- Wiring is read at session start (spec, Risks), so this session ran to the end on the old hook set; the first check in the next session is the plan's manual proof (an Edit to `status: approved` is refused).

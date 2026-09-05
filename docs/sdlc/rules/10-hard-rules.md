@@ -15,7 +15,8 @@ timestamp: 2026-09-02T00:00:00Z
    CI fails a PR whose diff touches files not listed in the plan.
 3. Never edit `.claude/hooks/`, `.gemini/`, `.github/workflows/`, `.sdlc/`, `.claude/settings.json`,
    `scripts/verify.sh`, `scripts/run_tests.py`, `scripts/run_evals.sh`, `scripts/checks/`, or secret
-   files. Propose the change in the PR description instead.
+   files. Propose the change in the PR description instead. Never set `status: approved`, `approved-by` or
+   `approved-on` on a chain artifact and never run `scripts/approve.py`: `protect-approvals.sh` refuses both.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.

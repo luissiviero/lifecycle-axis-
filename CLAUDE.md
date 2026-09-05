@@ -11,7 +11,7 @@ intent.md → spec.md → plan.md → diff + tests → PR + review findings → 
 Each work item lives in `work/<slug>/` and holds `intent.md`, `spec.md`, `plan.md`
 (and later `incident.md`). Every artifact has YAML front matter with `status`
 (`draft` | `in-review` | `approved` | `superseded`) and `approved-by`. Only a
-human sets `status: approved`. The active work item is named in `.sdlc/active`.
+human sets `status: approved`; a hook refuses it from an agent. The active work item is named in `.sdlc/active`.
 
 ## Hard rules (enforced by hooks and CI, not by good intentions)
 1. No code edits under the paths in `.sdlc/config.env` (`PLAN_REQUIRED_PATHS`)
@@ -21,7 +21,8 @@ human sets `status: approved`. The active work item is named in `.sdlc/active`.
    CI fails a PR whose diff touches files not listed in the plan.
 3. Never edit `.claude/hooks/`, `.gemini/`, `.github/workflows/`, `.sdlc/`, `.claude/settings.json`,
    `scripts/verify.sh`, `scripts/run_tests.py`, `scripts/run_evals.sh`, `scripts/checks/`, or secret
-   files. Propose the change in the PR description instead.
+   files. Propose the change in the PR description instead. Never set `status: approved`, `approved-by` or
+   `approved-on` on a chain artifact and never run `scripts/approve.py`: `protect-approvals.sh` refuses both.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.

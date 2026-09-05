@@ -19,4 +19,4 @@ intent.md → spec.md → plan.md → diff + tests → PR + review findings → 
 Each work item lives in `work/<slug>/` and holds `intent.md`, `spec.md`, `plan.md`
 (and later `incident.md`). Every artifact has YAML front matter with `status`
 (`draft` | `in-review` | `approved` | `superseded`) and `approved-by`. Only a
-human sets `status: approved`. The active work item is named in `.sdlc/active`.
+human sets `status: approved`; a hook refuses it from an agent. The active work item is named in `.sdlc/active`.

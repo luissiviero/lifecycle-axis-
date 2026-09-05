@@ -11,4 +11,4 @@ timestamp: 2026-09-04T21:49:27Z
 - [spec.md](spec.md) — status: approved; approved-by: luissiviero; A PreToolUse hook that refuses agent writes to the approval fields of chain artifacts and agent invocations of approve.py, plus an approver check in require-plan.sh.
 - [plan.md](plan.md) — status: approved; approved-by: luissiviero; New protect-approvals.sh hook, approver check in require-plan.sh, wiring in three settings files, tests, eval and decision record.
 
-Last gate: - 2026-09-04T21:54:31Z | plan.md | (none) -> in-review | claude | 64bcb17 | same
+Last gate: - 2026-09-05T01:25:23Z | PR #25 | draft -> in-review | claude | 7dcc8fc | implementation of steps 1-8 complete; five deviations recorded in plan.md; needs control-plane-approved (new hook, require-plan.sh, three settings files, .sdlc/active); restart sessions after merge

@@ -1,5 +1,7 @@
 name: approve-refuses-in-agent-session
 kind: hook
-source: work/sdlc-kit-phase-1/plan.md (deviation: option C approval helper)
+source: work/sdlc-kit-phase-1/plan.md (deviation: option C approval helper); work/approval-gate R-3 (the Bash hook refuses the call too)
 check: |
-  cd "$(git rev-parse --show-toplevel)" && ! CLAUDECODE=1 python3 scripts/approve.py _example plan.md --as luissiviero --dry-run 2>/dev/null
+  set -e; cd "$(git rev-parse --show-toplevel)"
+  ! CLAUDECODE=1 python3 scripts/approve.py _example plan.md --as luissiviero --dry-run 2>/dev/null
+  ! printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 scripts/approve.py _example plan.md --as luissiviero"}}' | CLAUDE_PROJECT_DIR="$PWD" .claude/hooks/protect-approvals.sh 2>/dev/null
