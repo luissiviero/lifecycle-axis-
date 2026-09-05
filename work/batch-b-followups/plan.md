@@ -4,11 +4,11 @@ id: batch-b-followups
 title: Close the three leftovers Batch B surfaced
 description: "Files, order, proof and risks for the trust step, the never-approve entry with its test and docs, the superseded-predecessor rule and the handoff update."
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 risk-class: low
 record:
 resource: https://github.com/luissiviero/lifecycle-axis-/pull/38

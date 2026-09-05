@@ -4,10 +4,10 @@ id: batch-b-followups
 title: Close the three leftovers Batch B surfaced
 description: "Requirements and design for the sdlc-gate trust step, the never-approve entry for the adopter placeholder with its test and docs, the superseded-predecessor rule in the chain check, and the handoff state update."
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Drafted from the intent, the follow-up notes on pull requests 37 and 38, agent-evals.yml lines 42-57, check_artifact_chain.py lines 181-198, test_check_artifact_chain.py InProgressChain, test_adopt.py test_handle_rewritten and approvers.py; reviewed by the orchestrator."

@@ -13,3 +13,6 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 - 2026-09-05T05:25:00Z | intent.md | (none) -> in-review | claude | be5c5a8 | drafted from the follow-ups recorded on PRs #37 and #38 after the owner asked for both fixes; two proposed answers for the owner to edit
 - 2026-09-05T05:25:00Z | spec.md | (none) -> in-review | claude | be5c5a8 | three requirements with separate oracles plus the handoff update; batched with intent and plan for the owner to approve from the GitHub web editor
 - 2026-09-05T05:25:00Z | plan.md | (none) -> in-review | claude | be5c5a8 | same; step 5 is the owner's own edit of .sdlc/approvers.yaml on the branch
+- 2026-09-05T05:40:00Z | intent.md | in-review -> approved | luissiviero | (web editor) | approved from the GitHub web editor; answers accepted or edited in place
+- 2026-09-05T05:40:00Z | spec.md | in-review -> approved | luissiviero | (web editor) | approved from the GitHub web editor
+- 2026-09-05T05:40:00Z | plan.md | in-review -> approved | luissiviero | (web editor) | approved from the GitHub web editor
