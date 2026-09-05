@@ -4,10 +4,10 @@ id: band-detector
 title: The band detector cannot see the breach it exists for
 description: Requirements and design for a trailing-baseline, four-rule Western Electric detector, honest GitHub metrics, a bands.yaml-driven workflow that deduplicates its issues, and docs that match.
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Transcribed from the approved 2026-09-04 implementation plan (docs/sdlc/handoff/PLAN.md on branch claude/session-handoff), section WI-7, with the detector redesign prototyped against the existing tests before writing; reviewed by the orchestrator."
