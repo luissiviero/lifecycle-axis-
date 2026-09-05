@@ -4,10 +4,10 @@ id: docs-reconcile
 title: The docs say what the code does
 description: "Requirements and design for the twelve stale sentences, the strict front-matter check, honest OKF timestamps, the lessons move into knowledge/lessons/, the roadmap done marks and the .gitattributes text rule."
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Drafted from the intent, the approved 2026-09-04 implementation plan section WI-11 (docs/sdlc/handoff/PLAN.md), consensus items 10 and 11, and a read-only survey by the explorer subagent of every B12 row and every WI-11 line citation against the code on main (2223bc5), with file:line evidence for each verdict; reviewed by the orchestrator."
