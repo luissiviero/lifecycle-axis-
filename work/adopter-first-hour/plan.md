@@ -4,11 +4,11 @@ id: adopter-first-hour
 title: A fresh install of the kit breaks in the first hour; the adopter path must work end to end
 description: Files, order, proof and risks for the adopt.sh fixes: copy list, settings merge, red placeholder, placeholder handle, in-review example with an explicit file list, seeded context file, minimal knowledge indexes, --force preservation, --help, and the GitHub-side checklist.
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 risk-class: low
 record:
 resource: https://claude.ai/code/session_01Te8oN2GdvRupSixH4kjR8Y
