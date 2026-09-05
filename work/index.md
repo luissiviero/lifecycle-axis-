@@ -14,7 +14,7 @@ timestamp: 2026-09-05T05:25:00Z
 | [approval-gate](approval-gate/index.md) | Only a human can flip an artifact to approved | plan | approved | approved | approved | PR #25 -> in-review by claude |
 | [band-detector](band-detector/index.md) | The band detector cannot see the breach it exists for | plan | approved | approved | approved | PR #31 -> in-review by claude |
 | [bash-guard-hardening](bash-guard-hardening/index.md) | The Bash write guard silently allows deletes, glued commands, stderr redirects and two-step cd into the control plane | plan | approved | approved | approved | plan.md -> in-review by claude |
-| [batch-b-followups](batch-b-followups/index.md) | Close the three leftovers Batch B surfaced | plan | in-review | in-review | in-review | plan.md -> in-review by claude |
+| [batch-b-followups](batch-b-followups/index.md) | Close the three leftovers Batch B surfaced | plan | approved | approved | approved | plan.md -> approved by luissiviero |
 | [control-plane-visibility](control-plane-visibility/index.md) | Hook decisions must be logged; the control-plane unlock must be visible; CI must recognise the kit's own agent PRs | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [delegation-boundary](delegation-boundary/index.md) | Decide whether a subagent may ever write code in this kit | plan | approved | approved | approved | PR #36 -> in-review by claude |
 | [deploy-gate](deploy-gate/index.md) | The deploy path fails open; every route to production must fail closed on a named human | plan | approved | approved | approved | PR #27 -> in-review by claude |
