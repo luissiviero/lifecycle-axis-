@@ -153,10 +153,12 @@ list of paths from this repo (`KIT`, resolved via `git -C "$(dirname "$0")" rev-
   once the target's remote CI runs; locally, nothing stops an agent from editing `.sdlc/` in a
   hooks-less adoption. `README.md` and `docs/sdlc/README.md` §3 should point new adopters at
   `--with-hooks` as the default recommendation, per `plugin-distribution.md`'s consequences.
-- **A placeholder handle satisfies every role until edited** (`work/adopter-first-hour` spec C1). The
-  chain check's commit-author test still refuses an agent-authored approval, and the brackets make a
-  forgotten replacement obvious in any review; a `never-approve` entry for the placeholder is noted for
-  `docs-reconcile`.
+- **A placeholder handle cannot approve** (`work/adopter-first-hour` spec C1, closed by
+  `work/batch-b-followups` R-2). `scripts/approvers.py` refuses any handle matching `<...>`, so a fresh
+  target approves nothing until step 1 of `github-setup.md` is done. The check is structural rather than a
+  `never-approve` entry on purpose: that entry would hold the same literal the adopter is told to
+  find-and-replace, so their real handle would land in `never-approve` and lock them out of their own
+  repository. The chain check's commit-author test still refuses an agent-authored approval.
 
 ## Links
 
