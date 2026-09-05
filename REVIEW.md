@@ -28,6 +28,10 @@ Generated files (see `GENERATED_PATHS` in `.sdlc/config.env`) and anything CI al
 [Nit][bugs] src/api/users.ts:10 — rename `d` to `deadline`.
 Chain: <last line of scripts/check_artifact_chain.py>   Verify: <last line of scripts/verify.sh>
 Human approver required: yes/no (RELEASE_GATED_PATHS touched: ...)
+Important: <n> | Nits: <m>
 ```
+The delegated-merge workflow reads this last line from the `claude[bot]` review comment and merges a delegated
+pull request only when it reads `Important: 0`.
+
 Findings never approve or block on their own. Branch protection requires a code owner; a change under
 `RELEASE_GATED_PATHS` requires the owner named in `plan.md`.

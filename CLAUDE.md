@@ -25,6 +25,8 @@ named in `.sdlc/active`.
    `scripts/verify.sh`, `scripts/run_tests.py`, `scripts/run_evals.sh`, `scripts/checks/`, or secret
    files. Propose the change in the PR description instead. Never set `status: approved`, `approved-by` or
    `approved-on` on a chain artifact and never run `scripts/approve.py`: `protect-approvals.sh` refuses both.
+   Under a grant (`mode: delegated` on an approved intent, policy in `.sdlc/delegation.yaml`) an agent may
+   sign `delegated` with `scripts/sign.py` under its own handle; `approved` stays a word only a human writes.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.
@@ -48,10 +50,11 @@ Run all of them before reporting a task complete and paste the last lines. If a 
 One stage at a time: write `intent.md`, then `spec.md`, then `plan.md`, then implement,
 then review, and file `incident.md` when something breaks. Templates for each artifact
 are in `docs/sdlc/templates/`. Do not start an artifact until a human has approved the
-previous one.
+previous one, or the agent has signed it under a delegation grant.
 
 ## Conventions
-- Branch: `work/<slug>`. PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
+- Branch: `work/<slug>` for a human; an agent session's branch carries a prefix from `AGENT_BRANCH_PREFIXES`
+  (`claude/`). PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
 - `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
@@ -61,6 +64,9 @@ previous one.
   `git config sdlc.approver <github-handle>`, or pass `--as <handle>`; it enforces intent → spec → plan order), or by
   editing the artifact plus `log.md` in the GitHub web editor; then commit as themselves. The script refuses to run
   inside an agent session; an agent asks for approval and waits. CI checks the approval commit's author.
+- When the intent has `mode: delegated`, the agent signs with `python3 scripts/sign.py <slug> <artifact>` under
+  its own handle; ledger lines read `-> delegated`, with `deviation:` and `revision <n>:` notes as the case may
+  be; re-signing an already-signed or approved artifact needs `--revision revisions/<n>.md`.
 
 ## Workflow entry points (skills)
 `/sdlc-intent` → `/sdlc-spec` → `/sdlc-plan` → implement → `/sdlc-review` → `/sdlc-incident`
@@ -70,6 +76,8 @@ previous one.
 - Subagents live in `.claude/agents/` with a named role and a bounded `tools:` list. Keep one writer per work item:
   subagents read and return evidence, the session holding the plan makes every edit
   (`knowledge/decisions/one-writer-until-ledger.md`, provisional, with an expiry).
+- `/sdlc-run` drives a delegated item end to end (grant to ready pull request); a plan revision is the last
+  resort and needs the consensus record.
 
 ## Lessons (one file each in knowledge/lessons/)
 A mistake made twice becomes a file there and a pointer line here, in the same PR; delete the pointer when a hook makes the mistake impossible.

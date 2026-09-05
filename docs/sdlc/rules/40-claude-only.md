@@ -5,7 +5,7 @@ description: Skill entry points, hook events and subagent location for Claude Co
 targets: [claude]
 order: 40
 tags: [rules, claude-code, skills, hooks]
-timestamp: 2026-09-05T04:00:24Z
+timestamp: 2026-09-05T20:00:00Z
 ---
 ## Workflow entry points (skills)
 `/sdlc-intent` → `/sdlc-spec` → `/sdlc-plan` → implement → `/sdlc-review` → `/sdlc-incident`
@@ -15,3 +15,5 @@ timestamp: 2026-09-05T04:00:24Z
 - Subagents live in `.claude/agents/` with a named role and a bounded `tools:` list. Keep one writer per work item:
   subagents read and return evidence, the session holding the plan makes every edit
   (`knowledge/decisions/one-writer-until-ledger.md`, provisional, with an expiry).
+- `/sdlc-run` drives a delegated item end to end (grant to ready pull request); a plan revision is the last
+  resort and needs the consensus record.

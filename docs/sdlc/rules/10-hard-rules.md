@@ -5,7 +5,7 @@ description: The eight hard rules; byte-identical in CLAUDE.md, GEMINI.md and AG
 targets: [claude, gemini, agents]
 order: 10
 tags: [rules, hooks, ci, enforcement]
-timestamp: 2026-09-05T01:26:09Z
+timestamp: 2026-09-05T20:00:00Z
 ---
 ## Hard rules (enforced by hooks and CI, not by good intentions)
 1. No code edits under the paths in `.sdlc/config.env` (`PLAN_REQUIRED_PATHS`)
@@ -17,6 +17,8 @@ timestamp: 2026-09-05T01:26:09Z
    `scripts/verify.sh`, `scripts/run_tests.py`, `scripts/run_evals.sh`, `scripts/checks/`, or secret
    files. Propose the change in the PR description instead. Never set `status: approved`, `approved-by` or
    `approved-on` on a chain artifact and never run `scripts/approve.py`: `protect-approvals.sh` refuses both.
+   Under a grant (`mode: delegated` on an approved intent, policy in `.sdlc/delegation.yaml`) an agent may
+   sign `delegated` with `scripts/sign.py` under its own handle; `approved` stays a word only a human writes.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.

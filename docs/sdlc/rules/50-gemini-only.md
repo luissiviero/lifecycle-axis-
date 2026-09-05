@@ -5,7 +5,7 @@ description: Where the hooks are wired for Gemini CLI, the first-run trust warni
 targets: [gemini]
 order: 50
 tags: [rules, gemini-cli, hooks, plan-mode]
-timestamp: 2026-09-05T04:00:24Z
+timestamp: 2026-09-05T20:00:00Z
 ---
 ## Gemini CLI notes
 - `.gemini/settings.json` wires the same scripts as Claude: `BeforeTool` on
@@ -21,5 +21,7 @@ timestamp: 2026-09-05T04:00:24Z
   `/sdlc-*` procedures are the SKILL.md files under `.claude/skills/`: read and follow them.
   Keep one writer per work item: subagents read and return evidence, the session holding the plan
   makes every edit (`knowledge/decisions/one-writer-until-ledger.md`, provisional, with an expiry).
+- `/sdlc-run` drives a delegated item end to end (grant to ready pull request), the same way: read and
+  follow `.claude/skills/sdlc-run/SKILL.md`; a plan revision is the last resort and needs the consensus record.
 - Antigravity (IDE and `agy`) reads this file but ignores `.gemini/settings.json`, so there
   the rules above are advisory only and `sdlc-gate` plus the merge click are the gates.
