@@ -42,6 +42,10 @@ timestamp: 2026-09-05T05:25:00Z
 ## Order of work (each step independently verifiable)
 1. Preconditions: `.sdlc/active` reads `batch-b-followups`; `python3 scripts/run_tests.py` green on the base (count noted); `python3 scripts/check_artifact_chain.py --base 2190c0c --slug sdlc-kit-phase-1` ends `CHAIN: FAIL` with the two stage-order lines (the defect reproduced); `git log -1 --format=%h -- .claude/skills` prints `60ab0f5`. A difference is recorded under Deviations before any edit.
 2. Test first: `test_fully_superseded_chain_passes` red; `test_handle_rewritten` flipped and red (the entry is not in the file yet).
+   This item is `kind: feature`, not `kind: fix`, although R-2 and R-3 correct defects: `kind: fix` makes
+   `protect-tests.sh` refuse every edit to an existing test file, and R-2 must flip an assertion inside
+   `scripts/test_adopt.py::test_handle_rewritten`. The test-first discipline the `fix` kind would enforce is
+   this step instead, and each red-then-green transition is recorded under Deviations.
 3. `check_artifact_chain.py` comparison and message (D3); `test_check_artifact_chain.py` green; the R-3 oracle prints `CHAIN: PASS`.
 4. `sdlc-gate.yml` trust step (D1); `scripts/checks/workflow-yaml.sh` and `workflow-permissions.sh` pass; additions-only oracle prints `0`.
 5. Owner: edit `.sdlc/approvers.yaml` line 26 on this branch from the web editor (link and exact text in the session's message); the session pulls and continues.

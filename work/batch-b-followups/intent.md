@@ -10,7 +10,7 @@ approved-by:
 approved-on:
 supersedes:
 record:
-resource: https://github.com/luissiviero/lifecycle-axis-/pull/38
+resource: https://github.com/luissiviero/lifecycle-axis-/pull/37
 tags: [followups, sdlc-gate, adopt, chain-check, control-plane]
 timestamp: 2026-09-05T05:25:00Z
 ---
@@ -18,7 +18,9 @@ timestamp: 2026-09-05T05:25:00Z
 
 ## Problem
 Three defects were found while finishing the 2026-09-04 plan, each recorded where it was found and each
-too small or too far outside its finder's approved plan to fix there:
+too small or too far outside its finder's approved plan to fix there. They have three different origins, so
+the front matter's single `resource:` link cannot carry them all: defect 1 was recorded on pull request 37,
+defect 2 in `work/adopter-first-hour` spec C1 and again on pull request 37, defect 3 on pull request 38.
 
 1. **The `sdlc-gate` triage step runs Claude untrusted.** Every failing run logs "Ignoring 7
    permissions.allow entries from .claude/settings.json: this workspace has not been trusted", so the
