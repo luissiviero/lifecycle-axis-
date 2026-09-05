@@ -4,6 +4,7 @@ id: <slug>
 title: <title>
 description: <one sentence>
 stage: design
+# status: draft | in-review | approved | delegated | superseded
 status: draft
 reads: intent.md
 # approved-by: product owner; tech lead consulted for medium/high risk; set only by a human

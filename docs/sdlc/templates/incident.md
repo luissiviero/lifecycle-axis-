@@ -4,6 +4,7 @@ id: <slug>-incident-<n>
 title: <title>
 description: <one sentence>
 stage: maintain
+# status: draft | in-review | approved | delegated | superseded
 status: draft
 # band-breached: <metric> @ <sigma>σ, or the ticket / channel / scan finding that raised it
 band-breached: <metric> @ <sigma>σ

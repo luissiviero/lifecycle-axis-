@@ -10,6 +10,7 @@ blank lines, comments) is ignored.
 Public API:
   parse(path) -> (entries: list[Entry], malformed: list[tuple[int, str]])
   approvals(entries, artifact) -> list[Entry]
+  signatures(entries, artifact) -> list[Entry]
   render(entry) -> str
   normalize(handle) -> str
 """
@@ -110,6 +111,12 @@ def parse(path):
 def approvals(entries, artifact):
     """Entries that transitioned `artifact` to status 'approved'."""
     return [e for e in entries if e.to_status == "approved" and e.artifact == artifact]
+
+
+def signatures(entries, artifact):
+    """Entries that transitioned `artifact` to status 'delegated' -- the agent's signature under a
+    grant, the twin of approvals() for the second gate word (work/delegated-mode R-2)."""
+    return [e for e in entries if e.to_status == "delegated" and e.artifact == artifact]
 
 
 def render(entry):

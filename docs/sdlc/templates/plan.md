@@ -4,7 +4,7 @@ id: <slug>
 title: <title>
 description: <one sentence>
 stage: build
-# status: draft | in-review | approved | superseded  (require-plan.sh refuses code edits until approved)
+# status: draft | in-review | approved | delegated | superseded  (require-plan.sh refuses code edits until approved)
 status: draft
 # kind: feature | fix  (fix: protect-tests.sh refuses edits to existing test files)
 kind: feature

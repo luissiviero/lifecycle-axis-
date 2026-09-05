@@ -229,7 +229,7 @@ class InProgressChain(unittest.TestCase):
             _commit(root, "bad status word")
             result = _run(root, "--slug", "new", "--base", "main")
             self.assertEqual(result.returncode, 1)
-            self.assertIn("must be one of draft, in-review, approved, superseded", result.stdout)
+            self.assertIn("must be one of draft, in-review, approved, delegated, superseded", result.stdout)
 
     def test_approved_by_on_a_draft_fails(self):
         with tempfile.TemporaryDirectory() as root:

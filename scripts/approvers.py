@@ -67,12 +67,14 @@ def _parse_value(raw):
     return _strip_quotes(raw)
 
 
-def _parse(text, path):
+def _parse(text, path, top_keys=TOP_KEYS):
     """Parse the two-level approvers shape into a plain dict.
 
     Raises ValueError naming a 1-based line number (as `<path>:<line>: ...`)
     on tab indentation, a line with no ':', an indent that isn't 0 or 2
-    spaces, or a top-level key outside TOP_KEYS.
+    spaces, or a top-level key outside `top_keys` -- this file's TOP_KEYS by
+    default, while scripts/delegation.py passes its own: the shape is shared,
+    the vocabulary is each file's own (work/delegated-mode D1).
     """
     result = {}
     current_key = None
@@ -90,7 +92,7 @@ def _parse(text, path):
             key, _, rest = line.partition(":")
             key = key.strip()
             rest = rest.strip()
-            if key not in TOP_KEYS:
+            if key not in top_keys:
                 raise ValueError(f"{path}:{i}: unknown top-level key '{key}'")
             current_key = key
             if rest:

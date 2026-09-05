@@ -8,6 +8,12 @@ status: approved
 author: repo maintainer
 approved-by: luissiviero
 approved-on: 2026-09-02
+# risk-class: low | medium | high; the grant below is valid only for classes the policy lists
+risk-class: low
+# mode: supervised | delegated; delegated-by and delegated-on are set only by a human, like approved-by
+mode: supervised
+delegated-by:
+delegated-on:
 supersedes:
 record:
 resource: docs/sdlc/README.md

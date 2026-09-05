@@ -527,7 +527,7 @@ def in_review(name):
             key = line.split(":", 1)[0]
             if key == "status":
                 line = "status: in-review"
-            elif key in ("approved-by", "approved-on"):
+            elif key in ("approved-by", "approved-on", "delegated-by", "delegated-on"):
                 line = key + ":"
         out.append(line)
     open(path, "w", encoding="utf-8").write("\n".join(out))
