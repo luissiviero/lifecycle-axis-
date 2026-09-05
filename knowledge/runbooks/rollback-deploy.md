@@ -10,7 +10,7 @@ timestamp: 2026-09-02T20:00:00Z
 
 Referenced by `monitoring/bands.yaml` (`ci_test_failure_rate` and `post_deploy_5xx_rate`, 3σ tier: `routes:
 [runbook:rollback-deploy]`) and by `.sdlc/environments.yaml` (`production.rollback: runbook:rollback-deploy`,
-"rehearsed in staging on a schedule"). See [`deploy-from-ci.md`](../decisions/deploy-from-ci.md) for why deploy and
+pre-approved; this runbook names both authorization routes). See [`deploy-from-ci.md`](../decisions/deploy-from-ci.md) for why deploy and
 rollback both run only from CI.
 
 ## Preconditions
