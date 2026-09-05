@@ -3,7 +3,7 @@ type: index
 title: Decisions
 description: Architecture and process decisions for the SDLC kit, one file per decision with accepted alternatives and consequences.
 tags: [okf, index, decisions]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-05T04:00:24Z
 ---
 
 # Decisions

@@ -16,7 +16,7 @@ prompt: <the prompt that produced this spec, or path to it>
 record:
 resource:
 tags: []
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-04T22:38:45Z
 ---
 # Spec: <title>
 

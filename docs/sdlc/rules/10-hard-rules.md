@@ -5,7 +5,7 @@ description: The eight hard rules; byte-identical in CLAUDE.md, GEMINI.md and AG
 targets: [claude, gemini, agents]
 order: 10
 tags: [rules, hooks, ci, enforcement]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-05T01:26:09Z
 ---
 ## Hard rules (enforced by hooks and CI, not by good intentions)
 1. No code edits under the paths in `.sdlc/config.env` (`PLAN_REQUIRED_PATHS`)

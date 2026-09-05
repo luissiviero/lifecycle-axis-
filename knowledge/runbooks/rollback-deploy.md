@@ -3,7 +3,7 @@ type: runbook
 title: Roll back a deploy
 description: The pre-approved rollback for a breached control band or a bad deploy — an agent may only propose it, a human runs it.
 tags: [runbook, deploy, rollback, production-gate]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-05T01:14:02Z
 ---
 
 # Roll back a deploy

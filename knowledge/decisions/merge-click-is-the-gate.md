@@ -1,9 +1,9 @@
 ---
 type: decision
 title: CI is informational; the merge click is the gate
-description: This private repository sits on the GitHub Free plan, where branch protection, rulesets and environment protection rules are unavailable (HTTP 403). The owner chose to keep it that way: every check still runs and reports on each PR, the control-plane job still blocks bot-authored control-plane diffs until a human labels them, and the merge itself is the human gate, clicked by the owner or performed by the agent on the owner's explicit instruction.
+description: "This private repository sits on the GitHub Free plan, where branch protection, rulesets and environment protection rules are unavailable (HTTP 403). The owner chose to keep it that way: every check still runs and reports on each PR, the control-plane job still blocks bot-authored control-plane diffs until a human labels them, and the merge itself is the human gate, clicked by the owner or performed by the agent on the owner's explicit instruction."
 tags: [github, branch-protection, governance, sdlc]
-timestamp: 2026-09-02T22:50:00Z
+timestamp: 2026-09-05T04:48:42Z
 ---
 
 # CI is informational; the merge click is the gate

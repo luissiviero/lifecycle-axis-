@@ -2,3 +2,8 @@
 # clone with core.autocrlf=true the hooks in .claude/hooks/ and the scripts/ tooling otherwise
 # arrive as CRLF and fail with "$'\r': command not found" (roadmap item 19e).
 *.sh text eol=lf
+# Text the generators and checkers compare byte-for-byte stays LF too (work/docs-reconcile R-8).
+*.md text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

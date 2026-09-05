@@ -4,7 +4,7 @@ title: One rule source renders CLAUDE.md, GEMINI.md and AGENTS.md
 description: Why the eight hard rules live in docs/sdlc/rules fragments and are generated into three context files instead of being maintained per model.
 resource: scripts/gen_context_files.py
 tags: [context-files, gemini, claude-code, drift, t17]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-05T04:48:42Z
 status: in-review
 ---
 # Decision: one rule source, three context files
@@ -54,5 +54,6 @@ the other two, with no signal that they disagree.
 - Editing `CLAUDE.md` inside the markers is now a build break: change the fragment and rerun the generator.
 - The H1 is shared, so it reads `# Repository memory (keep to ~1 page)` in all three files rather than naming one file.
 - `scripts/adopt.sh` (T22) renders context files into the target repo instead of copying `CLAUDE.md`.
-- Follow-ups, both needing a human `.sdlc` PR: add `.gemini` to `PROTECTED_PATHS`, and move "Lessons learned" into
-  `knowledge/` so Gemini and third-party agents see lessons too.
+- Follow-ups, both done: `.gemini` is in `PROTECTED_PATHS` (`.sdlc/config.env`); "Lessons learned" moved into
+  `knowledge/lessons/` with a pointer fragment (`docs/sdlc/rules/60-lessons.md`, `work/docs-reconcile`), so Gemini and
+  third-party agents see lessons too.

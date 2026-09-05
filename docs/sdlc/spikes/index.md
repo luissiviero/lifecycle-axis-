@@ -3,7 +3,7 @@ type: index
 title: SDLC Spikes
 description: Design spikes and investigation documents for SDLC enhancements.
 tags: [sdlc, spikes, design]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-03T20:31:11Z
 ---
 
 Every spike carries `status:` in its front matter, one of three words:

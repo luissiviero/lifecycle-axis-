@@ -3,7 +3,7 @@ type: decision
 title: scripts/adopt.sh as the template half of plugin distribution
 description: adopt.sh copies the kit's control plane, docs, scripts and hook-scoped evals into a target repo, never overwriting an existing file unless told to, merges an existing settings file, ships a placeholder handle and an in-review example item, and installs the deterministic hooks only when asked.
 tags: [adopt, distribution, plugin, hooks, sdlc]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-05T03:00:57Z
 ---
 
 # scripts/adopt.sh as the template half of plugin distribution

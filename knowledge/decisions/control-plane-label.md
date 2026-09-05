@@ -3,7 +3,7 @@ type: decision
 title: Control-plane exemption is a human-applied PR label
 description: The CI job that blocks agent-authored changes to protected paths is exempted only by a human with write access applying the control-plane-approved label after reviewing the diff; the check re-runs on label events.
 tags: [ci, control-plane, github-actions, labels, sdlc]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-04T23:42:26Z
 ---
 
 # Control-plane exemption is a human-applied PR label

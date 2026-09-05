@@ -3,7 +3,7 @@ type: metric-definition
 title: CI test failure rate
 description: Share of completed sdlc-gate runs that failed per day, over a 30-day series with a trailing 14-point baseline, feeding the Maintain-play control-band detector.
 tags: [metric, ci, western-electric, bands]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-05T02:28:00Z
 ---
 
 # CI test failure rate

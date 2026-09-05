@@ -1,9 +1,9 @@
 ---
 type: doc
-title: Phase 2+ roadmap: what the playbook leaves out
+title: "Phase 2+ roadmap: what the playbook leaves out"
 description: Future phases and gaps beyond Phase 1 of the AI-native SDLC implementation.
 tags: [sdlc, roadmap, future]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-05T04:48:42Z
 ---
 
 # Phase 2+ roadmap: what the playbook leaves out
@@ -114,9 +114,12 @@ are what remains once all of that is built. Ordered by how soon a complex projec
 
 ## Phase 4 — the loop learns
 12. **Eval-scored configuration changes.** Scoring, not only pass/fail; skill and prompt versioning with changelogs;
-    A/B of skill variants on the suite.
+    A/B of skill variants on the suite. **Done (WI-9):** `agent-evals.yml` runs on every change to the agent's
+    configuration and nightly with `--require-claude`; `run_evals.sh --kind/--only/--list`. Scoring and A/B stay open.
 13. **Autonomous Maintain end to end.** Detector service wired to real metrics, runbooks as skills, rollback proposals
     with the authorization file pre-filled for a human to sign, and CI that refuses an incident record without an eval.
+    **Done (WI-7):** `scripts/detect_bands.py`, `github_metrics.py`, `bands_config.py` and `.github/workflows/bands.yml`
+    read two live GitHub metrics (3σ routes declared, not acted on). The rest stays open.
 14. **Memory decay management.** Periodic audit of `CLAUDE.md`, `GEMINI.md`, and skills against the last N PRs;
     proposes deletions; rules become hooks where possible.
 15. **Compliance evidence packs.** Per release, assemble intent/spec/plan/review/authorization plus verify and eval

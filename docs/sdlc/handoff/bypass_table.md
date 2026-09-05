@@ -3,7 +3,7 @@ type: doc
 title: Bash write-guard bypass table
 description: 100-row table of Bash command shapes against the protect-paths, require-plan and protect-tests hooks at 64bcb17.
 tags: [sdlc, handoff, playbook-comparison]
-timestamp: 2026-09-04T22:13:39Z
+timestamp: 2026-09-04T22:13:40Z
 ---
 
 | # | technique | protect-paths.sh (.sdlc/config.env) | require-plan.sh (src/a.ts, plan in-review) | protect-tests.sh (src/foo.test.ts, kind: fix) | command sent (protect-paths variant) |

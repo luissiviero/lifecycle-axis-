@@ -3,7 +3,7 @@ type: decision
 title: One writer per work item until the cost ledger exists
 description: "Provisional answer to the implementer-versus-one-writer contradiction: subagents read, the lead writes; expires with the first cost_per_merged_pr reading or on 2027-03-05, whichever comes first."
 tags: [agents, delegation, build, cost, decision]
-timestamp: 2026-09-05T03:39:55Z
+timestamp: 2026-09-05T04:00:24Z
 ---
 
 # One writer per work item until the cost ledger exists

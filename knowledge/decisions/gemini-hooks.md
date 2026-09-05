@@ -3,7 +3,7 @@ type: decision
 title: Gemini CLI runs the same hook scripts through .gemini/settings.json
 description: The deterministic gates are wired for Gemini CLI as BeforeTool/AfterAgent hooks that call the scripts in .claude/hooks/ unchanged; the release gate fails closed under Gemini; the hooks now handle Windows drive-letter paths and refuse to run blind without jq.
 tags: [gemini, hooks, windows, control-plane, sdlc]
-timestamp: 2026-09-02T23:30:00Z
+timestamp: 2026-09-03T02:14:13Z
 ---
 
 # Gemini CLI runs the same hook scripts through `.gemini/settings.json`

@@ -3,7 +3,7 @@ type: decision
 title: Plugin distribution for the SDLC kit
 description: The kit ships as a Claude Code plugin carrying skills, agents, commands, templates and scripts; hooks stay repo-local, installed by scripts/adopt.sh --with-hooks, and a drift check keeps the manifest honest.
 tags: [plugin, packaging, distribution, hooks, sdlc]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-02T16:23:10Z
 ---
 
 # Plugin distribution for the SDLC kit

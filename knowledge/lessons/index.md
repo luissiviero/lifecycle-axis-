@@ -1,17 +1,29 @@
 ---
 type: index
 title: Lessons
-description: Post-mortem lessons, one per incident, linked to the incident record that produced them. Empty until the first incident closes.
+description: One lesson per file, named by the mistake, linked to the incident, work item or PR that produced it.
 tags: [okf, index, lessons]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-05T04:48:42Z
 ---
 
 # Lessons
 
-Empty for now. `/sdlc-incident` writes one `type: lesson` file here per closed incident (in addition to the summary
-row it appends to `docs/sdlc/lessons.md`, which now points here — see that file), and if the lesson changes how the
-agent should behave, the same PR also updates `CLAUDE.md` or a skill, per rule 7.
+One lesson per file, `type: lesson`, linked to the incident, work item or pull request that produced it. `/sdlc-incident`
+writes the incident case here (step 4 of the skill); a review or a work item that trips twice writes the general case.
+If a lesson changes how the agent should behave, the same PR adds a pointer line to `docs/sdlc/rules/60-lessons.md`,
+which renders into `CLAUDE.md`, `GEMINI.md` and `AGENTS.md` (rule 7). `docs/sdlc/lessons.md` is a pointer to this index.
 
-**File naming.** `knowledge/lessons/<incident-slug>.md`, matching the `work/<slug>/incident.md` that produced it
-(link back to it with a relative link). One lesson per file; a single incident that yields more than one distinct
-lesson gets `<incident-slug>-<n>.md` for the second and later ones.
+**File naming.** `knowledge/lessons/<name>.md`, named by the mistake; an incident's lesson uses the incident slug,
+matching the `work/<slug>/incident.md` that produced it (link back to it with a relative link). One lesson per file; a
+single incident that yields more than one distinct lesson gets `<incident-slug>-<n>.md` for the second and later ones.
+
+## Lessons
+
+- [control-plane-unlock-is-advisory.md](control-plane-unlock-is-advisory.md) — rule 3 is advisory in this repo; CI and the owner's review gate the control plane
+- [one-path-spelling-in-guards.md](one-path-spelling-in-guards.md) — a path guard compares one spelling; three Windows bypasses
+- [test-lib-changes-from-a-second-shell.md](test-lib-changes-from-a-second-shell.md) — a bad `_lib.sh` edit locks the session out of every tool
+- [fold-crlf-before-comparing.md](fold-crlf-before-comparing.md) — every `--check` folds CRLF; `.gitattributes` keeps text LF
+- [skills-spell-template-headings.md](skills-spell-template-headings.md) — skills and agents spell template fields and headings exactly
+- [plan-bullets-start-with-the-path.md](plan-bullets-start-with-the-path.md) — a plan bullet starts with the bare path
+- [ledger-slot-holds-status-only.md](ledger-slot-holds-status-only.md) — the ledger's from/to slot holds status values only
+- [send-ledger-lines-in-a-fenced-block.md](send-ledger-lines-in-a-fenced-block.md) — ledger lines go to the owner in a fenced block

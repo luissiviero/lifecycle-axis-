@@ -3,7 +3,7 @@ type: spike
 title: PR review action, bot identity, and branch protection
 description: claude-code-action v1 inputs and minimum permissions, the identity its review posts under, whether a bot review can satisfy "require 1 approval", and the single-human branch-protection setup.
 tags: [ci, review, github-actions, branch-protection, identity, sdlc]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-05T03:00:57Z
 status: decided
 ---
 

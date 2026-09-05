@@ -3,7 +3,7 @@ type: decision
 title: Only a human can flip an artifact to approved
 description: A PreToolUse hook, protect-approvals.sh, refuses any agent-side edit that sets status approved or superseded, approved-by or approved-on on a chain artifact, and any Bash call of scripts/approve.py or unset of CLAUDECODE; the control-plane unlock never applies; require-plan.sh also checks that the approver holds the plan's role. Decided in work/approval-gate (consensus item 1).
 tags: [hooks, approvals, chain-check, control-plane, sdlc]
-timestamp: 2026-09-05T01:40:00Z
+timestamp: 2026-09-05T01:38:56Z
 ---
 
 # Only a human can flip an artifact to approved

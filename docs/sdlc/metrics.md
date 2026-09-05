@@ -1,15 +1,15 @@
 ---
 type: doc
-title: Metrics: one leading and one lagging indicator per play
+title: "Metrics: one leading and one lagging indicator per play"
 description: Leading and lagging indicators for each SDLC play from the AI-native playbook.
 tags: [sdlc, metrics, measurement]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-05T04:48:42Z
 ---
 
 # Metrics: one leading and one lagging indicator per play
 
 All taken from the playbook. Where to read each one in this repo's setup is in the last column. `scripts/sdlc_metrics.py`
-prints the git-derived ones; `scripts/github_metrics.py` prints the GitHub-derived ones the band detector reads.
+prints four of them (intent→spec and spec→plan hours, two rework counts) for the Capture-intent and Requirements rows; `scripts/github_metrics.py` prints the GitHub-derived ones the band detector reads.
 
 | Play | Leading | Lagging | Where |
 |---|---|---|---|

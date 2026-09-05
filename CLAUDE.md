@@ -68,14 +68,15 @@ previous one.
 - Subagents live in `.claude/agents/` with a named role and a bounded `tools:` list. Keep one writer per work item:
   subagents read and return evidence, the session holding the plan makes every edit
   (`knowledge/decisions/one-writer-until-ledger.md`, provisional, with an expiry).
-<!-- END GENERATED -->
 
-## Lessons learned (append; one line each; delete when a hook makes it impossible)
-- This repo runs its own hooks with `SDLC_CONTROL_PLANE_UNLOCK=1` set in `.claude/settings.json` (`knowledge/decisions/self-hooks-on.md`): control-plane writes pass, each appended to `.sdlc/hook-decisions.log` and reported as a `systemMessage` (an exit-0 hook's stderr never reaches the transcript), so rule 3 is advisory here and CI plus the owner's review guard the control plane. Restart the session after changing hook wiring.
-- A guard that compares paths must compare one spelling: three separate bypasses came from a Windows path form the comparison did not recognise (`C:\...` read as relative; a POSIX path under an MSYS mount like `/tmp` left unconverted by `winpath()`), and each one made the hook *allow* silently. Normalise through `canon()`/`winpath()` and never widen a guard's input without a test. A skipped guard test is not a passing one: the third hid behind a test that could not run on Windows until Developer Mode was enabled.
-- The hooks need `jq` and refuse every edit without it (`knowledge/decisions/gemini-hooks.md`). Test a `_lib.sh` change from a second shell before the session that made it relies on it: a bad edit there locks the session out of Edit, Write and Bash at once.
-- A drift check that compares bytes is wrong on a Windows checkout: `core.autocrlf` hands back CRLF while the generators write LF, so `gen_context_files.py --check` and then `gen_index.py --check` each reported drift on a clean tree until CRLF was normalised before comparing. Any new `--check` compares with `\r\n` folded to `\n`, and a drift report on a file nobody edited is the first thing to suspect.
-- A skill or agent that names a template's field or heading must spell it as the template does: `/sdlc-spec` said `standards-applied` where `templates/spec.md` says `skills-applied`, and `/sdlc-plan` plus both `plan-reviewer` agents said `## Files` and `## Verification` where `templates/plan.md` says `## Files that change` and `## Proof`; the wrong spelling shipped into `work/_example/spec.md` before anyone noticed. Eval `skill-names-match-templates` pins the spellings; when a template field or heading changes, grep `.claude/skills`, `.claude/agents` and `.gemini/agents` for the old one in the same PR.
-- A plan's `## Files that change` bullet is read up to the first ` — ` as the path, so it must start with the bare path: `scripts/x.py (new) — note` fails the chain check as the path `scripts/x.py (new)`; write `scripts/x.py — new; note`. The template's empty deviation bullet is `- ` with a trailing space; anchor an edit on it accordingly (tripped on WI-1 and WI-2).
-- The ledger's `<from> -> <to>` slot holds `status` values only (`draft|in-review|approved|superseded`), never a `stage` word: two items logged the build gate as `plan.md | build -> in-review`, which reads as a regression of an approved plan. Log the build gate on the PR (`PR #<n> | draft -> in-review`) and leave `plan.md` at `approved`.
-- A ledger line pasted into the GitHub web editor from a chat bullet arrives as `- - <ts> | …` and the ledger parser drops it: happened on `bash-guard-hardening` and `deploy-gate`. Send approval lines in a fenced block, never as bullets, and run `python3 scripts/log_ledger.py work/<slug>/log.md` right after the approval commit lands.
+## Lessons (one file each in knowledge/lessons/)
+A mistake made twice becomes a file there and a pointer line here, in the same PR; delete the pointer when a hook makes the mistake impossible.
+- Rule 3 is advisory in this repo: the unlock logs control-plane writes, CI and the owner's review gate them — knowledge/lessons/control-plane-unlock-is-advisory.md
+- A path guard compares one spelling; normalise first, never widen its input without a test — knowledge/lessons/one-path-spelling-in-guards.md
+- Test a `_lib.sh` change from a second shell; a bad edit locks the session out of every tool — knowledge/lessons/test-lib-changes-from-a-second-shell.md
+- Every `--check` folds CRLF before comparing; drift on a file nobody edited means line endings — knowledge/lessons/fold-crlf-before-comparing.md
+- A skill or agent spells a template's field or heading exactly as the template does — knowledge/lessons/skills-spell-template-headings.md
+- A plan bullet starts with the bare path, then ` — `; the empty deviation bullet is `- ` with a trailing space — knowledge/lessons/plan-bullets-start-with-the-path.md
+- The ledger's from/to slot holds `status` values only; log the build gate on the PR — knowledge/lessons/ledger-slot-holds-status-only.md
+- Send ledger lines to the owner in a fenced block, never as bullets; run `log_ledger.py` after the approval lands — knowledge/lessons/send-ledger-lines-in-a-fenced-block.md
+<!-- END GENERATED -->

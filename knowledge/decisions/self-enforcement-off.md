@@ -3,7 +3,7 @@ type: decision
 title: The kit repo does not wire its own hooks
 description: The hook wiring lives in docs/sdlc/templates/claude-settings.json and is installed by adopt.sh --with-hooks; this repo has no .claude/settings.json, so an agent maintaining the kit can edit, commit, push and merge without the kit's own red lines blocking it. Hook scripts, tests, evals and CI are unchanged.
 tags: [hooks, control-plane, dogfooding, sdlc]
-timestamp: 2026-09-02T00:00:00Z
+timestamp: 2026-09-02T22:35:09Z
 ---
 
 # The kit repo does not wire its own hooks

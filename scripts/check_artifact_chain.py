@@ -20,7 +20,7 @@ Checks, for the work item named by --slug (or .sdlc/active):
      "<artifact> | ... -> approved | <actor> | ..." entry (scripts/log_ledger.py). Pass
      --no-approvers to skip this pair of checks (for early adopters without approvers.yaml/log.md).
   3. Every changed file (vs --base) outside work/, docs/, evals/, monitoring/, knowledge/ matches
-     a glob in plan.md's "## Files" list.
+     a glob in plan.md's "## Files that change" list.
   4. Files under RELEASE_GATED_PATHS are listed in plan.md's "## Release-gated" section with a human owner.
 Exit 0 on success, 1 on any failure. Output is meant to be pasted into a PR comment.
 

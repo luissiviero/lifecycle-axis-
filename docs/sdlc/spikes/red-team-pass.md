@@ -3,7 +3,7 @@ type: spike
 title: Adversarial red-team pass before spec approval
 description: Evaluation of interview-me's 8-dimension red-team taxonomy as an opt-in phase in /sdlc-spec, with a recommended 4-dimension subset, evidence rules and risk-class gating.
 tags: [spec, review, red-team, security, sdlc, design]
-timestamp: 2026-09-03T00:00:00Z
+timestamp: 2026-09-03T12:55:57Z
 status: open
 ---
 

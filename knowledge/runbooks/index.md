@@ -3,7 +3,7 @@ type: index
 title: Runbooks
 description: Pre-approved operational procedures an agent may propose but never run unattended.
 tags: [okf, index, runbooks]
-timestamp: 2026-09-02T20:00:00Z
+timestamp: 2026-09-02T16:18:39Z
 ---
 
 # Runbooks
