@@ -128,13 +128,18 @@ scripts/detect_bands.py          deterministic Western Electric detector (traili
 
 ## 3. Using it in a project
 1. Run `scripts/adopt.sh <target>` (add `--with-hooks` to also install `.claude/hooks/` and, from
-   `docs/sdlc/templates/claude-settings.json`, the target's `.claude/settings.json`; it copies without overwriting and
-   lists what it skipped). Or install as a Claude Code plugin — `claude --plugin-dir .` from
-   this repo, or add it to a marketplace via `.claude-plugin/marketplace.json` — for the skills, agents, and templates
-   without the repo-local hooks. Either way, set `VERIFY_CMDS`, `FORMAT_CMD`, and the path classes in `.sdlc/config.env`.
+   `docs/sdlc/templates/claude-settings.json`, the target's `.claude/settings.json`, merged into one that already exists;
+   it copies without overwriting and lists what it skipped and what differs from the kit). Or install as a Claude Code
+   plugin — `claude --plugin-dir .` from this repo, or add it to a marketplace via `.claude-plugin/marketplace.json` — for
+   the skills, agents, and templates without the repo-local hooks. Then follow `docs/sdlc/github-setup.md` (copied into
+   the target): replace `<your-github-handle>` in `.sdlc/approvers.yaml` and `.github/CODEOWNERS`, set `VERIFY_CMDS`
+   (the placeholder fails on purpose), `FORMAT_CMD` and the path classes in `.sdlc/config.env`, approve `work/_example`
+   as yourself from your own shell with the copied approval script, commit as yourself, open the install PR.
    `--with-hooks` also installs `.gemini/settings.json` and `.gemini/agents/` for Gemini CLI; the hooks need `bash`
    and `jq` on PATH. Antigravity reads `GEMINI.md` but not those hooks (roadmap Phase 1.5).
-2. Rewrite `CLAUDE.md`: commands with healthy output, architecture in ten lines, the mistakes the team sees most. One page.
+2. Fill the `## Commands` and `## Architecture` sections `adopt.sh` seeded at the top of `CLAUDE.md`: commands with
+   healthy output, architecture in ten lines, the mistakes the team sees most. One page; the generated block below is
+   rendered from `docs/sdlc/rules/`.
 3. Add standards as skills (security is included; add UX, API conventions, data classification) and list them in `/sdlc-spec`.
 4. Protect `main`: require `sdlc-gate` and `agent-evals`; CODEOWNERS for `RELEASE_GATED_PATHS`.
 5. Run the loop by hand once. Then automate the spec pass on intent merge and the review pass on PR open.

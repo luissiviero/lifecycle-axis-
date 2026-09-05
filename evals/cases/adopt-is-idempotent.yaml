@@ -1,8 +1,20 @@
 name: adopt-is-idempotent
 kind: hook
-source: docs/sdlc/README.md (Using it in a project, step 1) and scripts/adopt.sh
+source: docs/sdlc/README.md (Using it in a project, step 1), scripts/adopt.sh; work/adopter-first-hour spec R-3 and R-9 (the placeholder verify must be red; --help)
 check: |
   set -e; R="$(git rev-parse --show-toplevel)"; T="$(mktemp -d)"
+  # --help is a flag, not an unknown option
+  "$R/scripts/adopt.sh" --help | grep -q '^usage: adopt.sh'
+  # two consecutive runs: the second copies nothing
   "$R/scripts/adopt.sh" "$T" --with-hooks >/dev/null
   OUT="$("$R/scripts/adopt.sh" "$T" --with-hooks)"
   ! printf '%s\n' "$OUT" | grep -q '^copy:'
+  # a fresh target's verify is red on the placeholder and says so
+  git init -q "$T"
+  set +e
+  V="$(cd "$T" && bash scripts/verify.sh 2>/dev/null)"; rc=$?
+  set -e
+  [ "$rc" -ne 0 ]
+  printf '%s\n' "$V" | grep -q 'TODO(adopter): set VERIFY_CMDS'
+  printf '%s\n' "$V" | tail -1 | grep -q '^VERIFY: FAIL'
+  rm -rf "$T"

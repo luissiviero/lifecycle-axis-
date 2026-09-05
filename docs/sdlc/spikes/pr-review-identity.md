@@ -69,6 +69,8 @@ No context or env var names the environment approver; the job simply does not st
    turn bypassing off.
 
 ## Branch-protection checklist (owner clicks these on `main`)
+The adopter-facing copy of this list, with the first-hour order, the `control-plane-approved` label and the secrets, is
+`docs/sdlc/github-setup.md`; `scripts/adopt.sh` copies that file into a target. This section stays as the spike's record.
 - [ ] Require a pull request before merging - **on**; required approving reviews **1**; dismiss stale
       approvals when new commits are pushed - **on**
 - [ ] Require review from Code Owners - **on** (needs `.github/CODEOWNERS`, T07)
