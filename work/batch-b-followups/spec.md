@@ -10,7 +10,7 @@ approved-by:
 approved-on:
 skills-applied: [security-standards]
 skills-version: 60ab0f5
-prompt: "Drafted from the intent, the follow-up notes on PRs #37 and #38, agent-evals.yml lines 42-57, check_artifact_chain.py lines 181-198, test_check_artifact_chain.py InProgressChain, test_adopt.py test_handle_rewritten and approvers.py; reviewed by the orchestrator."
+prompt: "Drafted from the intent, the follow-up notes on pull requests 37 and 38, agent-evals.yml lines 42-57, check_artifact_chain.py lines 181-198, test_check_artifact_chain.py InProgressChain, test_adopt.py test_handle_rewritten and approvers.py; reviewed by the orchestrator."
 record:
 resource: https://github.com/luissiviero/lifecycle-axis-/pull/38
 tags: [followups, sdlc-gate, adopt, chain-check, control-plane]

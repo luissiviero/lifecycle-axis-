@@ -5,7 +5,7 @@ title: Close the three leftovers Batch B surfaced
 description: "The sdlc-gate triage step runs untrusted, the adopter placeholder handle can approve, and the chain check rejects a fully retired item; three small fixes the last work items named but could not make."
 stage: plan
 status: in-review
-author: Luis Siviero (repo owner), drafted with Claude from the follow-ups recorded on PRs #37 and #38
+author: Luis Siviero (repo owner), drafted with Claude from the follow-ups recorded on pull requests 37 and 38
 approved-by:
 approved-on:
 supersedes:
