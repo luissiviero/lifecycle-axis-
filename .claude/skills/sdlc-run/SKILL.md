@@ -15,10 +15,11 @@ the first gate and say which.
    a file-list or order deviation as a ledger line in the same commit, capped by the policy's `max-deviations`.
 4. Run `scripts/verify.sh`, `python3 scripts/check_artifact_chain.py --base origin/main`, `scripts/run_evals.sh`,
    `python3 scripts/check_okf.py`.
-5. `/sdlc-review`, with reviewer subagents run on a different model from the writer where possible. Post the
-   findings as a PR comment, ending with the summary line `Important: <n> | Nits: <m>`.
-6. `gh pr ready`; log `PR #<n> | draft -> in-review`. With `merge.enabled: false` in the policy this is the
-   callback; otherwise the delegated-merge workflow merges when its printed conditions hold.
+5. `/sdlc-review`, with reviewer subagents run on a different model from the writer where possible. On a
+   delegated item that skill posts the findings with the summary line `Important: <n> | Nits: <m>`, runs
+   `gh pr ready` and logs `PR #<n> | draft -> in-review`; do not repeat those here.
+6. The ready pull request is the callback when the policy has `merge.enabled: false`; otherwise the
+   delegated-merge workflow merges when its printed conditions hold.
 
 ## The revision rule
 A plan revision is the last resort. A file-list or order deviation is logged as today plus a ledger line, capped
