@@ -116,6 +116,12 @@ Off by default; opt in per repo.
    request editing `.claude/skills/`, `.claude/agents/` or `CLAUDE.md` always draws a false `Important` from
    the reviewer, which restores those files from `main` before it runs and so never sees the diff. Set
    `require-review: false` in the policy to accept that trade; it is a deliberate loosening, not a default.
+5. **Read the verdicts for any open pull request without a shell.** Actions → `delegated-merge` → Run
+   workflow, with the pull request's head sha: the run prints one `CONDITION` line per check and never
+   merges (that route is dry-run only). Two rules the conditions imply: `merge.require-checks` lists only
+   workflows that run on every pull request (`agent-evals.yml` has a `paths:` filter, so a diff outside
+   those paths has no run to be green, and the script refuses rather than waits), and the intent's
+   `delegated-by` is the login that made the grant commit.
 
 ## Related
 
