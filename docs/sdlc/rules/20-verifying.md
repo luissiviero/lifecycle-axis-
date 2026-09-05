@@ -14,5 +14,5 @@ timestamp: 2026-09-02T00:00:00Z
 - OKF conformance: `python3 scripts/check_okf.py` — must end with `OKF: N docs, 0 warnings` (warning-only unless `OKF_STRICT=1`)
 Run all of them before reporting a task complete and paste the last lines. If a test fails, fix the code, not the test.
 - Regenerate before committing — verify fails on drift: `python3 scripts/gen_index.py` and `python3 scripts/gen_context_files.py`
-- Band detector: `python3 scripts/detect_bands.py --series ...` (exit 3 = breach); metrics: `scripts/sdlc_metrics.py`
+- Band detector: `python3 scripts/detect_bands.py --series ...` (exit 3 = breach, 2 = bad input); series: `scripts/github_metrics.py`; workflow matrix: `scripts/bands_config.py`; git metrics: `scripts/sdlc_metrics.py`
 - Keep this file under `MAX_CONTEXT_LINES` (120): `wc -l CLAUDE.md` after regenerating; trim prose, never rules, if over
