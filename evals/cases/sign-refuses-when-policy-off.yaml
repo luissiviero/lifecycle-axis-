@@ -9,12 +9,13 @@ check: |
   printf -- '---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-01\nrisk-class: low\nmode: delegated\ndelegated-by: luissiviero\ndelegated-on: 2026-09-01\n---\n# Intent\n' > "$d/work/demo/intent.md"
   printf -- '---\nstatus: in-review\napproved-by:\napproved-on:\n---\n# Spec\n' > "$d/work/demo/spec.md"
   ok=1
+  # CLAUDECODE=1 marks an agent session; CI's runner has none, and sign.py would exit 3 before the refusal under test.
   # 1. No .sdlc/delegation.yaml at all.
-  (cd "$d" && python3 "$R/scripts/sign.py" demo spec.md) >/tmp/sign-refuses-when-policy-off.out 2>&1
+  (cd "$d" && CLAUDECODE=1 python3 "$R/scripts/sign.py" demo spec.md) >/tmp/sign-refuses-when-policy-off.out 2>&1
   [ "$?" -eq 1 ] || ok=0
   # 2. The file exists but says enabled: false.
   sed 's/^enabled: true/enabled: false/' "$R/docs/sdlc/templates/delegation.yaml" > "$d/.sdlc/delegation.yaml"
-  (cd "$d" && python3 "$R/scripts/sign.py" demo spec.md) >>/tmp/sign-refuses-when-policy-off.out 2>&1
+  (cd "$d" && CLAUDECODE=1 python3 "$R/scripts/sign.py" demo spec.md) >>/tmp/sign-refuses-when-policy-off.out 2>&1
   [ "$?" -eq 1 ] || ok=0
   grep -q "status: in-review" "$d/work/demo/spec.md" || ok=0
   rm -rf "$d"

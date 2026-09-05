@@ -11,7 +11,8 @@ check: |
   # intent.md is approved by a human but mode: supervised -- no grant behind a signature.
   printf -- '---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-01\nrisk-class: low\nmode: supervised\ndelegated-by:\ndelegated-on:\n---\n# Intent\n' > "$d/work/demo/intent.md"
   printf -- '---\nstatus: in-review\napproved-by:\napproved-on:\n---\n# Spec\n' > "$d/work/demo/spec.md"
-  (cd "$d" && python3 "$R/scripts/sign.py" demo spec.md) >/tmp/sign-refuses-without-grant.out 2>&1
+  # CLAUDECODE=1 marks an agent session; CI's runner has none, and sign.py would exit 3 before the refusal under test.
+  (cd "$d" && CLAUDECODE=1 python3 "$R/scripts/sign.py" demo spec.md) >/tmp/sign-refuses-without-grant.out 2>&1
   rc=$?
   ok=1
   [ "$rc" -eq 1 ] || ok=0
