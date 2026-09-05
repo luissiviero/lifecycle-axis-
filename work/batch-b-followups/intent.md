@@ -89,9 +89,10 @@ which PRs the chain check accepts. Reversal is a revert.
   that means the plan gate stays closed until the handle is replaced, which is the intended effect. Accept
   that an adopter who skips step 1 gets a blocked `Edit` under `PLAN_REQUIRED_PATHS` with the hook's
   message naming `approvers.yaml`?
-  A: (proposed by the session on 2026-09-05; edit before approving) Yes. That is the first-hour order
-  `github-setup.md` already prescribes (replace the handle, then approve); the block names the file to fix.
+  A: (proposed by the session on 2026-09-05, approved unchanged by the owner) Yes. That is the first-hour
+  order `github-setup.md` already prescribes (replace the handle, then approve); the block names the file to fix.
 - Q: Three unrelated fixes in one item, or three items? Each is under twenty lines; three items would cost
   nine approvals and three labels.
-  A: (proposed) One item. The spec keeps them as separate requirements with separate oracles, so the PR
-  reads as three fixes; a reviewer can still object to one without the others.
+  A: (proposed by the session, approved unchanged by the owner) One item. The spec keeps them as separate
+  requirements with separate oracles, so the PR reads as three fixes; a reviewer can still object to one
+  without the others.
