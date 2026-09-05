@@ -33,6 +33,16 @@ class ApproversRepoFile(unittest.TestCase):
         ok, reason = self.a.is_valid("intent.md", "luissiviero (product owner)")
         self.assertTrue(ok, reason)
 
+    def test_placeholder_handle_holds_no_role(self):
+        """adopt.sh ships `<your-github-handle>` in every role; it must approve nothing until the
+        adopter replaces it (work/batch-b-followups R-2)."""
+        ok, reason = self.a.has_role("tech-lead", "<your-github-handle>")
+        self.assertFalse(ok)
+        self.assertIn("placeholder", reason)
+        ok, reason = self.a.is_valid("plan.md", "<your-github-handle>")
+        self.assertFalse(ok)
+        self.assertIn("placeholder", reason)
+
     def test_normalize_matches_expectations(self):
         self.assertEqual(approvers.Approvers.normalize("@luissiviero"), "luissiviero")
         self.assertEqual(

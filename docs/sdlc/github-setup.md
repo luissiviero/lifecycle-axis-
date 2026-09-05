@@ -16,8 +16,9 @@ keeps every check green from the first pull request.
 
 1. **Replace the placeholder handle.** `adopt.sh` wrote `<your-github-handle>` into every role of
    `.sdlc/approvers.yaml` and every line of `.github/CODEOWNERS`. Put your GitHub login there (no `@` in
-   `approvers.yaml`; keep the `@` in `CODEOWNERS`). Until you do, the example item can be approved by a name
-   that is nobody.
+   `approvers.yaml`; keep the `@` in `CODEOWNERS`). Until you do, nothing can approve: `approvers.py` refuses
+   any handle still in angle brackets, so `approve.py --as '<your-github-handle>'` cannot approve the example
+   item and the plan gate stays closed. Replace it and approval works; a real login has no angle brackets.
 2. **Set the verify command.** `.sdlc/config.env` holds a placeholder `VERIFY_CMDS` that prints a TODO and
    fails, so `scripts/verify.sh` is red on purpose until you set it (`npm test`, `pytest -q`, `make lint`;
    separate several with `;`).

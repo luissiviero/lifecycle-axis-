@@ -622,7 +622,11 @@ class AdoptScript(unittest.TestCase):
         self.assertIn("set the approver handle to %s" % PLACEHOLDER, s.first.stdout)
         a = self.s["approve"]
         self.assertEqual(a.first.returncode, 0, a.first.stderr)
-        self.assertEqual(a.has_role.returncode, 0, a.has_role.stdout + a.has_role.stderr)
+        # The placeholder is nobody, so it holds no role until the adopter replaces it
+        # (work/batch-b-followups R-2). approvers.py refuses any `<...>` handle structurally,
+        # not through a never-approve entry a global find-and-replace would rewrite.
+        self.assertEqual(a.has_role.returncode, 1, a.has_role.stdout + a.has_role.stderr)
+        self.assertIn("is a placeholder", a.has_role.stderr + a.has_role.stdout)
 
     def test_example_is_in_review_with_explicit_file_list(self):
         s = self.s["default"]

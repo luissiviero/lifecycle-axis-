@@ -15,7 +15,8 @@ API:
   Approvers.role_for(artifact) -> str | None
   Approvers.has_role(role, handle) -> (bool, reason)
       The primitive: is `handle` a human listed under `role`? Fails closed on a
-      missing file, an empty handle, a never-approve identity, or an unknown role.
+      missing file, an empty handle, an unreplaced `<placeholder>`, a never-approve
+      identity, or an unknown role.
   Approvers.is_valid(artifact, handle) -> (bool, reason)
       role_for(artifact), then has_role(role, handle).
   Approvers.normalize(handle) -> str
@@ -30,6 +31,7 @@ CLI:
 import argparse
 import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -38,6 +40,14 @@ if HERE not in sys.path:
 from check_artifact_chain import ROOT, config  # noqa: E402  (path set up above)
 
 TOP_KEYS = ("roles", "artifacts", "never-approve")
+
+# `scripts/adopt.sh` writes `<your-github-handle>` into every role of a fresh target, and
+# `docs/sdlc/github-setup.md` step 1 says to replace it. Until that happens the file names an
+# approver who is nobody, so refuse any handle still in angle brackets: no GitHub login can
+# contain them. This is structural on purpose -- a `never-approve` entry holding the same literal
+# would be rewritten into the adopter's real handle by the very find-and-replace step 1 asks for,
+# and would then lock the adopter out of their own repository (work/batch-b-followups R-2).
+PLACEHOLDER_RE = re.compile(r"^<.+>$")
 
 
 def _strip_quotes(s):
@@ -135,6 +145,8 @@ class Approvers:
         norm = self.normalize(handle)
         if not norm:
             return False, "empty approver"
+        if PLACEHOLDER_RE.match(norm):
+            return False, f"'{norm}' is a placeholder; put a real GitHub login in {self.path}"
         if norm in self.never_approve:
             return False, "agent identities cannot approve"
         if role not in self.roles:
@@ -152,6 +164,8 @@ class Approvers:
             norm = self.normalize(handle)
             if not norm:
                 return False, "empty approver"
+            if PLACEHOLDER_RE.match(norm):
+                return False, f"'{norm}' is a placeholder; put a real GitHub login in {self.path}"
             if norm in self.never_approve:
                 return False, "agent identities cannot approve"
             return False, f"no role defined for {artifact}"

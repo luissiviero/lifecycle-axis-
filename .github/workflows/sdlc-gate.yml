@@ -42,6 +42,25 @@ jobs:
           SDLC_PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check_control_plane.sh "origin/$BASE_REF" | tee -a "$GITHUB_STEP_SUMMARY"
+      # `claude -p` ignores a project's .claude/settings.json (hooks and permissions) until the
+      # workspace is trusted, and says so in every triage log: "Ignoring 7 permissions.allow entries
+      # from .claude/settings.json: this workspace has not been trusted". Same step as
+      # agent-evals.yml's "Trust the checkout"; a change to one belongs in the other
+      # (work/batch-b-followups R-1).
+      - name: Trust the checkout so the repo's settings apply to claude -p
+        if: failure() && env.HAS_CLAUDE_AUTH == 'true'
+        run: |
+          python3 - <<'PY'
+          import json, os
+          path = os.path.expanduser("~/.claude.json")
+          data = {}
+          if os.path.exists(path):
+              with open(path) as f:
+                  data = json.load(f)
+          data.setdefault("projects", {}).setdefault(os.environ["GITHUB_WORKSPACE"], {})["hasTrustDialogAccepted"] = True
+          with open(path, "w") as f:
+              json.dump(data, f)
+          PY
       - name: Triage failure (read-only judgment step; runs only when a Claude credential is configured)
         if: failure() && env.HAS_CLAUDE_AUTH == 'true'
         env:

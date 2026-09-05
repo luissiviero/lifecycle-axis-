@@ -191,10 +191,13 @@ def main():
             if i > 0:
                 prev = CHAIN[i - 1]
                 prev_status = (fms[prev] or {}).get("status", "missing")
-                if prev_status != "approved":
+                # 'superseded' counts like 'approved' here: it is what an approved artifact becomes when
+                # the item is retired, so a retired chain must stay checkable (work/batch-b-followups R-3).
+                if prev_status not in ("approved", "superseded"):
                     errors.append(
                         f"work/{slug}/{name} exists but work/{slug}/{prev} is '{prev_status}', not "
-                        f"'approved': one stage at a time -- a human approves each artifact before the next is started"
+                        f"'approved' or 'superseded': one stage at a time -- a human approves each artifact "
+                        f"before the next is started"
                     )
             if status == "approved" and not fm.get("approved-by"):
                 errors.append(f"work/{slug}/{name} is approved but has no approved-by")
