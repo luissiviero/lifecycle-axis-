@@ -49,45 +49,41 @@ description: "Provisional answer to the implementer-versus-one-writer contradict
 tags: [agents, delegation, build, cost, decision]
 timestamp: 2026-09-05T03:39:55Z
 ---
-# One writer per work item until the cost ledger exists
-
-## Context
-(the two spikes, their evidence, the arbiter neither can reach; consensus item 9)
-## Decision
-1. One writer per work item: the session that holds the plan makes every edit; subagents are read-only
-   (`.claude/agents/*` keep `tools: Read, Grep, Glob, Bash` and return evidence, rule 8).
-2. Provisional: it stands because no measurement on this kit's own work supports the alternative, not
-   because the alternative is wrong.
-3. Scope: the red-team pass (a read-only reviewer at the spec gate) is a different question and is not
-   decided here.
-## Expiry and the measurement that flips it
-Expires on the first `cost_per_merged_pr` reading from roadmap item 1's ledger for this repository, or on
-2027-03-05, whichever comes first. The question reopens with one measurement: over ten of this kit's own
-work items, a role pipeline with a writing `implementer` costs less than 1.5 times a bare session and shows
-no silent-delegation failure (a diff the lead did not read before the PR). Until that reading exists, the
-`implementer` role in `prompt-surfaces.md` §2.6 stays designed, not scheduled.
-## Consequences
-- The hooks need no change: they read `tool_name`, `tool_input`, `cwd` and `session_id` and nothing about
-  the caller, so a writing subagent would meet every gate the lead meets (test: R-7). The gates were never
-  the risk; rule 2 checkability and the pilot's silent-failure rate are.
-- `/sdlc-build` (build-stage §3.1) can be written with "no implementation delegation" as a fact, not a debate.
-- `prompt-surfaces.md` Phase C's per-work-item token count in `log.md` is the stand-in measurement until
-  the ledger exists.
-## Links
-(both spikes, the roadmap item, the intent, consensus item 9)
+  # One writer per work item until the cost ledger exists
+  (h2) Context: the two spikes, their evidence, the arbiter neither can reach; consensus item 9.
+  (h2) Decision:
+    1. One writer per work item: the session that holds the plan makes every edit; subagents are read-only
+       (`.claude/agents/*` keep `tools: Read, Grep, Glob, Bash` and return evidence, rule 8).
+    2. Provisional: it stands because no measurement on this kit's own work supports the alternative, not
+       because the alternative is wrong.
+    3. Scope: the red-team pass (a read-only reviewer at the spec gate) is a different question and is not
+       decided here.
+  (h2) Expiry and the measurement that flips it: expires on the first `cost_per_merged_pr` reading from
+    roadmap item 1's ledger for this repository, or on 2027-03-05, whichever comes first. The question
+    reopens with one measurement: over ten of this kit's own work items, a role pipeline with a writing
+    `implementer` costs less than 1.5 times a bare session and shows no silent-delegation failure (a diff
+    the lead did not read before the PR). Until that reading exists, the `implementer` role in
+    `prompt-surfaces.md` §2.6 stays designed, not scheduled.
+  (h2) Consequences:
+    - The hooks need no change: they read `tool_name`, `tool_input`, `cwd` and `session_id` and nothing
+      about the caller, so a writing subagent would meet every gate the lead meets (test: R-7). The gates
+      were never the risk; rule 2 checkability and the pilot's silent-failure rate are.
+    - `/sdlc-build` (build-stage §3.1) can be written with "no implementation delegation" as a fact.
+    - `prompt-surfaces.md` Phase C's per-work-item token count in `log.md` is the stand-in measurement
+      until the ledger exists.
+  (h2) Links: both spikes, the roadmap item, the intent, consensus item 9.
 ```
-The annotation lines (verbatim):
-- `prompt-surfaces.md`, end of the §2.6 opening paragraph: `> **Overruled provisionally** by
-  [`knowledge/decisions/one-writer-until-ledger.md`](../../knowledge/decisions/one-writer-until-ledger.md)
-  on 2026-09-05: the `implementer` role stays designed, not scheduled, until that record expires.`
+(`(h2)` marks a `## ` heading in the record; written that way here so this spec's own headings stay the
+template's.)
+The annotation lines (each carries a relative Markdown link to the record, written as `LINK` below because the
+record does not exist until implementation and this spec's own links are checked):
+- `prompt-surfaces.md`, end of the §2.6 opening paragraph: `> **Overruled provisionally** by LINK on
+  2026-09-05: the `implementer` role stays designed, not scheduled, until that record expires.`
 - `build-stage-from-claude-agents.md`, after the §2 table and at the end of the §3.1 "No implementation
-  delegation" paragraph: `> **Confirmed provisionally** by [`knowledge/decisions/one-writer-until-ledger.md`]
-  (../../knowledge/decisions/one-writer-until-ledger.md) on 2026-09-05, with an expiry and a named
+  delegation" paragraph: `> **Confirmed provisionally** by LINK on 2026-09-05, with an expiry and a named
   measurement.`
 - `phase-2-roadmap.md` item 1b, after "Becomes work item `prompt-surfaces` when scheduled.": `Its
-  `implementer` role is provisionally overruled by
-  [`knowledge/decisions/one-writer-until-ledger.md`](../knowledge/decisions/one-writer-until-ledger.md)
-  until item 1's ledger exists.`
+  `implementer` role is provisionally overruled by LINK until item 1's ledger exists.`
 - `40-claude-only.md`, appended to the subagents bullet: `One writer per work item: subagents read and
   return evidence, the session holding the plan makes every edit (`knowledge/decisions/one-writer-until-
   ledger.md`, provisional, with an expiry).` `50-gemini-only.md`: the same sentence appended to its
