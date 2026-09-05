@@ -89,6 +89,20 @@ def _escape_pipe(s):
     return (s or "").replace("|", "\\|")
 
 
+def _yaml_scalar(s):
+    """Render a front-matter value so PyYAML reads it back as the same string. A plain scalar
+    breaks on `: ` (a nested mapping), ` #` (a comment) and a leading YAML indicator; the kit's own
+    reader (check_artifact_chain.front_matter_text) strips matching double quotes, so quoting is
+    lossless for both. Plain values stay plain, which keeps every existing index byte-identical
+    (work/delegated-mode: an intent description with a colon made scripts/checks/front-matter.sh red)."""
+    s = s or ""
+    needs = (": " in s or " #" in s or (s[:1] != "" and s[:1] in "-?:,[]{}#&*!|>'\"%@`")
+             or s.endswith(":") or s != s.strip())
+    if not needs:
+        return s
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 def _first_heading(path):
     try:
         with open(path, encoding="utf-8") as f:
@@ -147,8 +161,8 @@ def render_item_index(item):
         "---",
         "type: sdlc/work-item",
         f"id: {item['slug']}",
-        f"title: {item['title']}",
-        f"description: {item['description']}",
+        f"title: {_yaml_scalar(item['title'])}",
+        f"description: {_yaml_scalar(item['description'])}",
         f"timestamp: {item['timestamp']}",
         "---",
         f"# {item['title']}",
