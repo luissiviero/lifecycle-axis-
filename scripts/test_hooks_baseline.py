@@ -361,6 +361,80 @@ class ProductionGateHook(unittest.TestCase):
                 with self.subTest(command=command):
                     self.assertEqual(self._decision(root, command), "allow")
 
+    # --- work/deploy-gate: the authorization file is validated; more routes are deploy-shaped ---
+
+    def _authorize(self, root, sha, body):
+        d = os.path.join(root, ".sdlc", "release-authorizations")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, sha), "w", encoding="utf-8") as f:
+            f.write(body)
+
+    def _log_verdicts(self, root):
+        path = os.path.join(root, ".sdlc", "hook-decisions.log")
+        if not os.path.exists(path):
+            return []
+        with open(path, encoding="utf-8") as f:
+            return [line.split("\t")[1] for line in f.read().splitlines()]
+
+    def test_allows_release_authorization_by_release_manager(self):
+        with fake_repo() as root:
+            sha = self._head_sha(root)
+            self._authorize(root, sha, "approved-by: luissiviero\n")
+            result = run_hook(self.HOOK, load_fixture("bash", command="terraform apply"), root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "")
+            self.assertIn("allow", self._log_verdicts(root))
+
+    def test_asks_when_release_authorization_names_claude(self):
+        with fake_repo() as root:
+            sha = self._head_sha(root)
+            self._authorize(root, sha, "---\napproved-by: claude\n---\n")
+            self.assertEqual(self._decision(root, "terraform apply"), "ask")
+            self.assertIn("reject", self._log_verdicts(root))
+
+    def test_blocks_unattended_when_release_authorization_names_someone(self):
+        with fake_repo() as root:
+            sha = self._head_sha(root)
+            self._authorize(root, sha, "approved-by: someone   # not a release-manager\n")
+            result = run_hook(self.HOOK, load_fixture("bash", command="terraform apply"), root,
+                              env={"SDLC_UNATTENDED": "1"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("reject", self._log_verdicts(root))
+            self.assertIn("block", self._log_verdicts(root))
+
+    def test_asks_on_deploy_shaped_commands(self):
+        with fake_repo() as root:
+            self._on_branch(root, "work/foo")
+            for command in (
+                "make deploy ENV=production",
+                "./scripts/deploy.sh production",
+                "gh workflow run deploy.yml -f environment=production",
+                "./deploy production",
+                "gh release create v1.0",
+                "gh pr merge 5 --squash",
+                "gh api -X POST repos/o/r/merges -f base=main",
+            ):
+                with self.subTest(command=command):
+                    self.assertEqual(self._decision(root, command), "ask")
+
+    def test_allows_deploy_lookalikes(self):
+        with fake_repo() as root:
+            self._on_branch(root, "work/foo")
+            for command in (
+                "deploy --help",
+                "echo deployment notes",
+                "gh pr view 12",
+                "gh api repos/o/r/releases/latest",
+                "git log --grep=deploy",
+            ):
+                with self.subTest(command=command):
+                    self.assertEqual(self._decision(root, command), "allow")
+
+    def test_asks_on_gh_pr_merge_admin(self):
+        with fake_repo() as root:
+            self._on_branch(root, "work/foo")
+            self.assertEqual(self._decision(root, "gh pr merge --admin 12"), "ask")
+
     def test_asks_on_mutating_cloud_subcommands(self):
         with fake_repo() as root:
             self._head_sha(root)

@@ -51,6 +51,10 @@ jobs:
       - name: Deploy
         run: scripts/deploy.sh "$ENVIRONMENT"
         env:
-          # bound to the commit that was checked out (the reviewer saw this sha as the run input)
-          RELEASE_APPROVAL: ${{ inputs.sha || github.sha }}
+          # Empty unless a release manager stored the 40-hex SHA to release as the Environment
+          # secret RELEASE_APPROVAL (knowledge/runbooks/rollback-deploy.md). It used to be derived
+          # from the run's own sha, which made the deploy guard tautological (work/deploy-gate).
+          # With it empty, deploy.sh accepts a committed .sdlc/release-authorizations/<sha> whose
+          # approved-by is a release-manager, and refuses everything else.
+          RELEASE_APPROVAL: ${{ secrets.RELEASE_APPROVAL }}
           CI: "true"

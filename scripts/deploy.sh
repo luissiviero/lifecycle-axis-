@@ -74,8 +74,23 @@ fi
 
 SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
 
-# (a) a human (or the pipeline acting on a human's approval) bound RELEASE_APPROVAL
-# to exactly this commit.
+# (a') the committed route (work/deploy-gate): with no RELEASE_APPROVAL in the environment, a
+# file .sdlc/release-authorizations/<HEAD> counts only when its approved-by holds release-manager
+# in .sdlc/approvers.yaml (scripts/approvers.py is the canonical reader; the hook uses the awk
+# twin in _lib.sh). Any other file refuses, naming the handle. A set RELEASE_APPROVAL wins and is
+# compared below, so a stale secret is reported as a mismatch rather than overridden by a file.
+AUTH="$ROOT/.sdlc/release-authorizations/$SHA"
+if [ -z "${RELEASE_APPROVAL:-}" ] && [ -f "$AUTH" ]; then
+  BY="$(sed -n 's/^approved-by:[[:space:]]*//p' "$AUTH" | head -1 | sed 's/[[:space:]]*#.*$//')"
+  if python3 "$ROOT/scripts/approvers.py" --has-role release-manager "$BY" >/dev/null 2>&1; then
+    RELEASE_APPROVAL="$SHA"
+  else
+    echo "deploy refused: $AUTH names '$BY', who is not a release-manager in .sdlc/approvers.yaml." >&2; exit 1
+  fi
+fi
+
+# (a) a human bound RELEASE_APPROVAL to exactly this commit: the Environment secret a release
+# manager stored, or the committed authorization validated above.
 if [ -z "${RELEASE_APPROVAL:-}" ]; then
   echo "deploy refused: RELEASE_APPROVAL is not set. It must equal the current commit ($SHA)." >&2
   exit 1
@@ -85,8 +100,9 @@ if [ "$RELEASE_APPROVAL" != "$SHA" ]; then
   exit 1
 fi
 
-# (d) production's approval is release-manager: assert the GitHub Environment's
-# required-reviewer gate actually ran (it only runs inside GitHub Actions).
+# (d) production's approval is release-manager: GITHUB_ACTIONS is a hint that the GitHub
+# Environment's required-reviewer gate ran before this job. Any shell can set it, so it is not a
+# gate on its own; (a) is the gate.
 APPROVAL="$(approval_for "$ENVIRONMENT")"
 if [ "$APPROVAL" = "release-manager" ] && [ "${GITHUB_ACTIONS:-}" != "true" ]; then
   echo "deploy refused: environment '$ENVIRONMENT' requires release-manager approval, which is enforced by the GitHub Environment's required reviewers. GITHUB_ACTIONS is not 'true', so that gate cannot be confirmed here." >&2

@@ -1,0 +1,24 @@
+name: gate-ignores-unauthorized-release-file
+kind: hook
+source: work/deploy-gate spec R-1 (production-gate.sh validates the authorization file's approver)
+check: |
+  R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"
+  git init -q "$d" && ( cd "$d" && git checkout -q -b main )
+  mkdir -p "$d/.sdlc"
+  cp "$R/.sdlc/config.env" "$R/.sdlc/approvers.yaml" "$d/.sdlc/"
+  ( cd "$d" && git add -A && git -c user.email=t@t -c user.name=t commit -q -m init ) >/dev/null 2>&1
+  sha="$(git -C "$d" rev-parse HEAD)"
+  auth_dir="$d/.sdlc/release-authorizations"; auth="$auth_dir/$sha"
+  mkdir -p "$auth_dir"
+  cmd='{"tool_name":"Bash","tool_input":{"command":"terraform apply -auto-approve"}}'
+  # a file by an identity that is not a release-manager is ignored: unattended -> exit 2
+  printf -- '---\napproved-by: claude\n---\n' > "$auth"
+  printf '%s' "$cmd" | SDLC_UNATTENDED=1 CLAUDE_PROJECT_DIR="$d" "$R/.claude/hooks/production-gate.sh" >/dev/null 2>&1
+  rc1=$?
+  # a file by a release-manager allows: exit 0, empty stdout, an allow line in the decisions log
+  printf -- '---\napproved-by: luissiviero\n---\n' > "$auth"
+  out="$(printf '%s' "$cmd" | SDLC_UNATTENDED=1 CLAUDE_PROJECT_DIR="$d" "$R/.claude/hooks/production-gate.sh" 2>/dev/null)"
+  rc2=$?
+  logged=0; grep -q 'allow' "$d/.sdlc/hook-decisions.log" 2>/dev/null && logged=1
+  rm -rf "$d"
+  [ "$rc1" -eq 2 ] && [ "$rc2" -eq 0 ] && [ -z "$out" ] && [ "$logged" -eq 1 ]

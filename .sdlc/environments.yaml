@@ -13,6 +13,6 @@ environments:
     github_environment: staging       # optional required reviewers, owner's choice
   production:
     agent_may: [prepare-release, propose-rollback]
-    approval: release-manager         # .sdlc/release-authorizations/<sha> or RELEASE_APPROVAL=<sha>
-    github_environment: production    # enforced by the GitHub Environment's required reviewers; RELEASE_APPROVAL is bound to the commit
-    rollback: runbook:rollback-deploy # pre-approved; rehearsed in staging on a schedule
+    approval: release-manager         # .sdlc/release-authorizations/<sha> by a release-manager, or the RELEASE_APPROVAL secret = <sha>
+    github_environment: production    # the Environment's required reviewers, plus deploy.sh's own check of the two routes above
+    rollback: runbook:rollback-deploy # pre-approved; the runbook names both authorization routes

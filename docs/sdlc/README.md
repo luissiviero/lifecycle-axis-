@@ -99,7 +99,7 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
 | Agent cannot weaken the check on its own fix | Test play step 7 | `protect-tests.sh` when plan `kind: fix`: an existing test file or eval case is locked, a new failing test is allowed | changes a wrong test |
 | Formatting never drifts | — | `post-edit-format.sh` (PostToolUse, one file) | — |
 | Verified before "done" | rule 5, CLAUDE.md verification block | Stop hook; CI runs `verify.sh`, which reports and fails a non-executable check (`VERIFY_ALLOW_SKIPPED_CHECKS=1` to tolerate); `run_evals.sh` prints a failing oracle's output | reads the pasted line |
-| Agent stops at the production gate | rule 4, environments.yaml | `production-gate.sh`: destructive → block; deploy → ask, or block when unattended, unless `.sdlc/release-authorizations/<sha>` or `RELEASE_APPROVAL=<sha>` | release manager |
+| Agent stops at the production gate | rule 4, environments.yaml | `production-gate.sh`: destructive → block; deploy (incl. `gh release create`, `gh workflow run`, `gh pr merge`) → ask, or block when unattended, unless `.sdlc/release-authorizations/<sha>` names a `release-manager` or `RELEASE_APPROVAL=<sha>` | release manager |
 | Review has evidence, ≤5 nits, no self-approval | REVIEW.md, `/sdlc-review` | reviewer subagents have no write tools; branch protection | code owner |
 | Config that steers the agent is regression-tested | Test play | `agent-evals.yml` on every CLAUDE.md/skills/hooks change | config owner |
 | Mistake twice → memory | rule 7, REVIEW.md Memory pass | — | reviewer insists |
@@ -109,7 +109,7 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
 | Context files stay one source, never hand-drift | CLAUDE.md play | `context-drift.sh` fails `verify.sh` when `CLAUDE.md`/`GEMINI.md`/`AGENTS.md` don't match `docs/sdlc/rules/*.md` | edits a fragment, not the generated file |
 | Workflows stay read-only and unprivileged | — | `workflow-permissions.sh`: every workflow declares `permissions:`, none grants `contents: write` outside an empty allowlist, none uses `pull_request_target` | reviews workflow diffs |
 | Plugin manifest matches what's actually on disk | — | `plugin-manifest.sh`: every skill/agent listed and vice versa, hook paths exist and are executable, semver valid | — |
-| Deploys run only from CI, never from an agent session | rule 4 | `deploy.yml` behind a GitHub Environment's required reviewers; `deploy.sh` refuses without `RELEASE_APPROVAL` matching `HEAD` and `CI` set | approves the Environment's deployment |
+| Deploys run only from CI, never from an agent session | rule 4 | `deploy.yml` behind a GitHub Environment's required reviewers; `deploy.sh` refuses without `CI` set and a release manager's binding of `HEAD`: the `RELEASE_APPROVAL` secret or a committed `.sdlc/release-authorizations/<sha>` | approves the Environment's deployment |
 
 ### Design choices worth knowing
 - **`work/<slug>/` instead of a bare `intent/` folder.** The playbook commits `spec.md` beside `intent.md`; keeping the

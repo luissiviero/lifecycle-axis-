@@ -2,7 +2,7 @@
 
 - `config.env` — path classes and verify commands used by hooks, CI, and scripts.
 - `active` — slug of the work item the current session is implementing (`work/<slug>/`).
-- `release-authorizations/<sha>` — one file per human-authorized release; created by a human, checked by `production-gate.sh`.
+- `release-authorizations/<sha>` — one file per human-authorized release; created by a human from their own shell (the control-plane unlock never covers it), and it counts only when its `approved-by` holds `release-manager` in `approvers.yaml`; checked by `production-gate.sh` and `scripts/deploy.sh`.
 - `APPROVERS_FILE` — path to the roles/approvers file used to validate `approved-by` in chain artifacts.
 - `KNOWLEDGE_PATHS` — directories scanned by the OKF conformance checker.
 - `OKF_STRICT` — when `1`, the OKF conformance check fails the build on warnings instead of only warning.
