@@ -597,3 +597,20 @@ class StopVerifyReminderHook(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SettingsAllowList(unittest.TestCase):
+    """work/delegated-mode R-11: the commands a delegated run needs are on the allow list of both
+    settings files (the kit's own and the adopter template), and the deny list is untouched."""
+    ENTRIES = ("Bash(python3 scripts/sign.py*)", "Bash(gh pr ready*)", "Bash(gh pr comment*)",
+               "Bash(gh pr create*)", "Bash(git push -u origin claude/*)")
+    DENY = ["Read(./.env)", "Read(./.env.*)", "Read(./secrets/**)", "Read(~/.ssh/**)", "Read(~/.aws/**)",
+            "WebFetch", "Bash(curl *)", "Bash(wget *)"]
+
+    def test_both_settings_files_allow_the_run_commands(self):
+        for rel in (".claude/settings.json", "docs/sdlc/templates/claude-settings.json"):
+            with open(os.path.join(REAL_ROOT, rel), encoding="utf-8") as f:
+                perms = json.load(f)["permissions"]
+            for entry in self.ENTRIES:
+                self.assertIn(entry, perms["allow"], rel)
+            self.assertEqual(perms["deny"], self.DENY, rel)

@@ -317,6 +317,17 @@ class Delegated(unittest.TestCase):
             self.assertEqual(r.returncode, 2, r.stderr)
             self.assertIn("intent.md", r.stderr)
 
+    def test_refuses_edit_resign_of_a_signed_artifact(self):
+        # A re-signature stands on a revision record that only scripts/sign.py checks (R-5, R-7),
+        # so an Edit that keeps `delegated` and moves approved-on is refused by the plain rule; the
+        # honest path is `sign.py --revision` (plan deviation 5).
+        files = self._files()
+        files["work/foo/spec.md"] = "---\nstatus: delegated\napproved-by: claude\napproved-on: 2026-09-01\n---\n"
+        with fake_repo(**files) as root:
+            r = run_hook(HOOK, multiedit("work/foo/spec.md", [("approved-on: 2026-09-01", "approved-on: 2026-09-02")]), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("approved-on", r.stderr)
+
     def test_refuses_approved_by_outside_agents(self):
         for handle in ("luissiviero", "mallory"):
             with fake_repo(**self._files()) as root:

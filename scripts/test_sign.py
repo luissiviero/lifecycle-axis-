@@ -234,6 +234,17 @@ class SignRefusals(unittest.TestCase):
             self.assertIn("delegation", r.stderr.lower())
             self.assertIn("status: in-review", read(root, "work/demo/spec.md"))
 
+    def test_refuses_artifact_outside_signable(self):
+        # R-7: the policy's `signable` list, not only the hard-coded intent.md stop, decides which
+        # artifact an agent may sign.
+        with tempfile.TemporaryDirectory() as root:
+            narrow = TEMPLATE_POLICY_TEXT.replace("signable: [spec.md, plan.md, incident.md]", "signable: [spec.md]", 1)
+            make_repo(root, policy_content=narrow, spec_status="delegated", spec_by="claude")
+            r = run(root, "demo", "plan.md")
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("signable", r.stderr)
+            self.assertIn("status: in-review", read(root, "work/demo/plan.md"))
+
     def test_refuses_when_policy_disabled(self):
         with tempfile.TemporaryDirectory() as root:
             disabled = TEMPLATE_POLICY_TEXT.replace("enabled: true", "enabled: false", 1)
