@@ -3,7 +3,7 @@ type: doc
 title: GitHub-side setup for an adopted repository
 description: "The first hour after scripts/adopt.sh, in order, and the GitHub settings the kit's gates rely on: plan check, branch protection, the control-plane-approved label, secrets, and the review App."
 tags: [sdlc, adopt, github, setup, branch-protection]
-timestamp: 2026-09-05T20:00:00Z
+timestamp: 2026-09-05T21:00:00Z
 ---
 
 # GitHub-side setup for an adopted repository
@@ -73,7 +73,8 @@ public or on a paid plan.
 
 - [ ] Settings → Actions → General: workflow token permissions **read-only**; "Allow GitHub Actions to create
       and approve pull requests" **unchecked**. Every kit workflow declares its own `permissions:`;
-      `scripts/checks/workflow-permissions.sh` fails `verify.sh` if one ever asks for `contents: write`.
+      `scripts/checks/workflow-permissions.sh` fails `verify.sh` if one ever asks for `contents: write`, with
+      one exception: `delegated-merge.yml`, allowlisted by name for the merge endpoint it calls.
 - [ ] Secrets: `ANTHROPIC_API_KEY` at repository scope with a spend limit, or `CLAUDE_CODE_OAUTH_TOKEN` from
       `claude setup-token` on a Pro/Max plan. Without one, prompt-based evals are skipped (and counted), the
       `pr-review` workflow does nothing, the `bands` workflow files the raw detector output, and the
@@ -93,7 +94,9 @@ Off by default; opt in per repo.
 1. **Copy the policy template and edit it there.** `cp docs/sdlc/templates/delegation.yaml
    .sdlc/delegation.yaml`, then tune `agents`, `signable`, `risk-classes`, `max-deviations`, `revisions`,
    `min-reviewers` and `merge` to taste. This is the one tuning surface for the mode; it is human-only, like
-   `.sdlc/approvers.yaml`, and on `protect-paths.sh`'s never-unlock list.
+   `.sdlc/approvers.yaml`, and on `protect-paths.sh`'s never-unlock list. The master switch is `enabled`: flip it
+   in `.sdlc/delegation.yaml` on `main` from the web editor, in either direction; no agent session can, since
+   the file never unlocks. In the kit's own repository it is `false` until the owner turns it on.
 2. **Grant it on an intent, from your own shell:**
    ```
    python3 scripts/approve.py <slug> intent.md --delegate --activate --as <your-github-handle>
@@ -108,7 +111,11 @@ Off by default; opt in per repo.
    ready pull request without stopping, signing each artifact with `scripts/sign.py` under its own handle.
    You are called back at a deviation cap, a `keep` verdict with no consensus on a plan revision, a path the
    policy locks, a red check the item cannot fix, or a hook refusal it does not understand — otherwise the
-   delegated-merge workflow merges once its printed conditions hold.
+   delegated-merge workflow merges once its printed conditions hold. Two waits fail closed by design: no
+   Claude credential means no `claude[bot]` review comment, so `require-review` never turns true; and a pull
+   request editing `.claude/skills/`, `.claude/agents/` or `CLAUDE.md` always draws a false `Important` from
+   the reviewer, which restores those files from `main` before it runs and so never sees the diff. Set
+   `require-review: false` in the policy to accept that trade; it is a deliberate loosening, not a default.
 
 ## Related
 

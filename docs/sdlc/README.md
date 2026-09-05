@@ -3,7 +3,7 @@ type: doc
 title: The AI-native SDLC loop, built into this repo
 description: A digest of the AI-native SDLC playbook mapped to enforcement mechanisms in this repo.
 tags: [sdlc, process, playbook]
-timestamp: 2026-09-05T20:00:00Z
+timestamp: 2026-09-05T21:00:00Z
 ---
 
 # The AI-native SDLC loop, built into this repo
@@ -107,10 +107,10 @@ scripts/detect_bands.py          deterministic Western Electric detector (traili
 | `approved-by` is a real human role, backed by a ledger entry | rule 8, `docs/sdlc/rules/30-conventions.md` | `protect-approvals.sh` refuses an agent-side `status: approved|superseded`, `approved-by`, `approved-on` or `approve.py` call (no unlock); `check_artifact_chain.py` validates against `.sdlc/approvers.yaml` and requires a matching `work/<slug>/log.md` entry | approver named in the file |
 | An agent signs `delegated` only under a human grant | `knowledge/decisions/delegated-mode.md`, `/sdlc-run` | `require-plan.sh` and the chain check accept a signed artifact only when the intent's `mode` is `delegated`, the risk class is in policy, and the handle is in `.sdlc/delegation.yaml`'s `agents`; `scripts/sign.py` is the only writer | grants delegated mode on intent.md |
 | A plan revision needs a deviation cap and a consensus record | `docs/sdlc/templates/revision.md`, `/sdlc-run`'s revision rule | `check_artifact_chain.py` counts `deviation:` ledger lines against the policy's `max-deviations` and reads `work/<slug>/revisions/<n>.md` for a unanimous `verdict: revise` before accepting a re-signed artifact | reads `revisions/` |
-| A delegated pull request merges without a click | `knowledge/decisions/delegated-mode.md` | `.github/workflows/delegated-merge.yml` and `scripts/delegated_merge.py` merge only when every printed condition holds (lands in pull request 2 of `work/delegated-mode`); `github-actions[bot]` performs the merge | the grant is the click, for delegated items only |
+| A delegated pull request merges without a click | `knowledge/decisions/delegated-mode.md` | `.github/workflows/delegated-merge.yml` and `scripts/delegated_merge.py` merge only when every printed condition holds — two waits fail closed by design: no Claude credential, or a diff touching `.claude/skills/`, `.claude/agents/` or `CLAUDE.md`; `github-actions[bot]` performs the merge | the grant is the click, for delegated items only |
 | Control-plane diff on an agent PR needs explicit human sign-off | rule 3 | CI blocks any agent-authored PR (head branch in `AGENT_BRANCH_PREFIXES`, a Bot author, or a Claude commit trailer) touching `PROTECTED_PATHS`; a human applying `control-plane-approved` is the only exemption | applies the label after reading the diff |
 | Context files stay one source, never hand-drift | CLAUDE.md play | `context-drift.sh` fails `verify.sh` when `CLAUDE.md`/`GEMINI.md`/`AGENTS.md` don't match `docs/sdlc/rules/*.md` | edits a fragment, not the generated file |
-| Workflows stay read-only and unprivileged | — | `workflow-permissions.sh`: every workflow declares `permissions:`, none grants `contents: write` outside an empty allowlist, none uses `pull_request_target` | reviews workflow diffs |
+| Workflows stay read-only and unprivileged | — | `workflow-permissions.sh`: every workflow declares `permissions:`, none grants `contents: write` outside the allowlist (`delegated-merge.yml` only, for the merge endpoint), none uses `pull_request_target` | reviews workflow diffs |
 | Plugin manifest matches what's actually on disk | — | `plugin-manifest.sh`: every skill/agent listed and vice versa, hook paths exist and are executable, semver valid | — |
 | Deploys run only from CI, never from an agent session | rule 4 | `deploy.yml` behind a GitHub Environment's required reviewers (not enforceable on the Free plan: `knowledge/decisions/merge-click-is-the-gate.md`); `deploy.sh` refuses without `CI` set and a release manager's binding of `HEAD`: the `RELEASE_APPROVAL` secret or a committed `.sdlc/release-authorizations/<sha>` | approves the Environment's deployment |
 
