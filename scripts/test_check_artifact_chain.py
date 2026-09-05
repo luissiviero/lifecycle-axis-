@@ -610,11 +610,20 @@ def _apply_grant(root, wd, risk_class="low", mode="delegated", author=(HUMAN_NAM
     _commit_as(root, author[0], author[1], "grant delegated mode")
 
 
-def _sign_delegated(root, wd, artifact="spec.md", handle="claude", from_status="in-review", note=""):
+def _sign_delegated(root, wd, artifact="spec.md", handle="claude", from_status="in-review", note="",
+                    keep_approval=False):
     """Flip `artifact` to status: delegated, approved-by `handle`, committed by the agent
-    identity, with a matching '-> delegated' ledger line."""
+    identity, with a matching '-> delegated' ledger line. A fresh signature is one on an artifact no
+    human ever approved, so the base fixture's `-> approved` ledger line for it is dropped unless
+    `keep_approval` (the demote-then-sign case: PR #43 security pass, finding 1)."""
     content = _plan(handle, status="delegated") if artifact == "plan.md" else _artifact(handle, status="delegated")
     _write(os.path.join(wd, artifact), content)
+    if not keep_approval and from_status not in ("approved", "delegated"):
+        log_path = os.path.join(wd, "log.md")
+        with open(log_path, encoding="utf-8") as f:
+            kept = [l for l in f if f"| {artifact} | in-review -> approved |" not in l]
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.writelines(kept)
     line = f"- 2026-09-05T01:00:00Z | {artifact} | {from_status} -> delegated | {handle} | abc1234"
     if note:
         line += f" | {note}"
@@ -646,6 +655,19 @@ class DelegatedChain(unittest.TestCase):
             result = _run(root, "--slug", "demo", "--base", "HEAD")
             self.assertEqual(result.returncode, 0, result.stdout)
             self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+
+    def test_demoted_then_signed_artifact_needs_a_revision_record(self):
+        # PR #43 security pass, finding 1: an approved spec demoted to in-review (the accepted
+        # demotion residual) and then signed fresh is a re-decision of a human approval; the ledger
+        # still holds the approval, so the signature needs a revision record.
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _write_delegation_policy(root)
+            _apply_grant(root, wd)
+            _sign_delegated(root, wd, artifact="spec.md", from_status="in-review", keep_approval=True)
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("revision", result.stdout)
 
     def test_signer_not_in_agents_fails_naming_the_signer(self):
         with tempfile.TemporaryDirectory() as root:

@@ -282,10 +282,15 @@ def check_revisions(slug, wd, name, policy, entries, errors):
     import log_ledger
 
     sigs = log_ledger.signatures(entries, name)
+    # A human approval anywhere in the artifact's ledger makes every signature a re-decision, whatever
+    # the file's status says now: demoting an approved artifact to in-review passes the hook (the
+    # accepted residual in human-only-approvals.md), so the ledger, not the front matter, is what
+    # says a decision already stood (PR #43 security pass, finding 1).
+    was_approved = bool(log_ledger.approvals(entries, name))
     resigns = [
         e for i, e in enumerate(sigs)
         if not e.note.strip().startswith("deviation:")
-        and (i > 0 or e.from_status in ("approved", "delegated"))
+        and (i > 0 or was_approved or e.from_status in ("approved", "delegated"))
     ]
     if not resigns or policy.revisions == "free":
         return

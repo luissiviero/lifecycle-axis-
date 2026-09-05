@@ -27,6 +27,7 @@ check_plan_required() { # check_plan_required <repo-relative canonical path> <wh
     BY="$(fm_value "$PLAN" approved-by)"; POLICY=".sdlc/delegation.yaml"
     delegation_on || block "'$R' needs an approved plan$where: work/$SLUG/plan.md is signed 'delegated', but delegated mode is off ($POLICY is missing or does not say enabled: true). A human must approve the plan."
     artifact_signable plan.md || block "'$R' needs an approved plan$where: work/$SLUG/plan.md is signed 'delegated', but plan.md is not in the signable list of $POLICY. A human must approve the plan."
+    [ "$(fm_value "$ROOT/work/$SLUG/intent.md" status)" = "approved" ] || block "'$R' needs an approved plan$where: work/$SLUG/plan.md is signed 'delegated', but work/$SLUG/intent.md is not approved. A grant stands on a human-approved intent."
     [ "$(intent_mode "$SLUG")" = "delegated" ] || block "'$R' needs an approved plan$where: work/$SLUG/plan.md is signed 'delegated', but work/$SLUG/intent.md says mode: $(intent_mode "$SLUG"). Only a human grants delegation, on the intent."
     agent_handle_ok "$BY" || block "'$R' needs an approved plan$where: work/$SLUG/plan.md says approved-by '$BY', who is not an agent listed in $POLICY (or the file is missing). A signature is written by scripts/sign.py under a listed agent handle."
     return 0

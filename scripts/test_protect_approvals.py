@@ -317,6 +317,20 @@ class Delegated(unittest.TestCase):
             self.assertEqual(r.returncode, 2, r.stderr)
             self.assertIn("intent.md", r.stderr)
 
+    def test_refuses_edit_replacing_a_human_approval(self):
+        # PR #43 security pass, finding 2: one Edit must never turn a human's `approved` into the
+        # agent's `delegated`; that re-decision is sign.py --revision's, with a consensus record.
+        files = self._files()
+        files["work/foo/spec.md"] = "---\nstatus: approved\napproved-by: luissiviero\napproved-on: 2026-09-01\n---\n"
+        with fake_repo(**files) as root:
+            r = run_hook(HOOK, multiedit("work/foo/spec.md", [
+                ("status: approved", "status: delegated"),
+                ("approved-by: luissiviero", "approved-by: claude"),
+                ("approved-on: 2026-09-01", "approved-on: 2026-09-05"),
+            ]), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("approved by a human", r.stderr)
+
     def test_refuses_edit_resign_of_a_signed_artifact(self):
         # A re-signature stands on a revision record that only scripts/sign.py checks (R-5, R-7),
         # so an Edit that keeps `delegated` and moves approved-on is refused by the plain rule; the
@@ -399,6 +413,27 @@ class DelegatedBashBranch(unittest.TestCase):
         with fake_repo(**DRAFT_INTENT) as root:
             r = run_hook(HOOK, bash(cmd), root)
             self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_refuses_gh_api_graphql_commit_mutation(self):
+        # PR #43 security pass, finding 3: createCommitOnBranch is the GraphQL spelling of the same
+        # server-signed commit the REST contents/ write would make.
+        cmd = ('gh api graphql -f query=\'mutation { createCommitOnBranch(input: {branch: {repositoryNameWithOwner: "o/r", '
+               'branchName: "main"}, fileChanges: {additions: [{path: "work/demo/intent.md", contents: "x"}]}, '
+               'message: {headline: "grant"}, expectedHeadOid: "abc"}) { commit { url } } }\'')
+        with fake_repo(**DRAFT_INTENT) as root:
+            r = run_hook(HOOK, bash(cmd), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("GraphQL", r.stderr)
+        with fake_repo(**DRAFT_INTENT) as root:
+            r = run_hook(HOOK, bash("gh api graphql -f query='query { viewer { login } }'"), root)
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_refuses_bash_write_of_delegated_status_to_a_draft(self):
+        # PR #43 security pass, nit 1: the Bash branch judges `delegated` like the edit branch does.
+        with fake_repo(**dict(DRAFT_INTENT, **DRAFT_SPEC)) as root:
+            r = run_hook(HOOK, bash("printf 'status: delegated\\n' >> work/foo/spec.md"), root)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("sign.py", r.stderr)
 
     def test_allows_gh_api_read_only_contents_call(self):
         cmd = "gh api repos/o/r/contents/work/demo/intent.md"

@@ -78,6 +78,11 @@ def resolve_revision(arg, slug, wd, policy):
     """
     candidates = [arg] if os.path.isabs(arg) else [os.path.join(wd, arg), os.path.join(ROOT, arg)]
     path = next((p for p in candidates if os.path.exists(p)), candidates[0])
+    # The record must be this item's own: a path that escapes work/<slug>/revisions/ would name a
+    # file CI never reads for this item (PR #43 security pass, nit 2).
+    revdir = os.path.realpath(os.path.join(wd, "revisions"))
+    if os.path.dirname(os.path.realpath(path)) != revdir:
+        return None, f"--revision must name a file under work/{slug}/revisions/, not '{arg}'"
     m = REVISION_FILE_RE.match(os.path.basename(path))
     if not m:
         return None, (f"--revision must name work/{slug}/revisions/<n>.md with <n> a number, "
@@ -201,7 +206,12 @@ def main(argv=None):
                             f"superseded first (it is '{prev_status}')")
         signed_now.add(name)
         old = fm.get("status", "draft") or "draft"
-        if old in ("approved", "delegated"):
+        # The ledger, not the file, says whether a decision already stood on this artifact: an
+        # approved artifact demoted to in-review would otherwise sign fresh with no record
+        # (PR #43 security pass, finding 1); check_artifact_chain.check_revisions reads it the same way.
+        entries, _ = log_ledger.parse(os.path.join(wd, "log.md"))
+        decided = bool(log_ledger.approvals(entries, name) or log_ledger.signatures(entries, name))
+        if old in ("approved", "delegated") or decided:
             if policy.revisions == "never":
                 return fail(f"work/{a.slug}/{name} is already '{old}' and {policy.path} says "
                             f"revisions: never; re-deciding a signed artifact is the owner's call")

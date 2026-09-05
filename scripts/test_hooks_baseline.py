@@ -297,6 +297,23 @@ FEATURE_PLAN = "---\nstatus: approved\napproved-by: luissiviero\nkind: feature\n
 EXISTING_TEST = {"src/foo.test.ts": "it('x', () => {})\n"}
 
 
+class RequirePlanDelegatedIntentStatus(unittest.TestCase):
+    HOOK = "require-plan.sh"
+
+    def test_blocks_delegated_plan_when_intent_is_not_approved(self):
+        # PR #43 security pass, nit 3: a grant stands on a human-approved intent; mode alone is not one.
+        files = {
+            "work/foo/intent.md": "---\nstatus: in-review\napproved-by:\nrisk-class: low\nmode: delegated\n---\n",
+            "work/foo/plan.md": "---\nstatus: delegated\napproved-by: claude\n---\n",
+            ".sdlc/delegation.yaml": open(os.path.join(REAL_ROOT, "docs", "sdlc", "templates", "delegation.yaml"), encoding="utf-8").read(),
+        }
+        with fake_repo(**files) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("not approved", result.stderr)
+
+
 class ProtectTestsHook(unittest.TestCase):
     HOOK = "protect-tests.sh"
 

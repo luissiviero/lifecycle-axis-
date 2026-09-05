@@ -35,13 +35,19 @@ CLAUDECODE_RE='(env[[:space:]]+(-u|--unset)[[:space:]=]*CLAUDECODE|unset[[:space
 # call is untouched; the mutation shape and the command boundary are production-gate.sh's.
 GH_API_WRITE_RE='(^|[;&|(){}!]|[[:space:]])gh[[:space:]]+api[[:space:]]+[^;&|]*(contents/|git/)'
 GH_MUT_RE='(-X|--method)[[:space:]=]*(POST|PUT|PATCH|DELETE)|(^|[[:space:]])(-f|-F|--field|--raw-field|--input)([[:space:]]|=)'
+# The GraphQL route to the same commit: createCommitOnBranch, createRef and updateRef write file
+# contents or move a ref through `gh api graphql`, server-signed and attributed to the token's owner
+# exactly as the REST call is (PR #43 security pass, finding 3). A read-only GraphQL query is untouched.
+GH_GRAPHQL_WRITE_RE='(^|[;&|(){}!]|[[:space:]])gh[[:space:]]+api[[:space:]]+[^;&|]*(createCommitOnBranch|createRef|updateRef)'
 
 # compare_fields <repo-relative path> <new status> <new approved-by> <new approved-on> <where>
 # Blocks when the new values are an approval-shaped change from the file's current front matter.
 compare_fields() {
   local R="$1" ns="$2" nb="$3" no="$4" where="$5" cs cb co
   cs="$(fm_value "$ROOT/$R" status)"; cb="$(fm_value "$ROOT/$R" approved-by)"; co="$(fm_value "$ROOT/$R" approved-on)"
-  case "$ns" in approved|superseded) [ "$ns" = "$cs" ] || block "'$R' would become status: $ns$where. Only a human approves: ask them to run scripts/approve.py from their own shell, then wait.";; esac
+  case "$ns" in approved|superseded) [ "$ns" = "$cs" ] || block "'$R' would become status: $ns$where. Only a human approves: ask them to run scripts/approve.py from their own shell, then wait.";;
+    # A signature is written by scripts/sign.py, never by a Bash write to the artifact (PR #43 security pass, nit 1).
+    delegated) [ "$ns" = "$cs" ] || block "'$R' would become status: delegated$where. A signature is written by scripts/sign.py under the session's own agent handle, never by a Bash write.";; esac
   [ -n "$nb" ] && [ "$nb" != "$cb" ] && block "'$R' would set approved-by: $nb$where. Only a human sets approved-by."
   [ -n "$no" ] && [ "$no" != "$co" ] && block "'$R' would set approved-on: $no$where. Only a human sets approved-on."
   return 0
@@ -99,7 +105,7 @@ check_result() {
   while IFS= read -r v; do
     [ -n "$v" ] && [ "$v" != "$co" ] && block "'$R' would set delegated-on: $v. Only a human sets mode, delegated-by and delegated-on."
   done < <(fm_all "$result" delegated-on)
-  if [ "$signature" = 1 ]; then check_signature "$R" "$name" "$slug" "$result"; return 0; fi
+  if [ "$signature" = 1 ]; then check_signature "$R" "$name" "$slug" "$result" "$cs"; return 0; fi
   while IFS= read -r v; do compare_fields "$R" "" "$v" "" ""; done < <(fm_all "$result" approved-by)
   while IFS= read -r v; do compare_fields "$R" "" "" "$v" ""; done < <(fm_all "$result" approved-on)
   return 0
@@ -111,7 +117,10 @@ check_result() {
 # they all hold, the signature's own approved-by and approved-on may change, which is the one case
 # where they may.
 check_signature() {
-  local R="$1" name="$2" slug="$3" result="$4" v mode signer=0 policy=".sdlc/delegation.yaml"
+  local R="$1" name="$2" slug="$3" result="$4" current="$5" v mode signer=0 policy=".sdlc/delegation.yaml"
+  # A human's approval is never overwritten by an Edit: re-deciding it is sign.py --revision's job,
+  # with the consensus record that script checks (PR #43 security pass, finding 2).
+  [ "$current" = approved ] && block "'$R' is approved by a human; only a human, or scripts/sign.py --revision with a consensus record, re-decides it. An Edit never replaces an approval with a signature."
   delegation_on || block "'$R' would become status: delegated, but delegated mode is off ($policy is missing or does not say enabled: true). Only a human approves: ask them to run scripts/approve.py from their own shell, then wait."
   artifact_signable "$name" || block "'$R' would become status: delegated, but '$name' is not in the signable list of $policy. Only a human approves it."
   [ "$name" = intent.md ] && block "'$R' would become status: delegated, but the intent carries the delegation grant and is never signed by an agent. Only a human approves it."
@@ -147,6 +156,7 @@ fi
 [ -z "$CMD" ] && exit 0
 printf '%s' "$CMD" | grep -Eq "$APPROVE_PY_RE" && block "scripts/approve.py is run by a human from their own shell, never from an agent session."
 printf '%s' "$CMD" | grep -Eq "$CLAUDECODE_RE" && block "unsetting CLAUDECODE is how an agent impersonates a human; not allowed."
+printf '%s' "$CMD" | grep -Eq "$GH_GRAPHQL_WRITE_RE" && block "that command writes a commit or a ref through the GitHub GraphQL API: the API would create a GitHub-signed commit; a grant is the owner's own act. Push a branch and open a pull request instead."
 printf '%s' "$CMD" | grep -Eiq "$GH_API_WRITE_RE" && printf '%s' "$CMD" | grep -Eiq "$GH_MUT_RE" && block "that command writes through the GitHub contents/ or git/ API: the API would create a GitHub-signed commit; a grant is the owner's own act. Push a branch and open a pull request instead."
 [ "${BASH_WRITE_GUARD:-1}" = 1 ] || exit 0
 WHERE=" (write detected in a Bash command)"
@@ -163,6 +173,9 @@ while IFS= read -r CAND; do
   esac
   [ -n "$CB" ] && block "'$CAND' carries approved-by: $CB$WHERE; it changes only through Write/Edit, where the resulting front matter is checked."
   check_text "$CAND" "$CMD" "$WHERE"
+  # A `status: delegated` anywhere in the text (a printf, not only a heredoc line) is a signature by
+  # Bash, which the honest path never needs (PR #43 security pass, nit 1).
+  printf '%s' "$CMD" | grep -Eiq 'status:[[:space:]]*delegated' && block "'$CAND' would be given status: delegated$WHERE. A signature is written by scripts/sign.py under the session's own agent handle, never by a Bash write."
   # `delegat` joins the word rule only where a delegation word would be an act: the intent that
   # carries the grant, or a command that writes a `mode:` line. Elsewhere the word is prose, and a
   # legitimate `python3 scripts/sign.py ...` names no write candidate at all, so it never gets here.
