@@ -4,10 +4,10 @@ id: bash-guard-hardening
 title: Bounded hardening of bash_write_targets, cwd-aware candidates, NotebookEdit coverage
 description: Requirements and design for closing the verified silent-allow shapes of the Bash write guard within a 140-line bound, reading the hook input's cwd, covering NotebookEdit, and recording the accepted residuals.
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Transcribed from the approved implementation plan (session above), section WI-4 and appendix A4, by a drafting subagent; reviewed by the orchestrator."
