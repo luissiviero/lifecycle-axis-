@@ -4,11 +4,11 @@ id: deploy-gate
 title: The deploy path fails open; every route to production must fail closed on a named human
 description: Files, order, proof and risks for validating release authorizations, gating the gh and deploy.sh routes, and unbinding RELEASE_APPROVAL from github.sha.
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 risk-class: low
 record:
 resource: https://claude.ai/code/session_01DSYmeD7eng2GKQ3EbHQDzo
