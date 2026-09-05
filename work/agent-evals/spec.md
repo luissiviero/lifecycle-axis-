@@ -4,10 +4,10 @@ id: agent-evals
 title: Evals test the agent, and can go red
 description: "Requirements and design for five skill cases, a runner that can fail on a missing credential and can stage fixtures, effective negated assertions with a verify check, a complete workflow path filter, and a diff-line approval attribution."
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Transcribed from the approved 2026-09-04 implementation plan (docs/sdlc/handoff/PLAN.md on branch claude/session-handoff), section WI-9, plus the two Batch A follow-ups from HANDOFF.md, after scanning every eval case for non-final negated lines and reading run_evals.sh, agent-evals.yml and check_artifact_chain.py:275; reviewed by the orchestrator."
