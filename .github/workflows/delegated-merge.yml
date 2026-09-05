@@ -5,9 +5,11 @@ name: delegated-merge
 # the owner's own merge click, as knowledge/decisions/merge-click-is-the-gate.md describes.
 #
 # Why workflow_run: it fires from the DEFAULT BRANCH, so scripts/delegated_merge.py, .sdlc/config.env,
-#   .sdlc/approvers.yaml and .sdlc/delegation.yaml are always main's copies. A pull request cannot
-#   change the code that judges it, and the script's locked-paths condition refuses any diff that
-#   touches those files anyway.
+#   .sdlc/approvers.yaml, .sdlc/delegation.yaml and .sdlc/active are always main's copies. A pull
+#   request cannot change the code that judges it, and the script's locked-paths condition refuses
+#   any diff that touches those files anyway. The grant itself is read the same way: the script asks
+#   GitHub for work/<slug>/intent.md and its grant commit on the pull request's BASE ref, never on
+#   the head, so nothing the branch wrote can widen the branch's own permission.
 # Who merges: github-actions[bot], with the repository token. No new credential, and no discretionary
 #   act left in the agent session's hands (decision D-e).
 # How it merges: merge_method comes from .sdlc/delegation.yaml, and the policy in this repo says
@@ -23,7 +25,9 @@ on:
   workflow_run:
     # The three workflows .sdlc/delegation.yaml names in `merge.require-checks`. Listing them here
     # only decides when to *look*; the script re-reads the policy and checks every name again, so
-    # adding a name to the policy without adding it here delays the merge, never widens it.
+    # adding a name to the policy without adding it here delays the merge, never widens it. The
+    # script counts only `pull_request` runs of the pull request's own head branch, so a run of any
+    # of these three started by hand (workflow_dispatch) wakes this workflow but satisfies nothing.
     workflows: [sdlc-gate, agent-evals, pr-review]
     types: [completed]
   # The owner's dry run: "Run workflow" with a head sha prints every condition and its verdict for
@@ -58,10 +62,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The job's name is the name GitHub gives this workflow's check run, and it is the one check run
+  # scripts/delegated_merge.py excludes from "every other check run must be green" (its
+  # SELF_CHECK_NAME): the job is in progress while it evaluates, so counting it could never pass.
+  # Renaming this job means renaming SELF_CHECK_NAME in the same commit.
   merge:
     runs-on: ubuntu-latest
     # Only a completed, successful run of a pull request, or the owner's dry run. A failed required
-    # workflow needs no evaluation at all -- and the script would refuse it anyway.
+    # workflow needs no evaluation at all -- and the script refuses it too (its `event` condition).
     if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success')
     steps:
       # The ONLY checkout, and it takes the default branch, never the pull request head (spec D6).

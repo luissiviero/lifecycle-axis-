@@ -4,8 +4,10 @@
 Called by `.github/workflows/delegated-merge.yml` on a `workflow_run` completion, so it runs from
 the default branch: this script and the three `.sdlc/` files it reads are always `main`'s copies,
 never the head's (work/delegated-mode R-15, D6; knowledge/decisions/delegated-mode.md decision 6).
-It is the click, for delegated items only; `merge-click-is-the-gate.md` still describes every
-supervised pull request.
+The same rule holds for the grant itself: `work/<slug>/intent.md` and the commit that wrote its
+`mode: delegated` line are read from the pull request's BASE branch, never from the head under
+judgement. It is the click, for delegated items only; `merge-click-is-the-gate.md` still describes
+every supervised pull request.
 
 Nothing here is discretionary. Eight conditions run in a fixed order, each printing one
 `CONDITION <name>: <ok|refused|waiting> — <detail>` line; the run stops at the first non-`ok`
@@ -46,22 +48,48 @@ import approvers  # noqa: E402  (path set up above)
 import check_artifact_chain as chain  # noqa: E402  (front_matter_text and config())
 import delegation  # noqa: E402  (the one policy parser)
 
-# This workflow's own check run, excluded from "every other check run must be green":
-# it is in progress while it runs, so including it would make the condition unsatisfiable.
-SELF_CHECK_NAME = "delegated-merge"
+# This workflow's own check run, excluded from "every other check run must be green": it is in
+# progress while it runs, so including it would make the condition unsatisfiable. GitHub names a
+# check run after the JOB, not the workflow, and delegated-merge.yml's job is `merge` -- naming the
+# workflow here excluded nothing and let this job's own in-progress run wait for itself
+# (pull request 45 security pass, nit b).
+SELF_CHECK_NAME = "merge"
 # The reviewer identity pr-review.yml posts as (docs/sdlc/spikes/pr-review-identity.md).
 REVIEW_BOT_LOGIN = "claude[bot]"
 REVIEW_BOT_TYPE = "Bot"
+# The workflow whose run *is* the review verdict, and the link its comment carries. Any account
+# with a token can post a comment ending `Important: 0`; only the pr-review workflow can produce a
+# run of this head sha, so the comment is believed only when it links that run
+# (pull request 45 security pass, finding 3).
+REVIEW_WORKFLOW_NAME = "pr-review"
+REVIEW_RUN_LINK = "/actions/runs/%s"
 # REVIEW.md's summary line, added for exactly this condition (work/delegated-mode R-13).
 REVIEW_SUMMARY_RE = re.compile(r"^Important: (\d+) \| Nits: (\d+)$")
-# `Work-Item: <slug>` in the pull request body; the slug charset the repo's work/ dirs use.
-WORK_ITEM_RE = re.compile(r"^Work-Item:\s*([A-Za-z0-9._-]+)$")
+# `Work-Item: <slug>` in the pull request body, and the shape a slug must have. The slug is
+# interpolated into `work/<slug>/intent.md` and into API paths, so a `.`-only segment or a leading
+# dot -- `..`, `.git` -- would name a file outside the work item (pull request 45 security pass,
+# finding 7).
+WORK_ITEM_RE = re.compile(r"^Work-Item:\s*(\S+)$")
+SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*$")
 # The literal the `-G` pickaxe checks look for, here read out of a commit's patch.
 GRANT_LINE_RE = re.compile(r"^\+mode:\s*delegated\s*$")
 OK_CHECK_CONCLUSIONS = ("success", "skipped", "neutral")
+# GitHub's own committer for web-editor and API commits: it signs with GitHub's key, and the
+# author of a commit it makes is the authenticated account that asked for it.
+WEB_FLOW_LOGIN = "web-flow"
+# The paths this script locks whatever any file says: the control plane, the judging surfaces and
+# the rules an agent's pull request must not be able to rewrite on its way in. See
+# `check_locked_paths` -- the policy's `locked-paths` only ever adds to this floor.
+ALWAYS_LOCKED = (
+    ".github", ".claude", ".gemini", "docs/sdlc/rules", "docs/sdlc/templates",
+    "CLAUDE.md", "GEMINI.md", "AGENTS.md", "REVIEW.md", ".sdlc",
+    "scripts/checks", "scripts/verify.sh", "scripts/run_tests.py", "scripts/run_evals.sh",
+)
 # `gh api` reports the HTTP status in its stderr; 405/409 on the merge endpoint mean the sha moved.
 HTTP_STATUS_RE = re.compile(r"HTTP (\d{3})")
 STALE_STATUSES = (405, 409)
+# `--head-sha` is interpolated into API paths; a sha is hex and nothing else.
+HEAD_SHA_ARG_RE = re.compile(r"^[0-9a-f]{7,40}$")
 
 OK = "ok"
 REFUSED = "refused"
@@ -206,6 +234,16 @@ def _get(mapping, *path):
     return cur
 
 
+def _pr_runs(runs, head_ref):
+    """The workflow runs that judged THIS pull request: `event == "pull_request"` on `head_ref`.
+
+    A `workflow_dispatch` or `schedule` run of the same workflow is one anybody with write access
+    can start green on any code, and a run of another branch never saw this diff, so neither may
+    stand in for a required check (pull request 45 security pass, finding 5)."""
+    return [r for r in (runs or [])
+            if r.get("event") == "pull_request" and r.get("head_branch") == head_ref]
+
+
 # --- Conditions. Each is pure: it takes the JSON (and policy/config) it needs and returns
 # (verdict, detail), with no I/O, so every refusal in R-15 has a unit test of its own. ---------
 def check_policy(policy):
@@ -220,7 +258,10 @@ def check_policy(policy):
 
 
 def check_event(event):
-    """2. The event is a completed `pull_request` run of this repository (never a fork)."""
+    """2. The event is a completed, successful `pull_request` run of this repository (never a
+    fork). A conclusion that is not `success` is refused here rather than left to the checks
+    condition: a red required workflow is the answer, whatever a later re-read of the run list
+    might say (pull request 45 security pass, nit d)."""
     run = event.get("workflow_run") or {}
     if run.get("event") != "pull_request":
         return REFUSED, "workflow_run.event is '%s', not 'pull_request'" % run.get("event")
@@ -231,6 +272,8 @@ def check_event(event):
             head_repo, repo)
     if not run.get("conclusion"):
         return REFUSED, "workflow_run has no conclusion yet"
+    if run.get("conclusion") != "success":
+        return REFUSED, "workflow_run concluded %s, not success" % run.get("conclusion")
     return OK, "%s run %s concluded %s" % (run.get("name"), run.get("id"), run.get("conclusion"))
 
 
@@ -242,16 +285,26 @@ def pick_pr(pulls, head_sha):
 
 
 def work_item_slug(body):
-    """The slug on the pull request body's `Work-Item: <slug>` line, or None."""
+    """The slug on the pull request body's `Work-Item: <slug>` line, or None.
+
+    A slug that is not a plain path segment is no slug: it is interpolated into
+    `work/<slug>/intent.md`, so `..` or `.git` would read a file that is not this item's
+    (pull request 45 security pass, finding 7)."""
     for line in (body or "").splitlines():
         found = WORK_ITEM_RE.match(line.strip())
-        if found:
+        if found and SLUG_RE.match(found.group(1)):
             return found.group(1)
     return None
 
 
-def check_pull_request(pulls, head_sha, agent_prefixes, default_branch):
-    """3. Exactly one open, non-draft agent pull request into the default branch, with a slug."""
+def check_pull_request(pulls, head_sha, agent_prefixes, default_branch, active_slug=""):
+    """3. Exactly one open, non-draft agent pull request into the default branch, whose slug is the
+    work item `.sdlc/active` names.
+
+    The slug decides which intent.md is read for the grant, and the body that carries it is written
+    by whoever opened the pull request. Binding it to `.sdlc/active` -- read from the base checkout
+    this script runs from, never from the head -- means a branch cannot point the grant check at
+    another item's approved intent (pull request 45 security pass, finding 7)."""
     open_matches = [p for p in (pulls or [])
                     if p.get("state") == "open" and _get(p, "head", "sha") == head_sha]
     if len(open_matches) != 1:
@@ -267,30 +320,41 @@ def check_pull_request(pulls, head_sha, agent_prefixes, default_branch):
     slug = work_item_slug(pr.get("body"))
     if not slug:
         return REFUSED, "no 'Work-Item: <slug>' line in the body of #%s" % pr.get("number")
+    active = (active_slug or "").strip()
+    if slug != active:
+        return REFUSED, ("Work-Item is '%s' but .sdlc/active names '%s'; only the active work item "
+                         "is merged" % (slug, active))
     base = _get(pr, "base", "ref")
     if base != default_branch:
         return REFUSED, "base branch is '%s', not the default branch '%s'" % (base, default_branch)
     return OK, "#%s %s -> %s, Work-Item: %s" % (pr.get("number"), ref, base, slug)
 
 
-def check_required_runs(runs, require_checks):
-    """4a. Every `require_checks` workflow ran on this head sha and succeeded. A name with no run
-    at all refuses rather than waits: `agent-evals.yml` has a `paths:` filter, so a pull request
-    outside those paths produces no run and would otherwise wait forever (spec gotchas)."""
+def check_required_runs(runs, require_checks, head_ref):
+    """4a. Every `require_checks` workflow ran on this head sha for this pull request, and every
+    such run succeeded.
+
+    Only `event == "pull_request"` runs of `head_ref` count (`_pr_runs`), and *all* of them must be
+    green rather than merely one: a manually dispatched green run beside a failed pull_request run
+    used to satisfy this condition, which is a check anybody with write access could start
+    (pull request 45 security pass, finding 5). A name with no run at all refuses rather than
+    waits: `agent-evals.yml` has a `paths:` filter, so a pull request outside those paths produces
+    no run and would otherwise wait forever (spec gotchas)."""
     for name in require_checks:
-        matching = [r for r in (runs or []) if r.get("name") == name]
+        matching = [r for r in _pr_runs(runs, head_ref) if r.get("name") == name]
         if not matching:
-            return REFUSED, ("required workflow '%s' has no run on this head sha (a workflow with a "
-                             "paths: filter never runs for a diff outside them; list only always-run "
-                             "workflows in merge.require-checks)" % name)
-        if any(r.get("status") == "completed" and r.get("conclusion") == "success"
-               for r in matching):
-            continue
+            return REFUSED, ("required workflow '%s' has no pull_request run of '%s' on this head "
+                             "sha (a workflow with a paths: filter never runs for a diff outside "
+                             "them; list only always-run workflows in merge.require-checks)"
+                             % (name, head_ref))
+        failed = [r for r in matching
+                  if r.get("status") == "completed" and r.get("conclusion") != "success"]
+        if failed:
+            return REFUSED, "required workflow '%s' concluded %s" % (
+                name, failed[0].get("conclusion"))
         pending = [r for r in matching if r.get("status") != "completed"]
         if pending:
             return WAITING, "required workflow '%s' is %s" % (name, pending[0].get("status"))
-        worst = matching[-1]
-        return REFUSED, "required workflow '%s' concluded %s" % (name, worst.get("conclusion"))
     return OK, "%d required workflow(s) green" % len(require_checks)
 
 
@@ -313,27 +377,31 @@ def check_check_runs(check_runs, self_name=SELF_CHECK_NAME):
         r for r in (check_runs or []) if r.get("name") != self_name])
 
 
-def check_grant_front_matter(front_matter, policy):
-    """5a. The head's `intent.md` carries a live grant a human wrote. `delegated` is named apart
-    from every other non-approved status because it is the one an agent could have written, on the
-    very file that carries its grant -- widening its own permission (decision record, decision 2)."""
+def check_grant_front_matter(front_matter, policy, base_ref=None):
+    """5a. The BASE branch's `intent.md` carries a live grant a human wrote. `delegated` is named
+    apart from every other non-approved status because it is the one an agent could have written,
+    on the very file that carries its grant -- widening its own permission (decision record,
+    decision 2). The file is read from the base, not the head: a grant that exists only on the
+    branch under judgement was written by whoever wrote that branch (pull request 45 security
+    pass, finding 2)."""
+    on = (" on %s" % base_ref) if base_ref else ""
     if front_matter is None:
-        return REFUSED, "no intent.md at the head of this pull request"
+        return REFUSED, "no intent.md%s for this pull request" % on
     status = (front_matter.get("status") or "").strip()
     if status == "delegated":
         return REFUSED, "intent.md is signed 'delegated'; an agent never signs its own grant"
     if status != "approved":
-        return REFUSED, "intent.md status is '%s', not 'approved'" % status
+        return REFUSED, "intent.md%s status is '%s', not 'approved'" % (on, status)
     mode = (front_matter.get("mode") or "").strip()
     if mode != "delegated":
-        return REFUSED, "intent.md mode is '%s', not 'delegated'" % (mode or "supervised")
+        return REFUSED, "intent.md%s mode is '%s', not 'delegated'" % (on, mode or "supervised")
     ok, reason = policy.risk_ok(front_matter.get("risk-class"))
     if not ok:
         return REFUSED, reason
     if not (front_matter.get("delegated-by") or "").strip():
-        return REFUSED, "intent.md has no delegated-by handle"
-    return OK, "approved, delegated by %s, risk-class %s" % (
-        front_matter.get("delegated-by"), front_matter.get("risk-class"))
+        return REFUSED, "intent.md%s has no delegated-by handle" % on
+    return OK, "approved%s, delegated by %s, risk-class %s" % (
+        on, front_matter.get("delegated-by"), front_matter.get("risk-class"))
 
 
 def commit_adds_grant(commit_detail, path):
@@ -347,78 +415,129 @@ def commit_adds_grant(commit_detail, path):
     return False
 
 
-def check_grant_commit(commit_detail, approvers_file, expected_handle=None):
-    """5b. The grant commit is GitHub-verified and authored by a product owner -- server-side, not
+def check_grant_commit(commit_detail, approvers_file, expected_handle=None, base_ref=None):
+    """5b. The grant commit is GitHub-verified with reason `valid`, authored by the product owner
+    the intent names, and committed by someone this repository trusts -- server-side, not
     git-authored: a local `git commit --author` cannot satisfy `commit.verification.verified`, and
     `author.login` is the account GitHub attributed the commit to (spec D2, decision 6).
     `expected_handle` is the intent's `delegated-by`: the file's own claim of who granted must be
-    the login that wrote it, or the ledger would name one human and the commit another."""
+    the login that wrote it, or the ledger would name one human and the commit another.
+
+    Author and committer are two different people, and the signature covers only the committer:
+    `author.login` is resolved from an author email the committer sets freely, so a valid signature
+    by anybody over an author line reading `owner` proved nothing. The committer must therefore be
+    a product owner too, or GitHub's own `web-flow` signer, which commits web-editor and API edits
+    and whose author is the authenticated account that made them (pull request 45 security pass,
+    finding 1). `reason == "valid"` is required alongside `verified` for the same fail-closed
+    reason: no other reason string is a signature this script understands."""
+    on = (" on %s" % base_ref) if base_ref else ""
     if not commit_detail:
-        return REFUSED, ("no commit adding the grant line in the last %d commits touching the intent"
-                         % GRANT_WINDOW)
+        return REFUSED, ("no commit adding the grant line in the last %d commits touching the "
+                         "intent%s" % (GRANT_WINDOW, on))
     sha = commit_detail.get("sha") or "?"
-    if not _get(commit_detail, "commit", "verification", "verified"):
-        reason = _get(commit_detail, "commit", "verification", "reason") or "unverified"
+    verified = _get(commit_detail, "commit", "verification", "verified")
+    reason = _get(commit_detail, "commit", "verification", "reason") or "unverified"
+    if not verified or reason != "valid":
         return REFUSED, "grant commit %s is not GitHub-verified (%s)" % (sha[:12], reason)
     login = _get(commit_detail, "author", "login") or ""
-    ok, reason = approvers_file.has_role("product-owner", login)
+    ok, why = approvers_file.has_role("product-owner", login)
     if not ok:
-        return REFUSED, "grant commit %s author '%s': %s" % (sha[:12], login, reason)
+        return REFUSED, "grant commit %s author '%s': %s" % (sha[:12], login, why)
     norm = approvers.Approvers.normalize
     if expected_handle is not None and norm(expected_handle) != norm(login):
         return REFUSED, "intent.md says delegated-by '%s' but the grant commit %s is by '%s'" % (
             expected_handle, sha[:12], login)
-    return OK, "granted in verified commit %s by %s" % (sha[:12], login)
+    committer = _get(commit_detail, "committer", "login") or ""
+    committer_ok, committer_why = approvers_file.has_role("product-owner", committer)
+    if not committer_ok and norm(committer) != WEB_FLOW_LOGIN:
+        return REFUSED, ("grant commit %s is signed by committer '%s', not by the author '%s': %s "
+                         "(only a product owner or GitHub's own '%s' may commit a grant)"
+                         % (sha[:12], committer, login, committer_why, WEB_FLOW_LOGIN))
+    return OK, "granted%s in verified commit %s by %s (committed by %s)" % (
+        on, sha[:12], login, committer)
 
 
 def check_locked_paths(files, prefixes):
-    """6. The diff touches nothing under PROTECTED_PATHS, RELEASE_GATED_PATHS or locked-paths.
+    """6. The diff touches nothing locked, under either its current or its former name.
+
+    ALWAYS_LOCKED is this script's own floor -- the control plane, the rule and template files, and
+    the surfaces that judge a pull request -- and `prefixes` (PROTECTED_PATHS, RELEASE_GATED_PATHS,
+    the policy's `locked-paths` and this item's own intent.md) only ever adds to it: a policy file
+    can widen what is locked, never narrow it. A rename is checked on `previous_filename` as well,
+    since `git mv REVIEW.md x.md` empties a judging surface without any entry naming it
+    (pull request 45 security pass, finding 6).
+
     Prefix match on whole path segments, the comparison `check_control_plane.sh` makes (`f == p`
     or `f` under `p/`), so a file entry never matches a longer name and a directory covers its
     tree. This is what makes the head's own sdlc-gate trustworthy (spec D6)."""
+    locked = [p.rstrip("/") for p in (list(ALWAYS_LOCKED) + list(prefixes or []))]
     for changed in files or []:
-        name = changed.get("filename") or ""
-        for prefix in prefixes:
-            prefix = prefix.rstrip("/")
-            if name == prefix or name.startswith(prefix + "/"):
-                return REFUSED, "%s is under the locked path '%s'" % (name, prefix)
+        for key in ("filename", "previous_filename"):
+            name = changed.get(key) or ""
+            for prefix in locked:
+                if name == prefix or name.startswith(prefix + "/"):
+                    return REFUSED, "%s is under the locked path '%s'" % (name, prefix)
     return OK, "%d changed file(s), none locked" % len(files or [])
 
 
-def check_review(comments, head_time):
-    """7. The newest `claude[bot]` comment reviews *this* head and ends `Important: 0`. Fails
-    closed (spec Q3): no credential means no comment, which waits for the owner rather than
-    merging, and a review older than the head commit reviewed older code, so a push after a clean
-    review re-opens this condition."""
+def check_review(comments, runs, head_ref):
+    """7. The review verdict comes from the `pr-review` workflow's own run of this head, and that
+    run's tracking comment reports `Important: 0`.
+
+    A `claude[bot]` comment is not evidence by itself: the comment API takes any token, so a body
+    ending `Important: 0` is something an agent's own credential could write. The runs already
+    fetched for this head sha are: every `pr-review` run of `head_ref` on this sha must have
+    concluded `success` (a failed one refuses, none yet waits), and only a comment linking the
+    newest such run's id counts. Of those, the EARLIEST is read -- the tracking comment the action
+    opens when the run starts -- so a later comment forged with the same link cannot overwrite the
+    verdict. The run's own `head_sha` is what binds the review to this head, which is why no
+    timestamp is compared any more (pull request 45 security pass, findings 3 and 4).
+
+    Fails closed (spec Q3): no credential means no run and no comment, which waits for the owner
+    rather than merging."""
+    matching = [r for r in _pr_runs(runs, head_ref) if r.get("name") == REVIEW_WORKFLOW_NAME]
+    completed = [r for r in matching if r.get("status") == "completed"]
+    failed = [r for r in completed if r.get("conclusion") != "success"]
+    if failed:
+        return REFUSED, "%s run %s concluded %s" % (
+            REVIEW_WORKFLOW_NAME, failed[0].get("id"), failed[0].get("conclusion"))
+    if not completed:
+        return WAITING, "no completed %s run of '%s' on this head sha yet" % (
+            REVIEW_WORKFLOW_NAME, head_ref)
+    newest = max(completed, key=lambda r: int(r.get("id") or 0))
+    link = REVIEW_RUN_LINK % newest.get("id")
     bot = [c for c in (comments or [])
            if _get(c, "user", "login") == REVIEW_BOT_LOGIN
-           and _get(c, "user", "type") == REVIEW_BOT_TYPE]
+           and _get(c, "user", "type") == REVIEW_BOT_TYPE
+           and link in (c.get("body") or "")]
     if not bot:
-        return WAITING, "no %s review comment yet" % REVIEW_BOT_LOGIN
-    bot.sort(key=lambda c: str(c.get("updated_at") or c.get("created_at") or ""))
-    newest = bot[-1]
-    posted = _ts(newest.get("updated_at") or newest.get("created_at"))
-    if head_time is not None and posted is not None and posted < head_time:
-        return WAITING, "the newest review (%s) is older than the head commit (%s)" % (
-            posted.isoformat(), head_time.isoformat())
+        return WAITING, "no %s comment links %s run %s yet" % (
+            REVIEW_BOT_LOGIN, REVIEW_WORKFLOW_NAME, newest.get("id"))
+    bot.sort(key=lambda c: str(c.get("created_at") or ""))
+    tracking = bot[0]  # the comment the action opened for that run
     summary = None
-    for line in (newest.get("body") or "").splitlines():
+    for line in (tracking.get("body") or "").splitlines():
         found = REVIEW_SUMMARY_RE.match(line.strip())
         if found:
             summary = found
     if summary is None:
-        return WAITING, "the newest %s comment has no 'Important: <n> | Nits: <m>' line" % REVIEW_BOT_LOGIN
+        return WAITING, ("the %s comment for %s run %s has no 'Important: <n> | Nits: <m>' line"
+                         % (REVIEW_BOT_LOGIN, REVIEW_WORKFLOW_NAME, newest.get("id")))
     important = int(summary.group(1))
     if important:
         return REFUSED, "the review reports Important: %d" % important
-    return OK, "review reports Important: 0 | Nits: %s" % summary.group(2)
+    return OK, "%s run %s reports Important: 0 | Nits: %s" % (
+        REVIEW_WORKFLOW_NAME, newest.get("id"), summary.group(2))
 
 
-def check_cool_off(runs, require_checks, cool_off_hours, now):
-    """8. `cool_off_hours` have passed since the newest required run finished."""
+def check_cool_off(runs, require_checks, cool_off_hours, now, head_ref):
+    """8. `cool_off_hours` have passed since the newest required run of this pull request finished.
+    Same filter as the checks condition: a dispatched or foreign-branch run is not a stamp this
+    pull request earned (pull request 45 security pass, finding 5)."""
     if not cool_off_hours:
         return OK, "no cool-off configured"
-    stamps = [_ts(r.get("updated_at")) for r in (runs or []) if r.get("name") in require_checks]
+    stamps = [_ts(r.get("updated_at")) for r in _pr_runs(runs, head_ref)
+              if r.get("name") in require_checks]
     stamps = [s for s in stamps if s is not None]
     if not stamps:
         return WAITING, "no required run has an updated_at to measure the cool-off from"
@@ -430,9 +549,13 @@ def check_cool_off(runs, require_checks, cool_off_hours, now):
 
 
 def merge_comment_body(handle, grant_sha):
-    """The comment left on the merged pull request: who granted the delegation, and where."""
+    """The comment left on the merged pull request: who granted the delegation, and where. The
+    handle is normalised (`approvers.Approvers.normalize`), never the raw front-matter text: the
+    comment is a record, and front matter is a field a branch can fill with anything
+    (pull request 45 security pass, nit c)."""
     return ("merged under delegation granted by %s in %s\n\n---\n"
-            "_Generated by the delegated-merge workflow_" % (handle, grant_sha))
+            "_Generated by the delegated-merge workflow_"
+            % (approvers.Approvers.normalize(handle), grant_sha))
 
 
 # --- Runner ----------------------------------------------------------------
@@ -446,6 +569,16 @@ def load_config(root):
         return chain.config()
     finally:
         chain.ROOT = previous
+
+
+def read_active_slug(root):
+    """`<root>/.sdlc/active`, stripped -- the work item main says is being worked on. An empty
+    string when the file is missing, which refuses every pull request rather than merging one."""
+    try:
+        with open(os.path.join(root, ".sdlc", "active"), encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
 
 
 class Run(object):
@@ -505,22 +638,29 @@ def _decode_contents(payload):
 GRANT_WINDOW = 100
 
 
-def _grant_commit(repo, slug, head_sha):
-    """The commit that wrote the grant: the newest of the last GRANT_WINDOW commits touching the
-    intent whose patch adds `mode: delegated`, or None. There is no fallback to "the newest commit
-    touching the file": a commit that never wrote the grant is not the grant, however trusted its
-    author (pull request 45 plan-conformance pass, finding 3)."""
+def _grant_commit(repo, slug, base_ref):
+    """The commit that wrote the grant, on the BASE branch: the newest of the last GRANT_WINDOW
+    commits touching the intent whose patch adds `mode: delegated`, or None. `sha=<base_ref>` --
+    never the head sha -- because a grant commit that exists only on the branch under judgement is
+    a commit that branch wrote (pull request 45 security pass, finding 2). There is no fallback to
+    "the newest commit touching the file": a commit that never wrote the grant is not the grant,
+    however trusted its author (pull request 45 plan-conformance pass, finding 3)."""
     path = "work/%s/intent.md" % slug
+    # `gh_api` GETs with --paginate, so `per_page` bounds a page, not the answer: slice the window
+    # back on, or "the last 100 commits" in the refusal would be a lie.
     listed = items(gh_api("GET", "repos/%s/commits?path=%s&sha=%s&per_page=%d"
-                          % (repo, path, head_sha, GRANT_WINDOW)))
+                          % (repo, path, base_ref, GRANT_WINDOW)))[:GRANT_WINDOW]
     for entry in listed:  # the commits endpoint is newest first
         detail = gh_api("GET", "repos/%s/commits/%s" % (repo, entry.get("sha")))
+        # GitHub omits `files[].patch` for very large commits; that reads here as "this commit did
+        # not add the grant", which is the fail-closed answer and must stay one.
         if commit_adds_grant(detail, path):
             return detail
     return None
 
 
-def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=None):
+def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=None,
+        active_slug=""):
     """Evaluate every condition in order and, unless --dry-run, merge. Returns the exit code."""
     out = Run(dry_run, stream)
     now = now or datetime.now(timezone.utc)
@@ -538,17 +678,22 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
 
     pulls = items(gh_api("GET", "repos/%s/commits/%s/pulls" % (repo, head_sha)))
     prefixes = config.get("AGENT_BRANCH_PREFIXES") or []
-    ok = out.record("pull-request", check_pull_request(pulls, head_sha, prefixes, default_branch))
+    ok = out.record("pull-request",
+                    check_pull_request(pulls, head_sha, prefixes, default_branch, active_slug))
     pr = pick_pr(pulls, head_sha)
     if not out.keep_going(ok) or pr is None:
         return out.finish()
     number = pr.get("number")
     slug = work_item_slug(pr.get("body"))
+    head_ref = _get(pr, "head", "ref") or ""
+    # The base of this pull request: the branch this job checked out, and the only history that
+    # existed before the head branch did. Every grant read below uses it.
+    base_ref = _get(pr, "base", "ref") or default_branch
 
     required = policy.merge.get("require_checks") or []
     runs = items(gh_api("GET", "repos/%s/actions/runs?head_sha=%s&per_page=100" % (repo, head_sha)),
                  "workflow_runs")
-    checks_result = check_required_runs(runs, required)
+    checks_result = check_required_runs(runs, required, head_ref)
     if checks_result[0] == OK:
         check_runs = items(
             gh_api("GET", "repos/%s/commits/%s/check-runs?per_page=100" % (repo, head_sha)),
@@ -560,50 +705,54 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
 
     grant_sha, grant_handle = "", ""
     if slug:
-        contents = gh_api("GET", "repos/%s/contents/work/%s/intent.md?ref=%s" % (repo, slug, head_sha))
+        contents = gh_api("GET", "repos/%s/contents/work/%s/intent.md?ref=%s"
+                          % (repo, slug, base_ref))
         text = _decode_contents(contents)
         front = chain.front_matter_text(text) if text is not None else None
-        grant_result = check_grant_front_matter(front, policy)
+        grant_result = check_grant_front_matter(front, policy, base_ref=base_ref)
         if grant_result[0] == OK:
             grant_handle = (front.get("delegated-by") or "").strip()
-            detail = _grant_commit(repo, slug, head_sha)
+            detail = _grant_commit(repo, slug, base_ref)
             grant_sha = (detail or {}).get("sha") or ""
-            grant_result = check_grant_commit(detail, approvers_file, expected_handle=grant_handle)
+            grant_result = check_grant_commit(detail, approvers_file,
+                                              expected_handle=grant_handle, base_ref=base_ref)
         ok = out.record("grant", grant_result)
         if not out.keep_going(ok):
             return out.finish()
 
     locked = list(config.get("PROTECTED_PATHS") or []) + \
         list(config.get("RELEASE_GATED_PATHS") or []) + list(policy.locked_paths)
+    if slug:
+        # The grant is read from the base, so a diff that rewrites this item's intent cannot widen
+        # its own permission -- but it must not land under a delegated merge either.
+        locked.append("work/%s/intent.md" % slug)
     files = items(gh_api("GET", "repos/%s/pulls/%s/files?per_page=100" % (repo, number)))
     ok = out.record("locked-paths", check_locked_paths(files, locked))
     if not out.keep_going(ok):
         return out.finish()
 
     if policy.merge.get("require_review"):
-        head_time = _ts(_get(wf, "head_commit", "timestamp"))
-        if head_time is None:
-            head_time = _ts(_get(gh_api("GET", "repos/%s/commits/%s" % (repo, head_sha)),
-                                 "commit", "committer", "date"))
         comments = items(gh_api("GET", "repos/%s/issues/%s/comments?per_page=100" % (repo, number)))
-        ok = out.record("review", check_review(comments, head_time))
+        ok = out.record("review", check_review(comments, runs, head_ref))
         if not out.keep_going(ok):
             return out.finish()
 
     ok = out.record("cool-off",
-                    check_cool_off(runs, required, policy.merge.get("cool_off_hours") or 0, now))
+                    check_cool_off(runs, required, policy.merge.get("cool_off_hours") or 0, now,
+                                   head_ref))
     if not out.keep_going(ok):
         return out.finish()
 
     if dry_run:
         return out.finish(merged=number)
 
-    label = _get(pr, "head", "label") or _get(pr, "head", "ref") or ""
     try:
         gh_api("PUT", "repos/%s/pulls/%s/merge" % (repo, number), {
             "sha": head_sha,
             "merge_method": policy.merge.get("method"),
-            "commit_title": "Merge pull request #%s from %s (delegated)" % (number, label),
+            # The head label is the branch's own text; the merge commit names the pull request,
+            # which is the record (pull request 45 security pass, nit f).
+            "commit_title": "Merge pull request #%s (delegated)" % number,
         })
     except MergeError as exc:
         if exc.status in STALE_STATUSES:
@@ -615,11 +764,10 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
             return 0
         raise
 
-    ref = _get(pr, "head", "ref") or ""
     try:
-        gh_api("DELETE", "repos/%s/git/refs/heads/%s" % (repo, ref))
+        gh_api("DELETE", "repos/%s/git/refs/heads/%s" % (repo, head_ref))
     except MergeError as exc:  # a protected or already-deleted branch is not a merge failure
-        out.stream.write("note: could not delete %s: %s\n" % (ref, exc))
+        out.stream.write("note: could not delete %s: %s\n" % (head_ref, exc))
     gh_api("POST", "repos/%s/issues/%s/comments" % (repo, number),
            {"body": merge_comment_body(grant_handle, grant_sha)})
     return out.finish(merged="#%s %s" % (number, head_sha))
@@ -650,6 +798,10 @@ def main(argv=None):
         # A synthesised event for an owner-triggered dry run: the same shape workflow_run delivers,
         # for this repository, so every condition below reads it the same way. Never a live merge.
         args.dry_run = True
+        # The value comes from a workflow_dispatch input and is interpolated into API paths.
+        if not HEAD_SHA_ARG_RE.match(args.head_sha):
+            print("--head-sha must be 7-40 hex characters", file=sys.stderr)
+            return 2
         if not args.repo:
             print("--head-sha needs --repo or $GITHUB_REPOSITORY", file=sys.stderr)
             return 2
@@ -686,7 +838,8 @@ def main(argv=None):
         print("cannot read the policy or approvers file: %s" % exc, file=sys.stderr)
         return 2
     try:
-        return run(event, policy, config, approvers_file, dry_run=args.dry_run)
+        return run(event, policy, config, approvers_file, dry_run=args.dry_run,
+                   active_slug=read_active_slug(root))
     except MergeError as exc:
         print("GitHub call failed: %s" % exc, file=sys.stderr)
         return 1

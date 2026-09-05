@@ -7,6 +7,11 @@ Two layers, matching the script's shape:
     records every mutating call into calls.jsonl. The allow case asserts the merge request body,
     the branch delete and the grant comment; the `--dry-run` case asserts nothing was recorded.
 
+The security pass on pull request 45 added a refusal test for each of its findings: a spoofed
+grant author, a grant read from the head, a review comment that no pr-review run backs, a run
+somebody dispatched by hand, a rename out of a judging surface, and a slug that is not the active
+work item.
+
 No network, no `gh`, no PyYAML: `--fixtures` installs the module's `API` hook, and the fixture
 policy is the same text as FIXTURE_POLICY in scripts/test_delegation.py (spec.md design D1).
 """
@@ -18,7 +23,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -69,9 +74,15 @@ HEAD_SHA = "a" * 40
 GRANT_SHA = "b" * 40
 SLUG = "delegated-mode"
 INTENT_PATH = "work/%s/intent.md" % SLUG
+HEAD_REF = "claude/delegated-mode"
+BASE_REF = "main"
 HEAD_TIME = "2026-09-05T10:00:00Z"
 REVIEW_TIME = "2026-09-05T11:00:00Z"
 NOW = datetime(2026, 9, 5, 12, 0, 0, tzinfo=timezone.utc)
+# The pr-review run whose id the review comment must link (findings 3/4).
+REVIEW_RUN_ID = 7003
+RUN_IDS = {"sdlc-gate": 7001, "agent-evals": 7002, "pr-review": REVIEW_RUN_ID}
+REVIEW_RUN_URL = "https://github.com/%s/actions/runs/%d" % (REPO, REVIEW_RUN_ID)
 
 INTENT_TEXT = """\
 ---
@@ -132,18 +143,21 @@ def make_pr(**over):
     pr = {
         "number": 12, "state": "open", "draft": False,
         "body": "Work-Item: %s\n\nSome description.\n" % SLUG,
-        "head": {"sha": HEAD_SHA, "ref": "claude/delegated-mode",
-                 "label": "owner:claude/delegated-mode"},
-        "base": {"ref": "main"},
+        "head": {"sha": HEAD_SHA, "ref": HEAD_REF, "label": "owner:%s" % HEAD_REF},
+        "base": {"ref": BASE_REF},
     }
     pr.update(over)
     return pr
 
 
 def make_runs(**over):
+    """The three required workflow runs, as `actions/runs?head_sha=` returns them: each carries the
+    `event` and `head_branch` the checks and review conditions filter on, and an `id` the review
+    comment links."""
     names = ["sdlc-gate", "agent-evals", "pr-review"]
-    runs = [{"name": n, "status": "completed", "conclusion": "success",
-             "updated_at": HEAD_TIME} for n in names]
+    runs = [{"name": n, "id": RUN_IDS[n], "event": "pull_request", "head_branch": HEAD_REF,
+             "status": "completed", "conclusion": "success", "updated_at": HEAD_TIME}
+            for n in names]
     for run in runs:
         if run["name"] in over:
             run.update(over[run["name"]])
@@ -155,7 +169,8 @@ def make_check_runs():
         {"name": "sdlc-gate", "status": "completed", "conclusion": "success"},
         {"name": "agent-evals", "status": "completed", "conclusion": "success"},
         {"name": "pr-review", "status": "completed", "conclusion": "success"},
-        {"name": "delegated-merge", "status": "in_progress", "conclusion": None},
+        # delegated-merge.yml's own job, named `merge`: GitHub names a check run after the job.
+        {"name": "merge", "status": "in_progress", "conclusion": None},
     ]
 
 
@@ -170,6 +185,7 @@ def make_grant_commit(**over):
     commit = {
         "sha": GRANT_SHA,
         "author": {"login": "owner"},
+        "committer": {"login": "owner"},
         "commit": {"verification": {"verified": True, "reason": "valid"},
                    "committer": {"date": HEAD_TIME}},
         "files": [{"filename": INTENT_PATH,
@@ -184,10 +200,13 @@ def make_grant_commit(**over):
 
 
 def make_review_comment(**over):
+    """The tracking comment pr-review.yml opens for its run: it links the run, which is what binds
+    the verdict to a workflow nobody else can start."""
     comment = {
         "user": {"login": "claude[bot]", "type": "Bot"},
         "created_at": REVIEW_TIME, "updated_at": REVIEW_TIME,
-        "body": "## Review\n\nNothing blocking.\n\nImportant: 0 | Nits: 2\n",
+        "body": "## Review\n\n[View job run](%s)\n\nNothing blocking.\n\nImportant: 0 | Nits: 2\n"
+                % REVIEW_RUN_URL,
     }
     comment.update(over)
     return comment
@@ -248,6 +267,12 @@ class EventCondition(unittest.TestCase):
         self.assertEqual(verdict, dm.REFUSED)
         self.assertIn("conclusion", detail)
 
+    def test_failed_run_is_refused(self):
+        # Nit d: a completed run is not enough; the run that woke this workflow must be green.
+        verdict, detail = dm.check_event(make_event(workflow_run={"conclusion": "failure"}))
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("failure", detail)
+
 
 # ---------------------------------------------------------------------------
 # 3. pull-request
@@ -255,8 +280,8 @@ class EventCondition(unittest.TestCase):
 class PullRequestCondition(unittest.TestCase):
     prefixes = ["claude/", "kit/", "spike/"]
 
-    def check(self, pr):
-        return dm.check_pull_request([pr], HEAD_SHA, self.prefixes, "main")
+    def check(self, pr, active=SLUG):
+        return dm.check_pull_request([pr], HEAD_SHA, self.prefixes, "main", active)
 
     def test_agent_pull_request_is_ok(self):
         verdict, detail = self.check(make_pr())
@@ -264,7 +289,7 @@ class PullRequestCondition(unittest.TestCase):
         self.assertIn(SLUG, detail)
 
     def test_no_open_pull_request_for_the_head_sha_is_refused(self):
-        verdict, detail = dm.check_pull_request([], HEAD_SHA, self.prefixes, "main")
+        verdict, detail = dm.check_pull_request([], HEAD_SHA, self.prefixes, "main", SLUG)
         self.assertEqual(verdict, dm.REFUSED)
         self.assertIn("exactly one", detail)
 
@@ -293,6 +318,29 @@ class PullRequestCondition(unittest.TestCase):
         self.assertEqual(dm.work_item_slug("Work-Item: %s" % SLUG), SLUG)
         self.assertIsNone(dm.work_item_slug("Work-Item: not a slug"))
 
+    def test_a_traversing_slug_is_not_a_slug(self):
+        # Finding 7: the slug is interpolated into work/<slug>/intent.md.
+        self.assertIsNone(dm.work_item_slug("Work-Item: .."))
+        self.assertIsNone(dm.work_item_slug("Work-Item: ../other"))
+        self.assertIsNone(dm.work_item_slug("Work-Item: .git"))
+        self.assertEqual(dm.work_item_slug("Work-Item: batch-b.2"), "batch-b.2")
+        verdict, detail = self.check(make_pr(body="Work-Item: ..\n"))
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("Work-Item", detail)
+
+    def test_slug_that_is_not_the_active_work_item_is_refused(self):
+        # Finding 7: the body is written by the branch; .sdlc/active is read from the base checkout.
+        verdict, detail = self.check(make_pr(), active="another-item")
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn(SLUG, detail)
+        self.assertIn("another-item", detail)
+        self.assertIn(".sdlc/active", detail)
+
+    def test_missing_active_file_refuses(self):
+        verdict, detail = self.check(make_pr(), active="")
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn(".sdlc/active", detail)
+
 
 # ---------------------------------------------------------------------------
 # 4. checks
@@ -300,27 +348,49 @@ class PullRequestCondition(unittest.TestCase):
 class ChecksCondition(unittest.TestCase):
     required = ["sdlc-gate", "agent-evals", "pr-review"]
 
+    def check(self, runs, head_ref=HEAD_REF):
+        return dm.check_required_runs(runs, self.required, head_ref)
+
     def test_all_required_runs_green_is_ok(self):
-        verdict, detail = dm.check_required_runs(make_runs(), self.required)
+        verdict, detail = self.check(make_runs())
         self.assertEqual(verdict, dm.OK, detail)
 
     def test_required_workflow_missing_is_refused(self):
         runs = [r for r in make_runs() if r["name"] != "agent-evals"]
-        verdict, detail = dm.check_required_runs(runs, self.required)
+        verdict, detail = self.check(runs)
         self.assertEqual(verdict, dm.REFUSED)
         self.assertIn("agent-evals", detail)
 
     def test_required_workflow_failed_is_refused(self):
         runs = make_runs(**{"pr-review": {"conclusion": "failure"}})
-        verdict, detail = dm.check_required_runs(runs, self.required)
+        verdict, detail = self.check(runs)
         self.assertEqual(verdict, dm.REFUSED)
         self.assertIn("failure", detail)
 
     def test_required_workflow_pending_waits(self):
         runs = make_runs(**{"pr-review": {"status": "in_progress", "conclusion": None}})
-        verdict, detail = dm.check_required_runs(runs, self.required)
+        verdict, detail = self.check(runs)
         self.assertEqual(verdict, dm.WAITING)
         self.assertIn("in_progress", detail)
+
+    def test_a_dispatched_green_run_does_not_excuse_a_failed_pull_request_run(self):
+        # Finding 5: anybody with write access can start a workflow_dispatch run and let it pass.
+        runs = make_runs(**{"sdlc-gate": {"conclusion": "failure"}})
+        runs.append({"name": "sdlc-gate", "id": 7099, "event": "workflow_dispatch",
+                     "head_branch": HEAD_REF, "status": "completed", "conclusion": "success",
+                     "updated_at": HEAD_TIME})
+        verdict, detail = self.check(runs)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("sdlc-gate", detail)
+        self.assertIn("failure", detail)
+
+    def test_a_run_on_another_branch_is_ignored(self):
+        # Finding 5: a green run of the same workflow on someone else's branch judged other code.
+        runs = make_runs(**{"pr-review": {"head_branch": "claude/other-item"}})
+        verdict, detail = self.check(runs)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("pr-review", detail)
+        self.assertIn("no pull_request run", detail)
 
     def test_foreign_check_run_failed_is_refused(self):
         runs = make_check_runs() + [
@@ -337,7 +407,9 @@ class ChecksCondition(unittest.TestCase):
         self.assertIn("lint", detail)
 
     def test_this_workflows_own_check_run_is_ignored(self):
-        # delegated-merge itself is in_progress while it evaluates; counting it could never pass.
+        # Nit b: the check run carries the JOB's name (`merge`), which is what is excluded; this
+        # job is in_progress while it evaluates, so counting it could never pass.
+        self.assertEqual(dm.SELF_CHECK_NAME, "merge")
         verdict, detail = dm.check_check_runs(make_check_runs())
         self.assertEqual(verdict, dm.OK, detail)
 
@@ -357,12 +429,13 @@ class GrantFrontMatter(unittest.TestCase):
         self.policy = _policy(self.tmp.name)
 
     def check(self, **over):
-        return dm.check_grant_front_matter(make_intent_fm(**over), self.policy)
+        return dm.check_grant_front_matter(make_intent_fm(**over), self.policy, base_ref=BASE_REF)
 
     def test_granted_intent_is_ok(self):
         verdict, detail = self.check()
         self.assertEqual(verdict, dm.OK, detail)
         self.assertIn("owner", detail)
+        self.assertIn("on %s" % BASE_REF, detail)
 
     def test_intent_not_approved_is_refused(self):
         verdict, detail = self.check(status="in-review")
@@ -391,8 +464,9 @@ class GrantFrontMatter(unittest.TestCase):
         self.assertIn("delegated-by", detail)
 
     def test_missing_intent_is_refused(self):
-        verdict, detail = dm.check_grant_front_matter(None, self.policy)
+        verdict, detail = dm.check_grant_front_matter(None, self.policy, base_ref=BASE_REF)
         self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("on %s" % BASE_REF, detail)
 
 
 class GrantCommit(unittest.TestCase):
@@ -412,6 +486,15 @@ class GrantCommit(unittest.TestCase):
         verdict, detail = dm.check_grant_commit(commit, self.approvers)
         self.assertEqual(verdict, dm.REFUSED)
         self.assertIn("not GitHub-verified", detail)
+        self.assertIn("unsigned", detail)
+
+    def test_verified_with_a_reason_other_than_valid_is_refused(self):
+        # Finding 1: `verified` true with any other reason is not a state to trust.
+        commit = make_grant_commit(commit={"verification": {"verified": True,
+                                                            "reason": "unverified_email"}})
+        verdict, detail = dm.check_grant_commit(commit, self.approvers)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("unverified_email", detail)
 
     def test_author_without_the_product_owner_role_is_refused(self):
         commit = make_grant_commit(author={"login": "mallory"})
@@ -423,6 +506,27 @@ class GrantCommit(unittest.TestCase):
         commit = make_grant_commit(author={"login": "claude[bot]"})
         verdict, detail = dm.check_grant_commit(commit, self.approvers)
         self.assertEqual(verdict, dm.REFUSED)
+
+    def test_a_valid_signature_over_a_spoofed_author_is_refused(self):
+        # Finding 1: verification.verified covers the COMMITTER's signature, and author.login comes
+        # from an author email the committer picks. mallory signing a commit whose author line says
+        # `owner` produces exactly this shape.
+        commit = make_grant_commit(committer={"login": "mallory"})
+        verdict, detail = dm.check_grant_commit(commit, self.approvers, expected_handle="owner")
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("mallory", detail)
+        self.assertIn("committer", detail)
+
+    def test_web_flow_committer_with_an_owner_author_is_ok(self):
+        # GitHub's own signer for web-editor and API commits: the author is the account that asked.
+        commit = make_grant_commit(committer={"login": "web-flow"})
+        verdict, detail = dm.check_grant_commit(commit, self.approvers, expected_handle="owner")
+        self.assertEqual(verdict, dm.OK, detail)
+
+    def test_the_owner_signing_their_own_commit_is_ok(self):
+        commit = make_grant_commit(author={"login": "owner"}, committer={"login": "owner"})
+        verdict, detail = dm.check_grant_commit(commit, self.approvers, expected_handle="owner")
+        self.assertEqual(verdict, dm.OK, detail)
 
     def test_no_commit_at_all_is_refused(self):
         verdict, _ = dm.check_grant_commit(None, self.approvers)
@@ -443,9 +547,10 @@ class GrantCommit(unittest.TestCase):
     def test_no_commit_adding_the_grant_line_is_refused_not_approximated(self):
         # Pull request 45 plan-conformance pass, finding 3: a commit that merely touches intent.md
         # is never judged as the grant; when none in the window adds the line, the condition refuses.
-        verdict, detail = dm.check_grant_commit(None, self.approvers)
+        verdict, detail = dm.check_grant_commit(None, self.approvers, base_ref=BASE_REF)
         self.assertEqual(verdict, dm.REFUSED)
         self.assertIn("no commit adding the grant line", detail)
+        self.assertIn("on %s" % BASE_REF, detail)
 
     def test_commit_adds_grant_reads_the_patch_of_that_file_only(self):
         self.assertTrue(dm.commit_adds_grant(make_grant_commit(), INTENT_PATH))
@@ -453,6 +558,11 @@ class GrantCommit(unittest.TestCase):
         touched = make_grant_commit(files=[{"filename": INTENT_PATH,
                                            "patch": "@@\n+title: something\n"}])
         self.assertFalse(dm.commit_adds_grant(touched, INTENT_PATH))
+
+    def test_a_commit_with_no_patch_at_all_is_not_the_grant(self):
+        # GitHub omits files[].patch on very large commits; that must read as "no grant".
+        huge = make_grant_commit(files=[{"filename": INTENT_PATH}])
+        self.assertFalse(dm.commit_adds_grant(huge, INTENT_PATH))
 
 
 # ---------------------------------------------------------------------------
@@ -480,7 +590,7 @@ class LockedPathsCondition(unittest.TestCase):
     def test_protected_path_is_refused(self):
         verdict, detail = self.check("docs/x.md", ".github/workflows/bands.yml")
         self.assertEqual(verdict, dm.REFUSED)
-        self.assertIn(".github/workflows", detail)
+        self.assertIn(".github", detail)
 
     def test_release_gated_path_is_refused(self):
         verdict, detail = self.check("migrations/0001_init.sql")
@@ -497,54 +607,106 @@ class LockedPathsCondition(unittest.TestCase):
         verdict, _ = self.check(".sdlcx/notes.md", "scripts/approve.py.bak")
         self.assertEqual(verdict, dm.OK)
 
+    def test_the_floor_holds_with_no_policy_at_all(self):
+        # Finding 6: ALWAYS_LOCKED is the script's own; `prefixes` only adds. A skill, a workflow
+        # that is not under .github/workflows, and CODEOWNERS are all judging surfaces.
+        for name in (".claude/skills/x/SKILL.md", ".github/CODEOWNERS", "CLAUDE.md",
+                     "docs/sdlc/templates/plan.md", "scripts/checks/front-matter.sh"):
+            verdict, detail = dm.check_locked_paths([{"filename": name}], [])
+            self.assertEqual(verdict, dm.REFUSED, name)
+            self.assertIn(name, detail)
+
+    def test_a_rename_out_of_a_locked_path_is_refused(self):
+        # Finding 6: `git mv REVIEW.md notes.md` empties a judging surface, and the entry's
+        # `filename` is the harmless new name.
+        files = [{"filename": "notes.md", "previous_filename": "REVIEW.md"}]
+        verdict, detail = dm.check_locked_paths(files, self.prefixes)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("REVIEW.md", detail)
+
+    def test_the_items_own_intent_is_refused_when_the_runner_adds_it(self):
+        # Finding 2: the grant is read from the base, and the diff may not rewrite it either.
+        verdict, detail = dm.check_locked_paths([{"filename": INTENT_PATH}],
+                                                self.prefixes + [INTENT_PATH])
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn(INTENT_PATH, detail)
+
 
 # ---------------------------------------------------------------------------
 # 7. review
 # ---------------------------------------------------------------------------
 class ReviewCondition(unittest.TestCase):
-    head_time = dm._ts(HEAD_TIME)
+    def check(self, comments, runs=None, head_ref=HEAD_REF):
+        return dm.check_review(comments, make_runs() if runs is None else runs, head_ref)
 
     def test_clean_review_is_ok(self):
-        verdict, detail = dm.check_review([make_review_comment()], self.head_time)
+        verdict, detail = self.check([make_review_comment()])
         self.assertEqual(verdict, dm.OK, detail)
+        self.assertIn(str(REVIEW_RUN_ID), detail)
 
     def test_no_review_comment_waits(self):
         # Fail closed (spec Q3): no pr-review credential means no comment, so the owner decides.
-        verdict, detail = dm.check_review([], self.head_time)
+        verdict, detail = self.check([])
         self.assertEqual(verdict, dm.WAITING)
         self.assertIn("claude[bot]", detail)
 
     def test_a_human_comment_is_not_a_review(self):
         human = {"user": {"login": "owner", "type": "User"},
-                 "created_at": REVIEW_TIME, "body": "Important: 0 | Nits: 0"}
-        verdict, _ = dm.check_review([human], self.head_time)
+                 "created_at": REVIEW_TIME,
+                 "body": "[View job run](%s)\n\nImportant: 0 | Nits: 0" % REVIEW_RUN_URL}
+        verdict, _ = self.check([human])
         self.assertEqual(verdict, dm.WAITING)
 
     def test_comment_without_the_summary_line_waits(self):
-        verdict, detail = dm.check_review(
-            [make_review_comment(body="Claude is working...")], self.head_time)
+        verdict, detail = self.check([make_review_comment(
+            body="Claude is working... [View job run](%s)" % REVIEW_RUN_URL)])
         self.assertEqual(verdict, dm.WAITING)
         self.assertIn("Important", detail)
 
     def test_important_one_is_refused(self):
-        verdict, detail = dm.check_review(
-            [make_review_comment(body="Important: 1 | Nits: 0\n")], self.head_time)
+        verdict, detail = self.check([make_review_comment(
+            body="[View job run](%s)\n\nImportant: 1 | Nits: 0\n" % REVIEW_RUN_URL)])
         self.assertEqual(verdict, dm.REFUSED)
         self.assertIn("Important: 1", detail)
 
-    def test_review_older_than_the_head_commit_waits(self):
-        stale = make_review_comment(created_at="2026-09-05T09:00:00Z",
-                                    updated_at="2026-09-05T09:00:00Z")
-        verdict, detail = dm.check_review([stale], self.head_time)
+    def test_a_comment_that_links_no_run_is_ignored(self):
+        # Finding 3: the comment API takes any token; only the run binds a verdict to this head.
+        forged = make_review_comment(body="LGTM\n\nImportant: 0 | Nits: 0\n")
+        verdict, detail = self.check([forged])
         self.assertEqual(verdict, dm.WAITING)
-        self.assertIn("older than the head commit", detail)
+        self.assertIn(str(REVIEW_RUN_ID), detail)
 
-    def test_the_newest_bot_comment_decides(self):
-        old_clean = make_review_comment(created_at="2026-09-05T10:30:00Z",
-                                        updated_at="2026-09-05T10:30:00Z")
-        new_blocking = make_review_comment(body="Important: 2 | Nits: 0\n")
-        verdict, _ = dm.check_review([old_clean, new_blocking], self.head_time)
+    def test_a_later_comment_carrying_the_link_cannot_overwrite_the_verdict(self):
+        # Finding 3: the EARLIEST comment linking the run is the one the action opened; a copy
+        # posted afterwards with the same link is somebody else's text.
+        tracking = make_review_comment(
+            created_at="2026-09-05T11:00:00Z",
+            body="[View job run](%s)\n\nImportant: 2 | Nits: 0\n" % REVIEW_RUN_URL)
+        forged = make_review_comment(created_at="2026-09-05T11:30:00Z")
+        verdict, detail = self.check([forged, tracking])
         self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("Important: 2", detail)
+
+    def test_a_review_run_of_an_older_head_does_not_count(self):
+        # Finding 4: the run list is fetched for this head sha, so a review of an older head is
+        # simply not in it -- which is what replaces the timestamp comparison. Here the only
+        # pr-review run belongs to another branch's head.
+        runs = make_runs(**{"pr-review": {"head_branch": "claude/other-item"}})
+        verdict, detail = self.check([make_review_comment()], runs=runs)
+        self.assertEqual(verdict, dm.WAITING)
+        self.assertIn("no completed pr-review run", detail)
+
+    def test_a_failed_review_run_is_refused(self):
+        runs = make_runs(**{"pr-review": {"conclusion": "failure"}})
+        verdict, detail = self.check([make_review_comment()], runs=runs)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("failure", detail)
+
+    def test_a_review_run_still_in_progress_waits(self):
+        runs = make_runs(**{"pr-review": {"status": "in_progress", "conclusion": None}})
+        verdict, detail = self.check([make_review_comment()], runs=runs)
+        self.assertEqual(verdict, dm.WAITING)
+        self.assertIn("no completed", detail)
 
 
 # ---------------------------------------------------------------------------
@@ -554,21 +716,30 @@ class CoolOffCondition(unittest.TestCase):
     required = ["sdlc-gate", "agent-evals", "pr-review"]
 
     def test_zero_hours_is_ok(self):
-        verdict, detail = dm.check_cool_off(make_runs(), self.required, 0, NOW)
+        verdict, detail = dm.check_cool_off(make_runs(), self.required, 0, NOW, HEAD_REF)
         self.assertEqual(verdict, dm.OK, detail)
 
     def test_cool_off_not_elapsed_waits(self):
         runs = make_runs(**{"pr-review": {"updated_at": "2026-09-05T11:45:00Z"}})
-        verdict, detail = dm.check_cool_off(runs, self.required, 4, NOW)
+        verdict, detail = dm.check_cool_off(runs, self.required, 4, NOW, HEAD_REF)
         self.assertEqual(verdict, dm.WAITING)
         self.assertIn("cool-off", detail)
 
     def test_cool_off_elapsed_is_ok(self):
-        verdict, detail = dm.check_cool_off(make_runs(), self.required, 1, NOW)
+        verdict, detail = dm.check_cool_off(make_runs(), self.required, 1, NOW, HEAD_REF)
         self.assertEqual(verdict, dm.OK, detail)
 
     def test_no_required_run_timestamp_waits(self):
-        verdict, _ = dm.check_cool_off([], self.required, 4, NOW)
+        verdict, _ = dm.check_cool_off([], self.required, 4, NOW, HEAD_REF)
+        self.assertEqual(verdict, dm.WAITING)
+
+    def test_a_dispatched_run_is_not_a_cool_off_stamp(self):
+        # Finding 5: the same filter as the checks condition, or a hand-started run would restart
+        # (or satisfy) the clock this pull request has to sit out.
+        dispatched = [{"name": "sdlc-gate", "id": 7099, "event": "workflow_dispatch",
+                       "head_branch": HEAD_REF, "status": "completed", "conclusion": "success",
+                       "updated_at": HEAD_TIME}]
+        verdict, _ = dm.check_cool_off(dispatched, self.required, 4, NOW, HEAD_REF)
         self.assertEqual(verdict, dm.WAITING)
 
 
@@ -577,19 +748,22 @@ class CoolOffCondition(unittest.TestCase):
 # every mutating call is a line in calls.jsonl.
 # ---------------------------------------------------------------------------
 class Checkout(object):
-    """A fixture root: .sdlc/{delegation.yaml,approvers.yaml,config.env} plus an API fixture dir.
+    """A fixture root: .sdlc/{delegation.yaml,approvers.yaml,config.env,active} plus an API
+    fixture dir.
 
     `set_fixture` writes one response by the same name the script asks for (dm.fixture_name), so a
-    renamed endpoint breaks the test loudly instead of silently serving the wrong file.
+    renamed endpoint breaks the test loudly instead of silently serving the wrong file. The intent
+    and its grant commit are fixtured on the BASE ref, which is where the script reads them.
     """
 
-    def __init__(self, directory, policy_text=FIXTURE_POLICY):
+    def __init__(self, directory, policy_text=FIXTURE_POLICY, active=SLUG):
         self.root = os.path.join(directory, "checkout")
         self.fixtures = os.path.join(directory, "fixtures")
         os.makedirs(self.fixtures, exist_ok=True)
         _write(os.path.join(self.root, ".sdlc", "delegation.yaml"), policy_text)
         _write(os.path.join(self.root, ".sdlc", "approvers.yaml"), FIXTURE_APPROVERS)
         _write(os.path.join(self.root, ".sdlc", "config.env"), FIXTURE_CONFIG)
+        _write(os.path.join(self.root, ".sdlc", "active"), active + "\n")
         self.event_path = os.path.join(directory, "event.json")
         _write(self.event_path, json.dumps(make_event()))
 
@@ -597,17 +771,20 @@ class Checkout(object):
         _write(os.path.join(self.fixtures, dm.fixture_name(method, path)),
                json.dumps(payload))
 
+    def set_intent(self, ref, text):
+        self.set_fixture("GET", "repos/%s/contents/%s?ref=%s" % (REPO, INTENT_PATH, ref),
+                         {"encoding": "base64",
+                          "content": base64.b64encode(text.encode("utf-8")).decode("ascii")})
+
     def happy_path(self):
         self.set_fixture("GET", "repos/%s/commits/%s/pulls" % (REPO, HEAD_SHA), [make_pr()])
         self.set_fixture("GET", "repos/%s/actions/runs?head_sha=%s&per_page=100" % (REPO, HEAD_SHA),
                          {"workflow_runs": make_runs()})
         self.set_fixture("GET", "repos/%s/commits/%s/check-runs?per_page=100" % (REPO, HEAD_SHA),
                          {"check_runs": make_check_runs()})
-        self.set_fixture("GET", "repos/%s/contents/%s?ref=%s" % (REPO, INTENT_PATH, HEAD_SHA),
-                         {"encoding": "base64",
-                          "content": base64.b64encode(INTENT_TEXT.encode("utf-8")).decode("ascii")})
+        self.set_intent(BASE_REF, INTENT_TEXT)
         self.set_fixture("GET", "repos/%s/commits?path=%s&sha=%s&per_page=%d"
-                         % (REPO, INTENT_PATH, HEAD_SHA, dm.GRANT_WINDOW), [{"sha": GRANT_SHA}])
+                         % (REPO, INTENT_PATH, BASE_REF, dm.GRANT_WINDOW), [{"sha": GRANT_SHA}])
         self.set_fixture("GET", "repos/%s/commits/%s" % (REPO, GRANT_SHA), make_grant_commit())
         self.set_fixture("GET", "repos/%s/pulls/12/files?per_page=100" % REPO,
                          [{"filename": "scripts/sdlc_metrics.py"}, {"filename": "work/%s/plan.md" % SLUG}])
@@ -658,6 +835,7 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(names, ["policy", "event", "pull-request", "checks", "grant",
                                  "locked-paths", "review", "cool-off"])
         self.assertIn("DELEGATED-MERGE: merged #12 %s" % HEAD_SHA, output)
+        self.assertIn("on %s" % BASE_REF, output)  # the grant was read from the base branch
 
         calls = checkout.calls()
         by_method = dict((c["method"], c) for c in calls)
@@ -665,10 +843,13 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(merge["path"], "repos/%s/pulls/12/merge" % REPO)
         self.assertEqual(merge["fields"]["sha"], HEAD_SHA)
         self.assertEqual(merge["fields"]["merge_method"], "merge")
-        self.assertIn("#12", merge["fields"]["commit_title"])
+        # Nit f: the title names the pull request, not the head label the branch chose.
+        self.assertEqual(merge["fields"]["commit_title"],
+                         "Merge pull request #12 (delegated)")
+        self.assertNotIn(HEAD_REF, merge["fields"]["commit_title"])
 
         self.assertEqual(by_method["DELETE"]["path"],
-                         "repos/%s/git/refs/heads/claude/delegated-mode" % REPO)
+                         "repos/%s/git/refs/heads/%s" % (REPO, HEAD_REF))
 
         body = by_method["POST"]["fields"]["body"]
         self.assertEqual(
@@ -687,16 +868,53 @@ class EndToEnd(unittest.TestCase):
 
     def test_dry_run_against_a_supervised_item_prints_the_grant_refusal(self):
         checkout = Checkout(self.tmp.name).happy_path()
-        checkout.set_fixture(
-            "GET", "repos/%s/contents/%s?ref=%s" % (REPO, INTENT_PATH, HEAD_SHA),
-            {"encoding": "base64",
-             "content": base64.b64encode(
-                 INTENT_TEXT.replace("mode: delegated", "mode: supervised").encode("utf-8")
-             ).decode("ascii")})
+        checkout.set_intent(BASE_REF, INTENT_TEXT.replace("mode: delegated", "mode: supervised"))
         code, output = self.run_main(checkout, "--dry-run")
         self.assertEqual(code, 1, output)
         self.assertIn("CONDITION grant: refused", output)
         self.assertIn("DELEGATED-MERGE: dry-run (refused: grant)", output)
+        self.assertEqual(checkout.calls(), [])
+
+    def test_a_grant_that_exists_only_on_the_head_is_refused(self):
+        # Finding 2: the head's intent.md is written by the branch under judgement. The base ref
+        # is the only copy read, so a delegated intent pushed to the head changes nothing.
+        checkout = Checkout(self.tmp.name).happy_path()
+        checkout.set_intent(BASE_REF, INTENT_TEXT.replace("mode: delegated", "mode: supervised"))
+        checkout.set_intent(HEAD_SHA, INTENT_TEXT)
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 1, output)
+        self.assertIn("CONDITION grant: refused", output)
+        self.assertIn("supervised", output)
+        self.assertEqual(checkout.calls(), [])
+
+    def test_a_diff_touching_the_items_own_intent_is_refused(self):
+        # Finding 2: the grant is read from the base; the pull request may not rewrite it.
+        checkout = Checkout(self.tmp.name).happy_path()
+        checkout.set_fixture("GET", "repos/%s/pulls/12/files?per_page=100" % REPO,
+                             [{"filename": INTENT_PATH}])
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 1, output)
+        self.assertIn("DELEGATED-MERGE: refused (locked-paths)", output)
+        self.assertIn(INTENT_PATH, output)
+        self.assertEqual(checkout.calls(), [])
+
+    def test_a_slug_that_is_not_the_active_work_item_is_refused(self):
+        # Finding 7: .sdlc/active comes from this job's own checkout of the base branch.
+        checkout = Checkout(self.tmp.name, active="another-item").happy_path()
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 1, output)
+        self.assertIn("DELEGATED-MERGE: refused (pull-request)", output)
+        self.assertIn("another-item", output)
+        self.assertEqual(checkout.calls(), [])
+
+    def test_a_review_comment_without_the_run_link_waits(self):
+        # Finding 3: any token can post `Important: 0`; only the run backs it.
+        checkout = Checkout(self.tmp.name).happy_path()
+        checkout.set_fixture("GET", "repos/%s/issues/12/comments?per_page=100" % REPO,
+                             [make_review_comment(body="Important: 0 | Nits: 0\n")])
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 0, output)
+        self.assertIn("DELEGATED-MERGE: waiting (review)", output)
         self.assertEqual(checkout.calls(), [])
 
     def test_policy_off_is_a_no_op_that_exits_zero(self):
@@ -732,10 +950,6 @@ class EndToEnd(unittest.TestCase):
         # --dry-run on the command line.
         checkout = Checkout(self.tmp.name).happy_path()
         checkout.set_fixture("GET", "repos/%s" % REPO, {"default_branch": "main"})
-        # No head_commit in a synthesised event: the review condition reads the commit instead.
-        checkout.set_fixture("GET", "repos/%s/commits/%s" % (REPO, HEAD_SHA),
-                             {"sha": HEAD_SHA,
-                              "commit": {"committer": {"date": "2026-09-05T10:00:00Z"}}})
         out = io.StringIO()
         saved = sys.stdout
         sys.stdout = out
@@ -748,6 +962,21 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(code, 0, output)
         self.assertIn("CONDITION event: ok", output)
         self.assertIn("DELEGATED-MERGE: dry-run (would merge #12)", output)
+        self.assertEqual(checkout.calls(), [])
+
+    def test_head_sha_that_is_not_a_sha_is_a_usage_error(self):
+        # Nit e: the value comes from a workflow_dispatch input and is interpolated into API paths.
+        checkout = Checkout(self.tmp.name).happy_path()
+        err = io.StringIO()
+        saved = sys.stderr
+        sys.stderr = err
+        try:
+            code = dm.main(["--root", checkout.root, "--fixtures", checkout.fixtures,
+                            "--head-sha", "main; rm -rf /", "--repo", REPO])
+        finally:
+            sys.stderr = saved
+        self.assertEqual(code, 2, err.getvalue())
+        self.assertIn("hex", err.getvalue())
         self.assertEqual(checkout.calls(), [])
 
     def test_cli_runs_as_a_subprocess_with_the_same_verdict(self):
@@ -812,6 +1041,33 @@ class Plumbing(unittest.TestCase):
         self.assertTrue(body.startswith("merged under delegation granted by owner in %s" % GRANT_SHA))
         self.assertTrue(body.endswith("_Generated by the delegated-merge workflow_"))
 
+    def test_merge_comment_body_normalises_the_handle(self):
+        # Nit c: front matter is a field the branch fills in; the record carries the login.
+        body = dm.merge_comment_body("@Owner  <owner@example.com>", GRANT_SHA)
+        self.assertIn("granted by owner in", body)
+        self.assertNotIn("@Owner", body)
+
+    def test_the_grant_window_is_sliced_off_a_paginated_answer(self):
+        # Nit a: `gh api` GET paginates, so per_page bounds a page, not the answer -- the refusal
+        # says "the last 100 commits" and must mean it.
+        calls = []
+        many = [{"sha": "%040d" % i} for i in range(dm.GRANT_WINDOW + 25)]
+
+        def api(method, path, fields=None):
+            calls.append(path)
+            if "/commits?" in path:
+                return many
+            return {"sha": path.rsplit("/", 1)[-1], "files": []}
+
+        saved = dm.API
+        dm.API = api
+        try:
+            self.assertIsNone(dm._grant_commit(REPO, SLUG, BASE_REF))
+        finally:
+            dm.API = saved
+        self.assertIn("sha=%s" % BASE_REF, calls[0])
+        self.assertEqual(len(calls) - 1, dm.GRANT_WINDOW)
+
     def test_ts_reads_github_timestamps(self):
         self.assertEqual(dm._ts("2026-09-05T10:00:00Z"),
                          datetime(2026, 9, 5, 10, 0, tzinfo=timezone.utc))
@@ -826,6 +1082,12 @@ class Plumbing(unittest.TestCase):
             config = dm.load_config(d)
             self.assertEqual(config["AGENT_BRANCH_PREFIXES"], ["claude/", "kit/", "spike/"])
             self.assertEqual(chain.ROOT, before)
+
+    def test_read_active_slug_strips_and_fails_closed(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(dm.read_active_slug(d), "")
+            _write(os.path.join(d, ".sdlc", "active"), "%s\n" % SLUG)
+            self.assertEqual(dm.read_active_slug(d), SLUG)
 
 
 if __name__ == "__main__":
