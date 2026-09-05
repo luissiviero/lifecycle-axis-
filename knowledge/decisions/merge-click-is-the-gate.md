@@ -31,8 +31,10 @@ The owner chose, on 2026-09-02, to keep the repo private on the Free plan and ac
 - The human act is the merge. The owner reads the checks and clicks, or tells the agent in
   chat to merge specific PRs, which the agent then does with the owner's `gh` login. A merge
   the owner did not ask for is out of bounds regardless of how green the checks are.
-- Nothing pushes to `main` directly. `production-gate.sh` turns a direct push into a
-  permission prompt and refuses force pushes and hard resets outright.
+- Nothing pushes to `main` directly. `production-gate.sh` turns a direct push, a
+  `gh pr merge`, a `gh release create` or a `gh workflow run` into a permission prompt (the
+  prompt is the click; only the owner answers it) and refuses force pushes and hard resets
+  outright.
 
 ## Consequences
 
@@ -41,8 +43,9 @@ The owner chose, on 2026-09-02, to keep the repo private on the Free plan and ac
 - CODEOWNERS routing works, the *requirement* for a code-owner review does not. Reviews are
   advisory, as the kit already treats them.
 - `deploy.yml`'s environment approval is not enforceable here; `scripts/deploy.sh` still
-  refuses without `RELEASE_APPROVAL` bound to the exact commit, so the deploy path fails
-  closed rather than open.
+  refuses unless a release manager bound the exact commit, as the Environment secret
+  `RELEASE_APPROVAL` or a committed `.sdlc/release-authorizations/<sha>`, so the deploy path
+  fails closed rather than open.
 - Adopters on a paid plan or a public repo should still apply the spike checklist; the
   `adopt.sh` next-steps say so.
 - Revisit if the repo goes public or the account moves to Pro/Team: protection rules then

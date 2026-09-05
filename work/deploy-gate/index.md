@@ -11,4 +11,4 @@ timestamp: 2026-09-04T21:50:29Z
 - [spec.md](spec.md) — status: approved; approved-by: luissiviero; Requirements and design for validating release authorizations against the release-manager role, gating the gh and deploy.sh routes, and unbinding RELEASE_APPROVAL from github.sha.
 - [plan.md](plan.md) — status: approved; approved-by: luissiviero; Files, order, proof and risks for validating release authorizations, gating the gh and deploy.sh routes, and unbinding RELEASE_APPROVAL from github.sha.
 
-Last gate: - 2026-09-05T01:00:00Z | plan.md | in-review -> approved | luissiviero | 3abdca8 | approved from the GitHub web editor
+Last gate: - 2026-09-05T01:03:55Z | plan.md | build -> in-review | claude | a846ba3 | implementation of steps 1-9 complete; five deviations recorded in plan.md; needs control-plane-approved (production-gate hook, deploy workflow, .sdlc text) and the owner's deletion of the tracked hook-decisions.log

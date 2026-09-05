@@ -74,4 +74,8 @@ timestamp: 2026-09-04T21:50:29Z
 - Revert the PR's commit; nothing outside this repo changes. If a `RELEASE_APPROVAL` Environment secret was stored during testing, delete it in GitHub Settings → Environments.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- `.sdlc/hook-decisions.log` is tracked on this branch (commit 3abdca8, before `.gitignore` listed it) and is not in `## Files that change`. Untracking it is a git index removal that `protect-paths.sh`'s never-unlock case refuses from an agent, so the owner deletes the file on the branch from the GitHub web editor; the chain check reports FAIL on this file until then. Its content is not modified by this item.
+- `work/deploy-gate/log.md`: the owner's web-editor approval line for `intent.md` carried a stray `- ` prefix (same slip as on `bash-guard-hardening`, fixed in 960e4f8); the prefix is removed here so the ledger parses.
+- Step 3's "second shell" was one atomic Bash call instead: copy the staged hook in, `bash -n`, run the full `scripts/run_tests.py`, and `git checkout --` the hook back on any failure. The hook stayed live for every later tool call.
+- Eval `gate-ignores-unauthorized-release-file.yaml` also asserts the release-manager case (exit 0, empty stdout, `allow` logged), not only the exit-2 case named in the file list, so R-1's three verdicts are all pinned outside the unit tests.
+- Step 5: `_make_repo` copies `.sdlc/approvers.yaml`, `.sdlc/config.env`, `scripts/approvers.py` and `scripts/check_artifact_chain.py` as planned; `.sdlc/hook-decisions.log` of the temp repo is created by the hook, never copied.

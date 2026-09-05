@@ -23,7 +23,20 @@ PROTECTED_BRANCHES='main master prod production release'
 # `aws lambda list-functions` -- asked a human for a release authorization (review of PR #11).
 # `git push` is deliberately absent: what it reaches depends on refspecs, flags and the current
 # upstream, which no regex over the command text can see. push_reaches_protected() decides it.
-DEPLOY_RE="$BOUND"'(kubectl[[:space:]]+(apply|rollout|delete)|helm[[:space:]]+(install|upgrade|rollback)|terraform[[:space:]]+(apply|destroy)|pulumi[[:space:]]+up|aws[[:space:]]+(cloudformation[[:space:]]+(deploy|create-stack|update-stack|delete-stack|create-change-set|execute-change-set)|lambda[[:space:]]+(create-function|delete-function|invoke|publish-version|update-alias|update-function-code|update-function-configuration)|ecs[[:space:]]+(create-service|update-service|delete-service|deploy|register-task-definition|run-task)|s3[[:space:]]+sync)|gcloud[[:space:]]+(run|app|functions)[[:space:]]+deploy|az[[:space:]]+webapp[[:space:]]+(up|deploy|deployment|create|delete|restart|start|stop|swap)|npm[[:space:]]+publish|twine[[:space:]]+upload|docker[[:space:]]+push|flyctl[[:space:]]+deploy|fly[[:space:]]+deploy|vercel[[:space:]]+(--prod|deploy)|serverless[[:space:]]+deploy|cap[[:space:]]+production)'
+DEPLOY_RE="$BOUND"'(kubectl[[:space:]]+(apply|rollout|delete)|helm[[:space:]]+(install|upgrade|rollback)|terraform[[:space:]]+(apply|destroy)|pulumi[[:space:]]+up|aws[[:space:]]+(cloudformation[[:space:]]+(deploy|create-stack|update-stack|delete-stack|create-change-set|execute-change-set)|lambda[[:space:]]+(create-function|delete-function|invoke|publish-version|update-alias|update-function-code|update-function-configuration)|ecs[[:space:]]+(create-service|update-service|delete-service|deploy|register-task-definition|run-task)|s3[[:space:]]+sync)|gcloud[[:space:]]+(run|app|functions)[[:space:]]+deploy|az[[:space:]]+webapp[[:space:]]+(up|deploy|deployment|create|delete|restart|start|stop|swap)|npm[[:space:]]+publish|twine[[:space:]]+upload|docker[[:space:]]+push|flyctl[[:space:]]+deploy|fly[[:space:]]+deploy|vercel[[:space:]]+(--prod|deploy)|serverless[[:space:]]+deploy|cap[[:space:]]+production|([^[:space:]]*/)?deploy\.sh|gh[[:space:]]+(release[[:space:]]+create|workflow[[:space:]]+run|pr[[:space:]]+merge))'
+# The playbook's generic shape, never adopted before work/deploy-gate: a `deploy` word plus a
+# `prod`/`production` word in one command asks; `deploy --help` and `echo deployment` do not.
+DEPLOY_WORD_RE="$BOUND"'([^[:space:]]*/)?deploy([[:space:]]|$)'
+PROD_RE='(^|[^[:alnum:]_])(prod|production)([^[:alnum:]_-]|$)'
+# A mutating `gh api` call on releases, merges or dispatches is a release act; a GET is not.
+GH_API_RE="$BOUND"'gh[[:space:]]+api[[:space:]]+[^;&|]*(releases|merges|dispatches)'
+GH_MUT_RE='(-X|--method)[[:space:]=]*(POST|PUT|PATCH|DELETE)|(^|[[:space:]])(-f|-F|--field|--raw-field|--input)([[:space:]]|=)'
+is_deploy() {
+  printf '%s' "$1" | grep -Eiq "$DEPLOY_RE" && return 0
+  printf '%s' "$1" | grep -Eiq "$DEPLOY_WORD_RE" && printf '%s' "$1" | grep -Eiq "$PROD_RE" && return 0
+  printf '%s' "$1" | grep -Eiq "$GH_API_RE" && printf '%s' "$1" | grep -Eiq "$GH_MUT_RE" && return 0
+  return 1
+}
 DANGER_RE="$BOUND"'(rm[[:space:]]+-rf[[:space:]]+/|git[[:space:]]+push[[:space:]]+[^;&|]*--force|git[[:space:]]+reset[[:space:]]+--hard[[:space:]]+origin|DROP[[:space:]]+(TABLE|DATABASE))'
 
 # is_protected <ref> -- true when <ref> names one of PROTECTED_BRANCHES, case-insensitively.
@@ -87,11 +100,16 @@ EOF
 if printf '%s' "$CMD" | grep -Eiq "$DANGER_RE"; then
   block "destructive command. Not allowed from an agent session: $CMD"
 fi
-if printf '%s' "$CMD" | grep -Eiq "$DEPLOY_RE" || push_reaches_protected "$CMD"; then
+if is_deploy "$CMD" || push_reaches_protected "$CMD"; then
   SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
+  # A committed authorization counts only when its approved-by holds release-manager in
+  # .sdlc/approvers.yaml and is not a never-approve identity (work/deploy-gate); the file is on
+  # protect-paths.sh's never-unlock list, so only a human writes it. Any other file is ignored.
   AUTH="$ROOT/.sdlc/release-authorizations/$SHA"
-  if [ -f "$AUTH" ] && grep -q '^approved-by:' "$AUTH"; then
-    exit 0   # a human authorized exactly this commit (file written by the release manager; the path is protected from agents)
+  if [ -f "$AUTH" ]; then
+    BY="$(fm_value "$AUTH" approved-by any)"
+    if approver_has_role "$BY" release-manager; then log_decision allow "release authorization $SHA by $BY"; exit 0; fi
+    log_decision reject "release authorization $SHA names '$BY', not a release-manager"
   fi
   if [ -n "${RELEASE_APPROVAL:-}" ] && [ "$RELEASE_APPROVAL" = "$SHA" ]; then
     exit 0   # playbook convention: RELEASE_APPROVAL set by the release pipeline's environment, bound to this commit

@@ -23,13 +23,16 @@ rollback both run only from CI.
 ## Steps
 
 1. Open the `workflow_dispatch` form for `.github/workflows/deploy.yml` and set `environment` to the affected
-   environment and `sha`/`ref` to the previous release tag — the last known-good release, not the breaching one.
+   environment and `sha` to the previous release's 40-hex commit SHA (`git rev-list -n 1 <tag>`) — the last
+   known-good release, not the breaching one. `sha` is the only ref input the form has.
 2. The required reviewer for that environment's GitHub Environment (`.sdlc/environments.yaml`,
    `github_environment:`) approves the run. For `production` this is the `release-manager` role in
    `.sdlc/approvers.yaml`.
-3. `RELEASE_APPROVAL` is set by the workflow to the commit being deployed (the previous release tag's commit), so
-   `scripts/deploy.sh` binds the approval to exactly that SHA — see `.claude/hooks/production-gate.sh` for the same
-   convention enforced defence-in-depth inside an agent session.
+3. The release manager binds the approval to that same 40-hex SHA: store it as the Environment secret
+   `RELEASE_APPROVAL` (Settings -> Environments -> the environment -> secrets), or commit
+   `.sdlc/release-authorizations/<sha>` with `approved-by: <release-manager handle>`. `scripts/deploy.sh` refuses
+   without one of the two — see `.claude/hooks/production-gate.sh` for the same convention enforced
+   defence-in-depth inside an agent session.
 4. The run deploys the previous release tag through the normal `deploy.yml` path — there is no separate rollback
    command; a rollback is a forward deploy of the last known-good SHA.
 
