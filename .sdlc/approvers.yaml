@@ -23,4 +23,4 @@ artifacts:
 # never-approve: identities that must never satisfy an approval, even if a
 # handle matching one of these appears in a role's list above. Agent and CI
 # identities go here so a mistaken or spoofed entry still fails closed.
-never-approve: ["claude[bot]", "github-actions[bot]", "claude"]
+never-approve: ["claude[bot]", "github-actions[bot]", "claude", "<your-github-handle>"]
