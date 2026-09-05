@@ -4,7 +4,7 @@ id: sdlc-kit-phase-1
 title: Reusable AI-native SDLC kit for Claude + Gemini projects
 description: Requirements and design for turning the scaffold into a plugin-distributed kit with an OKF knowledge layer and model-neutral gates.
 stage: design
-status: approved
+status: superseded
 reads: intent.md
 approved-by: luissiviero
 approved-on: 2026-09-02
