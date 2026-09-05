@@ -141,6 +141,81 @@ approver_has_role() {
     END { exit (ok && !bad) ? 0 : 1 }' "$f"
 }
 
+# Delegation policy readers (work/delegated-mode R-10, D1). One file tunes delegated mode:
+# .sdlc/delegation.yaml, the owner's own commit, on protect-paths.sh's never-unlock list. These
+# helpers are the awk twin of scripts/delegation.py -- nothing else in a hook parses that file --
+# and every one of them fails closed: a missing file, a missing key or `enabled: false` answers no.
+# Only top-level keys are read (an indented line belongs to the nested `merge:` map, which no hook
+# needs), and the policy is read at call time, so an owner's edit applies to the next tool call.
+# policy_file -> the policy's path. No config key: one file, one place to look (delegation.py D1).
+policy_file() { printf '%s' "$ROOT/.sdlc/delegation.yaml"; }
+# policy_value <key> -> the top-level scalar for <key>, cleaned like fm_value (CR, a trailing
+# ` # comment` and matching quotes stripped, casefolded); empty when the file or the key is absent.
+policy_value() {
+  awk -v k="$1" '
+    { sub(/\r$/, "") }
+    index($0, k ":") == 1 {
+      v = substr($0, length(k) + 2)
+      sub(/^[[:space:]]+/, "", v); sub(/[[:space:]]+#.*$/, "", v); if (v ~ /^#/) v = ""
+      sub(/[[:space:]]+$/, "", v)
+      if (length(v) >= 2 && substr(v, 1, 1) == substr(v, length(v), 1) && (substr(v, 1, 1) == "\"" || substr(v, 1, 1) == "\047")) v = substr(v, 2, length(v) - 2)
+      print tolower(v); exit }' "$(policy_file)" 2>/dev/null
+}
+# policy_list <key> -> a top-level flow list `key: [a, b]` as one item per line, each trimmed,
+# unquoted and casefolded (`claude[bot]` keeps its brackets); a bare scalar is one item, an absent
+# key or file prints nothing.
+policy_list() {
+  awk -v k="$1" '
+    function norm(x) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", x); gsub(/^["\047]|["\047]$/, "", x); return tolower(x) }
+    { sub(/\r$/, "") }
+    index($0, k ":") == 1 {
+      v = substr($0, length(k) + 2); sub(/^[[:space:]]+/, "", v)
+      if (v ~ /^\[/) {
+        sub(/^\[/, "", v); sub(/\][[:space:]]*(#.*)?$/, "", v)
+        n = split(v, a, ",")
+        for (i = 1; i <= n; i++) if (norm(a[i]) != "") print norm(a[i])
+      } else {
+        sub(/[[:space:]]+#.*$/, "", v); if (v ~ /^#/) v = ""
+        if (norm(v) != "") print norm(v)
+      }
+      exit }' "$(policy_file)" 2>/dev/null
+}
+# delegation_on -> 0 when the policy file exists and its `enabled` is a true word; a missing file
+# or anything else is the closed state (1), as Policy._closed is in scripts/delegation.py.
+delegation_on() {
+  [ -f "$(policy_file)" ] || return 1
+  case "$(policy_value enabled)" in true|yes|on|1) return 0;; esac
+  return 1
+}
+# agent_handle_ok <handle> -> 0 when the handle is one of the policy's `agents` and delegated mode
+# is on; an empty handle fails closed. Both sides are normalised as approver_has_role and
+# scripts/delegation.py normalise (quotes, first token, a leading @, casefold), but this helper
+# never reads .sdlc/approvers.yaml: `never-approve` lists `claude` on purpose, and signing is not
+# approving (spec gotchas; knowledge/decisions/human-only-approvals.md, as amended).
+agent_handle_ok() {
+  local h="$1" a
+  h="${h//\"/}"; h="${h//\'/}"; h="${h#"${h%%[![:space:]]*}"}"; h="${h%%[[:space:]]*}"; h="${h#@}"; h="${h,,}"
+  [ -n "$h" ] || return 1
+  delegation_on || return 1
+  while IFS= read -r a; do [ "${a#@}" = "$h" ] && return 0; done < <(policy_list agents)
+  return 1
+}
+# artifact_signable <name> -> 0 when the artifact's file name (`plan.md`) is in the policy's
+# `signable` list. intent.md is never listed there: it carries the grant (spec D-b).
+artifact_signable() {
+  local n="${1,,}" a
+  [ -n "$n" ] || return 1
+  while IFS= read -r a; do [ "$a" = "$n" ] && return 0; done < <(policy_list signable)
+  return 1
+}
+# intent_mode <slug> -> work/<slug>/intent.md's `mode`, or `supervised` when the key, the file or
+# the slug is absent: an item with no grant runs supervised, which is the closed state (spec D2).
+intent_mode() {
+  local m
+  m="$(fm_value "$ROOT/work/$1/intent.md" mode)"
+  printf '%s\n' "${m:-supervised}"
+}
+
 # ---------------------------------------------------------------------------------------------
 # Bash write-target extraction, shared by protect-paths.sh, require-plan.sh and protect-tests.sh.
 # A Bash call carries no file_path, so each of those hooks derives the likely write targets from

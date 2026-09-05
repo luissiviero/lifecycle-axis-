@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Governance: code under PLAN_REQUIRED_PATHS may only change when the active work item has an approved plan.md.
+# A plan an agent signed under the owner's delegation grant (`status: delegated`) opens the same
+# gate, on the policy's terms (work/delegated-mode R-10, D5).
 #
 # Two branches, like protect-paths.sh:
 #   $FILE set   -> Edit/Write/MultiEdit/NotebookEdit: check the declared file_path.
@@ -17,6 +19,18 @@ check_plan_required() { # check_plan_required <repo-relative canonical path> <wh
   PLAN="$ROOT/work/$SLUG/plan.md"
   [ -f "$PLAN" ] || block "'$R' needs an approved plan$where, but work/$SLUG/plan.md does not exist. Run /sdlc-plan first."
   STATUS="$(fm_value "$PLAN" status)"   # comment, quotes, capitals and CRLF stripped (_lib.sh)
+  # work/delegated-mode R-10: a delegated plan opens the gate when the policy is on, plan.md is
+  # signable there, the item's intent carries the owner's grant, and the signer is an agent the
+  # policy lists. Nothing here is the session's to set: the policy and the grant are human commits
+  # (.sdlc/delegation.yaml is on protect-paths.sh's never-unlock list).
+  if [ "$STATUS" = "delegated" ]; then
+    BY="$(fm_value "$PLAN" approved-by)"; POLICY=".sdlc/delegation.yaml"
+    delegation_on || block "'$R' needs an approved plan$where: work/$SLUG/plan.md is signed 'delegated', but delegated mode is off ($POLICY is missing or does not say enabled: true). A human must approve the plan."
+    artifact_signable plan.md || block "'$R' needs an approved plan$where: work/$SLUG/plan.md is signed 'delegated', but plan.md is not in the signable list of $POLICY. A human must approve the plan."
+    [ "$(intent_mode "$SLUG")" = "delegated" ] || block "'$R' needs an approved plan$where: work/$SLUG/plan.md is signed 'delegated', but work/$SLUG/intent.md says mode: $(intent_mode "$SLUG"). Only a human grants delegation, on the intent."
+    agent_handle_ok "$BY" || block "'$R' needs an approved plan$where: work/$SLUG/plan.md says approved-by '$BY', who is not an agent listed in $POLICY (or the file is missing). A signature is written by scripts/sign.py under a listed agent handle."
+    return 0
+  fi
   [ "$STATUS" = "approved" ] || block "'$R' needs an approved plan$where: work/$SLUG/plan.md has status '$STATUS', not 'approved'. A human must approve the plan before implementation starts."
   # work/approval-gate R-6: the approver must hold the plan's role (artifacts.plan.md in the approvers
   # file) and not sit in never-approve; a missing approvers file fails closed (approver_has_role, _lib.sh).
