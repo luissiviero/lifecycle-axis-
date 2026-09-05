@@ -4,11 +4,11 @@ id: delegated-mode
 title: A second way to run a work item, where I approve the start and the AI signs the rest under its own name
 description: "Files, order, proof and risks for delegated mode across four pull requests: vocabulary and chain check, hooks and signing script, prose and skills, and the CI merge workflow."
 stage: build
-status: in-review
+status: approved
 kind: feature
 reads: spec.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 risk-class: low
 record:
 resource: https://github.com/luissiviero/lifecycle-axis-/issues/40
