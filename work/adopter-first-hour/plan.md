@@ -2,7 +2,7 @@
 type: sdlc/plan
 id: adopter-first-hour
 title: A fresh install of the kit breaks in the first hour; the adopter path must work end to end
-description: Files, order, proof and risks for the adopt.sh fixes: copy list, settings merge, red placeholder, placeholder handle, in-review example with an explicit file list, seeded context file, minimal knowledge indexes, --force preservation, --help, and the GitHub-side checklist.
+description: "Files, order, proof and risks for the adopt.sh fixes: copy list, settings merge, red placeholder, placeholder handle, in-review example with an explicit file list, seeded context file, minimal knowledge indexes, --force preservation, --help, and the GitHub-side checklist."
 stage: build
 status: approved
 kind: feature
@@ -66,4 +66,9 @@ timestamp: 2026-09-05T02:33:32Z
 - Revert the PR's commit; nothing outside this repo changes. Targets adopted in between keep what they received.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- Step 1: `test_adopt.py` had 20 cases on `main`, not 22 (the count in this plan was wrong; the file was read, the number was not). Twelve tests were added, not eleven (`test_help_flag` counts separately from `test_force_preserves_adopter_values`), so the suite grows by twelve.
+- This item's own `spec.md` and `plan.md` carried an unquoted `: ` inside their `description:` value (`adopt.sh: …`, `fixes: …`); the kit's front-matter reader splits on the first colon and passed, GitHub's YAML renderer refused the file (the owner's screenshot, 02:45 UTC). Both values are now double-quoted; the approval fields are untouched. Six other files outside this item's list have the same defect (`knowledge/decisions/merge-click-is-the-gate.md:4`, `docs/sdlc/metrics.md:3`, `docs/sdlc/phase-2-roadmap.md:3`, and three under `docs/sdlc/handoff/` on the handoff branch); they and a strict-YAML check for front matter belong to `docs-reconcile`.
+- The seeded `CLAUDE.md` is announced as `seed: CLAUDE.md`, not `copy: CLAUDE.md`, so the `copy:` lines stay a one-to-one record of files taken from the kit (the `_example` plan test reads them that way); `CLAUDE.md` is added to that plan explicitly, as the spec says.
+- Step 7: with `VERIFY_CMDS="true"` the walkthrough target's `verify.sh` is fully green, `plugin-manifest.sh` included (it skips in a repo with no `.claude-plugin/` manifest); the plan expected that one check red. The decision record's sentence claiming it fails was corrected in this PR.
+- The walkthrough target's OKF check still warned `docs/sdlc index missing index.md` (the kit's `docs/sdlc/index.md` links to spikes that are not copied, so it was never in the copy list). `adopt.sh` now writes a minimal `docs/sdlc/index.md` with `write_index`, the same mechanism as the knowledge indexes, so the target's OKF run is `0 warnings` from the first verify. Same file, no new path in this list.
+- The two `SAMPLE_FILES` scripts the spec names as `hooktest.py` and `approve.py` are copied as planned; the `approve` scenario also records `approvers.py --has-role` for the placeholder (spec R-4) because the default target is not a git repository and the copied checker resolves its root through git.

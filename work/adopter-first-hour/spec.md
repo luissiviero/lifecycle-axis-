@@ -2,7 +2,7 @@
 type: sdlc/spec
 id: adopter-first-hour
 title: A fresh install of the kit breaks in the first hour; the adopter path must work end to end
-description: Requirements and design for adopt.sh: complete copy list, settings merge, red placeholder verify, placeholder handle, in-review example with an explicit file list, project-shaped context file, clean knowledge indexes, --force preservation, --help, and a GitHub-side checklist.
+description: "Requirements and design for adopt.sh: complete copy list, settings merge, red placeholder verify, placeholder handle, in-review example with an explicit file list, project-shaped context file, clean knowledge indexes, --force preservation, --help, and a GitHub-side checklist."
 stage: design
 status: approved
 reads: intent.md
