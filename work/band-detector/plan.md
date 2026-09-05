@@ -75,4 +75,6 @@ timestamp: 2026-09-05T01:57:50Z
 - Revert the PR's commit; nothing outside this repo changes except issues or comments the workflow filed, which stay as a record.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- Tests grew beyond the counts named above, no file outside the list: `DetectBandsCli` has four cases (a `test_breach_exits_3` pins the exit-3 path beside the eval), `ApiPaths` has two (`test_runs_path_filters_by_created_and_workflow` pins the runs paths that moved into `_api_path()`), so the suite grows by twenty-four over `main`, not nineteen.
+- `bands.yml`'s detect step now fails the job on detector exit 2 (bad input) instead of recording `breach=2`; the spec's failure-modes section asked for a loud failure and the old `if [ "$rc" != 0 ]` line would have read exit 2 as a breach. The step also exports `index` for the dedupe comment.
+- The rule fragment renders to `CLAUDE.md:42`, not `:40` (two lessons-learned lines landed in Batch A); same change, different line.

@@ -10,8 +10,10 @@ Usage:
   github_metrics.py pr_cycle_time_hours   [--repo owner/name] [--days N=30] [--from-json PATH]
 
 Metrics:
-  ci_test_failure_rate  -- per-day failures/completed-runs for the workflow runs endpoint.
-  pr_cycle_time_hours   -- hours from PR open to merge, one value per merged PR, oldest first.
+  ci_test_failure_rate  -- per-day failures/completed-runs for the workflow runs endpoint; a run
+                           whose conclusion is failure, timed_out or startup_failure is a failure.
+  pr_cycle_time_hours   -- hours from PR open to merge, one value per merged PR, oldest first,
+                           keeping the merges within --days of the latest merge in the data.
 
 Exit codes: 0 (including "no data, nothing printed"); 2 if `gh` is missing ("install gh or pass
 --from-json") or `gh api` exits non-zero (its stderr is relayed, no partial output is printed).
@@ -19,6 +21,9 @@ Exit codes: 0 (including "no data, nothing printed"); 2 if `gh` is missing ("ins
 import argparse, datetime, json, os, shutil, subprocess, sys
 
 NO_GH_MSG = "install gh or pass --from-json"
+# Conclusions that mean "this run did not pass". `cancelled` is a human act and stays a
+# completed non-failure; `null` (in progress / queued) is excluded from both sides of the ratio.
+FAILURE_CONCLUSIONS = {"failure", "timed_out", "startup_failure"}
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +80,18 @@ def _parse_iso(s):
     return datetime.datetime.fromisoformat(s)
 
 
+def _api_path(metric, repo, days, workflow):
+    """The `gh api` path for a metric. Runs are filtered server-side by creation date (and
+    workflow); pulls have no merge-date filter, so they are fetched newest-updated first and
+    `pr_cycle_series` applies `days` itself."""
+    if metric == "ci_test_failure_rate":
+        since = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)).date().isoformat()
+        if workflow:
+            return f"repos/{repo}/actions/workflows/{workflow}/runs?per_page=100&created=>={since}"
+        return f"repos/{repo}/actions/runs?per_page=100&created=>={since}"
+    return f"repos/{repo}/pulls?state=closed&per_page=100&sort=updated&direction=desc"
+
+
 # ---------------------------------------------------------------------------
 # Pure functions -- fixture-testable, no network, no filesystem.
 # ---------------------------------------------------------------------------
@@ -88,9 +105,10 @@ def ci_failure_series(runs, days, bucket="day"):
 
     Runs with conclusion == null (in progress / queued) are excluded from both the
     numerator and the denominator; a bucket left with zero completed runs is omitted
-    entirely rather than emitted as 0/0. Only the trailing `days` buckets (measured
-    from the most recent bucket present in the data, not wall-clock "now") are kept,
-    so the function stays pure and reproducible against a fixed fixture. Output is
+    entirely rather than emitted as 0/0. A failure is any conclusion in
+    FAILURE_CONCLUSIONS. Only the trailing `days` buckets (measured from the most
+    recent bucket present in the data, not wall-clock "now") are kept, so the
+    function stays pure and reproducible against a fixed fixture. Output is
     oldest first.
     """
     buckets = {}  # date -> [failures, completed]
@@ -101,7 +119,7 @@ def ci_failure_series(runs, days, bucket="day"):
             continue
         key = _bucket_key(created_at, bucket)
         failures, completed = buckets.get(key, (0, 0))
-        buckets[key] = (failures + (1 if conclusion == "failure" else 0), completed + 1)
+        buckets[key] = (failures + (1 if conclusion in FAILURE_CONCLUSIONS else 0), completed + 1)
     if not buckets:
         return []
     keys = sorted(buckets)
@@ -113,10 +131,12 @@ def ci_failure_series(runs, days, bucket="day"):
     ]
 
 
-def pr_cycle_series(prs):
+def pr_cycle_series(prs, days):
     """Hours from created_at to merged_at for merged PRs, ordered by merged_at (oldest first).
 
-    PRs with no merged_at (closed without merging) are skipped.
+    PRs with no merged_at (closed without merging) are skipped. Only merges within the
+    trailing `days` (measured from the latest merge in the data, like ci_failure_series)
+    are kept.
     """
     rows = []
     for pr in prs:
@@ -125,8 +145,11 @@ def pr_cycle_series(prs):
             continue
         hours = (_parse_iso(merged_at) - _parse_iso(created_at)).total_seconds() / 3600.0
         rows.append((merged_at, hours))
+    if not rows:
+        return []
     rows.sort(key=lambda row: row[0])
-    return [hours for _, hours in rows]
+    cutoff = _parse_iso(rows[-1][0]).date() - datetime.timedelta(days=max(days, 1) - 1)
+    return [hours for merged_at, hours in rows if _parse_iso(merged_at).date() >= cutoff]
 
 
 # ---------------------------------------------------------------------------
@@ -148,20 +171,12 @@ def main(argv=None):
         if not a.repo:
             print("no --repo given and GITHUB_REPOSITORY is unset", file=sys.stderr)
             return 2
-        if a.metric == "ci_test_failure_rate":
-            since = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=a.days)).date().isoformat()
-            if a.workflow:
-                path = f"repos/{a.repo}/actions/workflows/{a.workflow}/runs?per_page=100&created=>={since}"
-            else:
-                path = f"repos/{a.repo}/actions/runs?per_page=100&created=>={since}"
-        else:
-            path = f"repos/{a.repo}/pulls?state=closed&per_page=100"
-        data = _parse_json_stream(_gh_api(path))
+        data = _parse_json_stream(_gh_api(_api_path(a.metric, a.repo, a.days, a.workflow)))
 
     if a.metric == "ci_test_failure_rate":
         values = ci_failure_series(data, a.days)
     else:
-        values = pr_cycle_series(data)
+        values = pr_cycle_series(data, a.days)
 
     for v in values:
         print(f"{v:.6f}")

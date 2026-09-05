@@ -35,7 +35,7 @@ PR triggers the pipeline, and a breached control band writes the next `intent.md
 | 5 Deploy | AI in the PR review loop | `REVIEW.md` passes (bugs, security, compliance vs spec/plan), Important vs Nit, five-nit cap, `@claude` fix loop, findings feed CLAUDE.md, monthly tuning | code owner via branch protection |
 | 5 Deploy | Hooks as approval gates | allow / ask / block; team hooks in `.claude/settings.json`, non-negotiable ones in managed settings; a block explains the route to approval | release manager; change board |
 | 5 Deploy | CI/CD integration | `claude -p` read-only judgment first (triage), write steps behind gates, sandboxed with scoped tokens, deploy/rollback as MCP tools, autonomy tiered per environment, rollback rehearsed | production gate hook |
-| 6 Maintain | Closing the loop | deterministic detector (mean/σ, Western Electric) + `bands.yaml` tiers: 1σ log, 2σ diagnose read-only, 3σ propose via PR or pre-approved runbook; diagnosis written as `intent.md` | service owner triages |
+| 6 Maintain | Closing the loop | deterministic detector (trailing mean/σ, all four Western Electric rules) + `bands.yaml` tiers: 1σ log, 2σ diagnose read-only, 3σ propose via PR or pre-approved runbook (declared; in this phase 3σ is diagnosed like 2σ and filed as an issue); diagnosis written as `intent.md` | service owner triages |
 | 6 Maintain | Recurring codebase scans | scheduled scans (Claude Security); fixes via the review gate; larger findings become `intent.md`; eval per vulnerability class | security lead |
 | 6 Maintain | Claude on call (Claude Tag) | first responder in the incident channel under its own identity; verifies recovery over MCP; writes the post-mortem to a version-controlled lessons file | channel is the audit trail |
 
@@ -80,10 +80,10 @@ scripts/run_tests.py             the unit suite (scripts/test_*.py), one subproc
 scripts/check_artifact_chain.py  artifacts approved by a valid approver with a log.md entry; diff ⊆ "Files that change"; release-gated paths have an owner; a diff touching only work/ is checked as far as the chain exists (one stage per PR)
 scripts/check_okf.py             OKF conformance over knowledge/ and docs/sdlc/ (warning by default, OKF_STRICT=1 to fail)
 scripts/run_evals.sh + evals/    hook cases run anywhere; prompt cases run with `claude -p` when a key exists; --kind/--only/--list select cases
-scripts/detect_bands.py          deterministic Western Electric detector, unit-tested; monitoring/bands.yaml tiers
+scripts/detect_bands.py          deterministic Western Electric detector (trailing baseline, four rules, full-series scan), unit-tested; monitoring/bands.yaml tiers and `window:`, read into the workflow matrix by scripts/bands_config.py
 .github/workflows/sdlc-gate.yml  chain check, verify, control-plane guard, triage-on-failure judgment step
 .github/workflows/agent-evals.yml runs on CLAUDE.md / .claude/** / evals changes and nightly
-.github/workflows/bands.yml      daily: collect GitHub metrics, run the band detector, file an issue on a breach
+.github/workflows/bands.yml      daily: matrix from bands.yaml, collect GitHub metrics (kept as a run artifact), run the band detector, file an issue on a breach or comment on the open one
 .github/workflows/deploy.yml     workflow_dispatch behind a GitHub Environment; the only place scripts/deploy.sh runs
 .github/workflows/pr-review.yml  reviews against REVIEW.md on PR open with no Bash; quotes Chain/Verify from the gate run; posts via the action's tracking comment
 ```
@@ -103,7 +103,7 @@ scripts/detect_bands.py          deterministic Western Electric detector, unit-t
 | Review has evidence, ≤5 nits, no self-approval | REVIEW.md, `/sdlc-review` | reviewer subagents have no write tools; branch protection | code owner |
 | Config that steers the agent is regression-tested | Test play | `agent-evals.yml` on every CLAUDE.md/skills/hooks change | config owner |
 | Mistake twice → memory | rule 7, REVIEW.md Memory pass | — | reviewer insists |
-| Detection stays deterministic; tier bounds the agent | — | `detect_bands.py` + `bands.yaml` tools/routes | service owner triages |
+| Detection stays deterministic; tier bounds the agent | — | `detect_bands.py` (no model) + `bands.yaml` tier `tools:` passed to `claude -p` by `bands.yml`; the 3σ `routes:` are declared, not yet acted on | service owner triages |
 | `approved-by` is a real human role, backed by a ledger entry | rule 8, `docs/sdlc/rules/30-conventions.md` | `protect-approvals.sh` refuses an agent-side `status: approved|superseded`, `approved-by`, `approved-on` or `approve.py` call (no unlock); `check_artifact_chain.py` validates against `.sdlc/approvers.yaml` and requires a matching `work/<slug>/log.md` entry | approver named in the file |
 | Control-plane diff on an agent PR needs explicit human sign-off | rule 3 | CI blocks any agent-authored PR (head branch in `AGENT_BRANCH_PREFIXES`, a Bot author, or a Claude commit trailer) touching `PROTECTED_PATHS`; a human applying `control-plane-approved` is the only exemption | applies the label after reading the diff |
 | Context files stay one source, never hand-drift | CLAUDE.md play | `context-drift.sh` fails `verify.sh` when `CLAUDE.md`/`GEMINI.md`/`AGENTS.md` don't match `docs/sdlc/rules/*.md` | edits a fragment, not the generated file |

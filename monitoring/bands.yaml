@@ -1,18 +1,22 @@
 # Control bands (Maintain play). Detection is deterministic; Claude is invoked only when a band is breached,
-# and the tier sets what it may do. Baseline: mean and standard deviation over a rolling window.
+# and the tier sets what it may do. Baseline: mean and standard deviation over the trailing `window`
+# points before each tested run (scripts/detect_bands.py); `source:` fetches the series and
+# `.github/workflows/bands.yml` reads this file through scripts/bands_config.py.
 metrics:
   - metric: ci_test_failure_rate
-    source: "scripts/github_metrics.py ci_test_failure_rate --days 30"
+    source: "scripts/github_metrics.py ci_test_failure_rate --days 30 --workflow sdlc-gate.yml"
     baseline: rolling_30d
     rules: western_electric
+    window: 14
     tiers:
       1sigma: { action: log }
       2sigma: { action: diagnose, tools: "Read,Grep,Bash(gh run view *)" }
       3sigma: { action: propose,  routes: [pull_request, runbook:rollback-deploy] }
   - metric: post_deploy_5xx_rate
-    source: "(none — no metrics store yet; tier actions are inert until one exists, see decisions.md Q7)"
+    source: "(none — no metrics store yet; tier actions are inert until one exists, see work/sdlc-kit-phase-1/decisions.md Q7)"
     baseline: rolling_14d
     rules: western_electric
+    window: 14
     tiers:
       1sigma: { action: log }
       2sigma: { action: diagnose, tools: "Read,Grep,Bash(kubectl logs *)" }
@@ -21,6 +25,7 @@ metrics:
     source: "scripts/github_metrics.py pr_cycle_time_hours --days 30"
     baseline: rolling_30d
     rules: western_electric
+    window: 14
     tiers:
       1sigma: { action: log }
       2sigma: { action: diagnose, tools: "Read,Grep" }
