@@ -73,6 +73,14 @@ class ProtectPathsHook(unittest.TestCase):
     def test_blocks_dotenv(self):
         self._block(".env")
 
+    def test_blocks_notebook_under_sdlc(self):
+        """work/bash-guard-hardening R-8: NotebookEdit's notebook_path takes the $FILE branch."""
+        with fake_repo() as root:
+            payload = load_fixture("notebookedit", notebook_path=".sdlc/x.ipynb")
+            result = run_hook(self.HOOK, payload, root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn(".sdlc/x.ipynb", result.stderr)
+
     def test_allows_source_file(self):
         with fake_repo() as root:
             payload = load_fixture("edit", file_path="src/a.ts")

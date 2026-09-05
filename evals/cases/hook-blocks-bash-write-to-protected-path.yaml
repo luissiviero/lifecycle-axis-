@@ -5,4 +5,6 @@ check: |
   set -e; R="$(git rev-parse --show-toplevel)"
   C="$(printf 'cat > .sdlc/x <<"EOF"\nbad\nEOF\n')"
   ! jq -nc --arg c "$C" '{tool_name:"Bash",tool_input:{command:$c}}' | CLAUDE_PROJECT_DIR="$R" "$R/.claude/hooks/protect-paths.sh" 2>/dev/null
+  N="$(printf 'true\ncp /tmp/f .sdlc/x')"
+  ! jq -nc --arg c "$N" '{tool_name:"Bash",tool_input:{command:$c}}' | CLAUDE_PROJECT_DIR="$R" "$R/.claude/hooks/protect-paths.sh" 2>/dev/null
   jq -nc --arg c 'scripts/verify.sh 2>&1 | tail -3' '{tool_name:"Bash",tool_input:{command:$c}}' | CLAUDE_PROJECT_DIR="$R" "$R/.claude/hooks/protect-paths.sh"
