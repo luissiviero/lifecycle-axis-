@@ -4,10 +4,10 @@ id: delegated-mode
 title: A second way to run a work item, where I approve the start and the AI signs the rest under its own name
 description: "Add a delegated mode beside the current supervised one: the owner approves the intent and grants delegation once, the agent signs spec, plan, review and merge under its own handle with every act in the ledger, plan changes are a recorded last resort, and everything tunable lives in one human-edited policy file."
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), interviewed by Claude in the session that drafted this item
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 supersedes:
 record:
 resource: https://github.com/luissiviero/lifecycle-axis-/issues/40
