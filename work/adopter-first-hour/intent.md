@@ -4,10 +4,10 @@ id: adopter-first-hour
 title: A fresh install of the kit breaks in the first hour; the adopter path must work end to end
 description: The install omits the approval script, ships the owner's handle in every role, silently skips an existing settings file, reports a false VERIFY PASS on a placeholder, leaves the plan gate open, and gives the adopter no GitHub-side checklist.
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude from the 2026-09-04 consensus list (item 7)
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 supersedes:
 record:
 resource: https://claude.ai/code/session_01Te8oN2GdvRupSixH4kjR8Y
