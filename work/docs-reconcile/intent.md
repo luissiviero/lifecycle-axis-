@@ -4,10 +4,10 @@ id: docs-reconcile
 title: The docs say what the code does
 description: "Reconcile every documented claim about a gate, a check or a script with the code that ships it; give the knowledge bundle honest timestamps and complete indexes; move the lessons out of CLAUDE.md into knowledge/ so every model sees them."
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude from the 2026-09-04 consensus list (items 10 and 11) and the B12 table of the playbook comparison
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 supersedes:
 record:
 resource: https://claude.ai/code/session_01Te8oN2GdvRupSixH4kjR8Y
