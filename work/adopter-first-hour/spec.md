@@ -4,10 +4,10 @@ id: adopter-first-hour
 title: A fresh install of the kit breaks in the first hour; the adopter path must work end to end
 description: Requirements and design for adopt.sh: complete copy list, settings merge, red placeholder verify, placeholder handle, in-review example with an explicit file list, project-shaped context file, clean knowledge indexes, --force preservation, --help, and a GitHub-side checklist.
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Transcribed from the approved 2026-09-04 implementation plan (docs/sdlc/handoff/PLAN.md on branch claude/session-handoff), section WI-8, after reading adopt.sh, test_adopt.py, check_artifact_chain.py's mode logic and verify.sh's command loop; reviewed by the orchestrator."
