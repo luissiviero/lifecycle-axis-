@@ -11,4 +11,4 @@ timestamp: 2026-09-05T05:25:00Z
 - [spec.md](spec.md) — status: approved; approved-by: luissiviero; Requirements and design for the sdlc-gate trust step, the never-approve entry for the adopter placeholder with its test and docs, the superseded-predecessor rule in the chain check, and the handoff state update.
 - [plan.md](plan.md) — status: approved; approved-by: luissiviero; Files, order, proof and risks for the trust step, the never-approve entry with its test and docs, the superseded-predecessor rule and the handoff update.
 
-Last gate: - 2026-09-05T05:40:00Z | plan.md | in-review -> approved | luissiviero | (web editor) | approved from the GitHub web editor
+Last gate: - 2026-09-05T05:40:00Z | plan.md | in-review -> approved | luissiviero | a74d40e | approved from the GitHub web editor
