@@ -3,10 +3,12 @@ type: sdlc/work-item
 id: delegation-boundary
 title: Decide whether a subagent may ever write code in this kit
 description: Two accepted-or-proposed spikes give opposite answers on delegating implementation; settle it before either is built.
-timestamp: 2026-09-03T20:00:00Z
+timestamp: 2026-09-05T03:39:55Z
 ---
 # Decide whether a subagent may ever write code in this kit
 
-- [intent.md](intent.md) — status: draft; approved-by: ; Two accepted-or-proposed spikes give opposite answers on delegating implementation; settle it before either is built.
+- [intent.md](intent.md) — status: in-review; approved-by: ; Two accepted-or-proposed spikes give opposite answers on delegating implementation; settle it before either is built.
+- [spec.md](spec.md) — status: in-review; approved-by: ; Requirements and design for the provisional answer: one writer per work item, subagents read-only, with an expiry and a named measurement, written once in knowledge/decisions and pointed at by both spikes, the roadmap and the rule fragments.
+- [plan.md](plan.md) — status: in-review; approved-by: ; Files, order, proof and risks for the one-writer-until-ledger decision record, the four pointer lines, the two rule sentences, the index entries and the identity-blindness test.
 
-Last gate: - 2026-09-03T20:00:00Z | intent.md | (none) -> draft | claude[bot] | (pending) | drafted from the contradiction found while merging PRs #13, #14 and #15; four open questions for the owner
+Last gate: - 2026-09-05T03:39:55Z | plan.md | (none) -> in-review | claude | f9b1e9c | same
