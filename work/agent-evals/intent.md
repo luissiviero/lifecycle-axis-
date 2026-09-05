@@ -4,10 +4,10 @@ id: agent-evals
 title: Evals test the agent, and can go red
 description: One prompt case among thirty-four, a nightly job that is green when the credential expires, fifteen hook cases whose negated assertions cannot fail, a path filter that misses half the config that steers the agent, and an approval-author check that reads prose.
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted with Claude from the 2026-09-04 consensus list (item 8) and the Batch A follow-ups
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 supersedes:
 record:
 resource: https://claude.ai/code/session_01Te8oN2GdvRupSixH4kjR8Y
