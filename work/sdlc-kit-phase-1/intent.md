@@ -4,7 +4,7 @@ id: sdlc-kit-phase-1
 title: Make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects
 description: Turn the scaffold into a drop-in kit with an OKF knowledge layer and model-neutral gates.
 stage: plan
-status: approved
+status: superseded
 author: Luis Siviero (repo owner), drafted with Claude
 approved-by: luissiviero 
 approved-on: 2026-09-02
