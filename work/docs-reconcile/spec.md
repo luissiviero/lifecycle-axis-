@@ -179,7 +179,8 @@ None. Front-matter values are re-quoted, never changed.
 - `PLAN.md` counted five lessons at `CLAUDE.md:68-72`; there are eight at `:73-81` (Batch A and B added three).
 - `docs/sdlc/handoff/HANDOFF.md` carries a `timestamp` one day after its last commit (future-dated); the one-off
   script corrects it like any other.
-- `check_okf.py` validates only `[text](target)` links (`LINK_RE`), so a backtick path is invisible to it (R-3).
+- `check_okf.py` validates only Markdown-syntax links (`LINK_RE`: bracketed text followed by a parenthesised target), so
+  a backtick path is invisible to it (R-3).
 - `section()` in `check_artifact_chain.py` matches by prefix, which is why `## Files that change` already works;
   only the docstring says `## Files`.
 - `git ls-files 'docs/**/*.md'` needs the quotes: the shell would expand `**` as `*` and miss nested files.
