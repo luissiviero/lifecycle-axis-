@@ -13,7 +13,7 @@ check: |
     b:
       runs-on: ubuntu-latest
   YAML
-  ! python3 "$R/scripts/check_workflow_permissions.py" --root "$d"
+  ! python3 "$R/scripts/check_workflow_permissions.py" --root "$d" || exit 1
   cat > "$d/.github/workflows/good.yml" <<'YAML'
   name: good
   on:

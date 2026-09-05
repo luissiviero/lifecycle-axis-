@@ -7,7 +7,7 @@ check: |
   P='{"session_id":"eval","tool_name":"Edit","tool_input":{"file_path":".sdlc/x","old_string":"a","new_string":"b"}}'
   out="$(printf '%s' "$P" | SDLC_CONTROL_PLANE_UNLOCK=1 CLAUDE_PROJECT_DIR="$d" "$R/.claude/hooks/protect-paths.sh" 2>/dev/null)"
   printf '%s' "$out" | grep -q '"systemMessage"'
-  ! printf '%s' "$out" | grep -q permissionDecision
+  ! printf '%s' "$out" | grep -q permissionDecision || exit 1
   [ "$(wc -l < "$d/.sdlc/hook-decisions.log")" = 1 ]
   awk -F'\t' 'NF == 6 && $2 == "unlock" && $3 == "protect-paths.sh" && $4 == "Edit" && $5 == "eval" && $6 == ".sdlc/x" { ok = 1 } END { exit !ok }' "$d/.sdlc/hook-decisions.log"
   # Nothing unlocked: no output on either stream.

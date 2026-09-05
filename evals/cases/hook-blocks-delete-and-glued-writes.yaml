@@ -6,11 +6,11 @@ check: |
   cp "$R/.sdlc/config.env" "$d/.sdlc/"
   H="$R/.claude/hooks/protect-paths.sh"
   run() { jq -nc --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' | CLAUDE_PROJECT_DIR="$d" "$H" 2>/dev/null; }
-  ! run 'rm -f .sdlc/active'
-  ! run 'true; cp /tmp/f .sdlc/x'
-  ! run 'true 2> .sdlc/x'
-  ! run "$(printf 'true\ncp /tmp/f .sdlc/x')"
-  ! run 'git rm -q .sdlc/active'
+  ! run 'rm -f .sdlc/active' || exit 1
+  ! run 'true; cp /tmp/f .sdlc/x' || exit 1
+  ! run 'true 2> .sdlc/x' || exit 1
+  ! run "$(printf 'true\ncp /tmp/f .sdlc/x')" || exit 1
+  ! run 'git rm -q .sdlc/active' || exit 1
   run 'ls 2>/dev/null'
   run 'cmd >/dev/null 2>&1'
   run 'rm -rf /tmp/build'

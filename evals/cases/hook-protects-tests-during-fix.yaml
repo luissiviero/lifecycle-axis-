@@ -5,6 +5,6 @@ check: |
   set -e; R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"; mkdir -p "$d/work/fixme" "$d/.sdlc" "$d/src"
   cp "$R/.sdlc/config.env" "$d/.sdlc/"; printf -- '---\nstatus: approved\nkind: fix\n---\n' > "$d/work/fixme/plan.md"
   touch "$d/src/foo.test.ts"
-  ! printf '%s' '{"tool_name":"Edit","tool_input":{"file_path":"src/foo.test.ts"}}' | SDLC_WORK_ITEM=fixme CLAUDE_PROJECT_DIR="$d" "$R/.claude/hooks/protect-tests.sh" 2>/dev/null
+  ! printf '%s' '{"tool_name":"Edit","tool_input":{"file_path":"src/foo.test.ts"}}' | SDLC_WORK_ITEM=fixme CLAUDE_PROJECT_DIR="$d" "$R/.claude/hooks/protect-tests.sh" 2>/dev/null || exit 1
   printf '%s' '{"tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"}}' | SDLC_WORK_ITEM=fixme CLAUDE_PROJECT_DIR="$d" "$R/.claude/hooks/protect-tests.sh"
   printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"src/new.test.ts","content":"x"}}' | SDLC_WORK_ITEM=fixme CLAUDE_PROJECT_DIR="$d" "$R/.claude/hooks/protect-tests.sh"

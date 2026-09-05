@@ -1,8 +1,10 @@
 name: hook-requires-plan-for-bash-write
 kind: hook
-source: docs/sdlc/phase-2-roadmap.md (item 17); knowledge/decisions/self-hooks-on.md
+source: knowledge/decisions/self-hooks-on.md (require-plan gains a Bash branch); work/agent-evals R-3 (the path comes from PLAN_REQUIRED_PATHS: this case asserted on src/ while the kit's own config names scripts/, and the inert negation hid it)
 check: |
   set -e; R="$(git rev-parse --show-toplevel)"
-  C="$(printf 'cat > src/a.ts <<"EOF"\nexport {}\nEOF\n')"
-  ! jq -nc --arg c "$C" '{tool_name:"Bash",tool_input:{command:$c}}' | SDLC_WORK_ITEM=does-not-exist CLAUDE_PROJECT_DIR="$R" "$R/.claude/hooks/require-plan.sh" 2>/dev/null
-  jq -nc --arg c 'grep -rn TODO src/ 2>&1 | head' '{tool_name:"Bash",tool_input:{command:$c}}' | SDLC_WORK_ITEM=does-not-exist CLAUDE_PROJECT_DIR="$R" "$R/.claude/hooks/require-plan.sh"
+  P="$(. "$R/.sdlc/config.env"; printf '%s' "${PLAN_REQUIRED_PATHS%% *}")"
+  [ -n "$P" ] || { echo "PLAN_REQUIRED_PATHS is empty"; exit 1; }
+  C="$(printf 'cat > %s/a.ts <<"EOF"\nexport {}\nEOF\n' "$P")"
+  ! jq -nc --arg c "$C" '{tool_name:"Bash",tool_input:{command:$c}}' | SDLC_WORK_ITEM=does-not-exist CLAUDE_PROJECT_DIR="$R" "$R/.claude/hooks/require-plan.sh" 2>/dev/null || exit 1
+  jq -nc --arg c "grep -rn TODO $P/ 2>&1 | head" '{tool_name:"Bash",tool_input:{command:$c}}' | SDLC_WORK_ITEM=does-not-exist CLAUDE_PROJECT_DIR="$R" "$R/.claude/hooks/require-plan.sh"

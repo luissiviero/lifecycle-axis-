@@ -2,12 +2,16 @@ name: agent-evals
 # Runs whenever the configuration that steers the agent changes, and nightly (Test play: continuous evals).
 # Two jobs on purpose (security review, finding 4): eval cases are shell executed from the PR head, so the
 # PR-time job holds no secret and runs only the deterministic hook cases; the nightly job runs on the
-# default branch with the key and covers the prompt cases too.
+# default branch with the key and covers the prompt cases too. The nightly job can be started by hand
+# (workflow_dispatch) and passes --require-claude, so an expired credential is a red run, never a skip
+# (work/agent-evals).
 on:
   pull_request:
-    paths: ['CLAUDE.md', 'REVIEW.md', '.claude/**', 'evals/**', '.sdlc/**', 'scripts/**']
+    paths: ['CLAUDE.md', 'GEMINI.md', 'AGENTS.md', 'REVIEW.md', '.claude/**', '.gemini/**', '.claude-plugin/**',
+            'docs/sdlc/rules/**', 'docs/sdlc/templates/**', 'evals/**', '.sdlc/**', 'scripts/**']
   schedule:
     - cron: '0 2 * * *'
+  workflow_dispatch: {}
 permissions:
   contents: read   # read-only token: this workflow only checks and reports
 
@@ -24,8 +28,8 @@ jobs:
         run: scripts/run_evals.sh --kind hook
 
   full-suite:
-    # Nightly on the default branch only: prompt cases need the key.
-    if: github.event_name == 'schedule'
+    # Nightly on the default branch, or started by hand: prompt cases need the key.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     env:
       # run_evals.sh accepts either credential: an API key, or a subscription OAuth token
@@ -35,8 +39,27 @@ jobs:
       SDLC_UNATTENDED: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # `claude -p` ignores a project's .claude/settings.json (hooks and permissions) until the
+      # workspace is trusted; the CLI says so in every CI log: "Ignoring 7 permissions.allow entries
+      # from .claude/settings.json: this workspace has not been trusted ... set
+      # projects[<path>].hasTrustDialogAccepted: true in ~/.claude.json". The prompt cases assert on
+      # hook behaviour, so trust the checkout here, in the only job that runs them.
+      - name: Trust the checkout so project hooks apply to claude -p
+        if: env.ANTHROPIC_API_KEY != '' || env.CLAUDE_CODE_OAUTH_TOKEN != ''
+        run: |
+          python3 - <<'PY'
+          import json, os
+          path = os.path.expanduser("~/.claude.json")
+          data = {}
+          if os.path.exists(path):
+              with open(path) as f:
+                  data = json.load(f)
+          data.setdefault("projects", {}).setdefault(os.environ["GITHUB_WORKSPACE"], {})["hasTrustDialogAccepted"] = True
+          with open(path, "w") as f:
+              json.dump(data, f)
+          PY
       - name: Install Claude Code (only needed for prompt-driven cases)
         if: env.ANTHROPIC_API_KEY != '' || env.CLAUDE_CODE_OAUTH_TOKEN != ''
         run: npm install -g @anthropic-ai/claude-code@2.1.258
-      - name: Run full eval suite
-        run: scripts/run_evals.sh
+      - name: Run full eval suite (a prompt case that cannot run is a failure)
+        run: scripts/run_evals.sh --require-claude

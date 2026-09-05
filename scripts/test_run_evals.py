@@ -249,6 +249,83 @@ class RunEvalsScript(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0)
 
+    def test_require_claude_fails_a_skipped_prompt_case(self):
+        """Nightly CI passes --require-claude so an expired credential is a red run, not a skip."""
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _add_synthetic_cases(root)
+            result = _run(root, ["--require-claude"])
+            self.assertEqual(_last_line(result.stdout), "EVALS: 1 pass, 2 fail, 0 skipped")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("prompt-case (prompt case, no Claude runner; --require-claude)", result.stdout)
+            self.assertNotIn("skipped:", result.stdout)
+            result = _run(root, ["-h"])
+            self.assertIn("--require-claude", result.stdout)
+
+    def test_setup_runs_before_check(self):
+        """A case may stage a fixture in `setup:`; it runs before the prompt and before the check."""
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _write_case(
+                root,
+                "setup-case",
+                "name: setup-case\n"
+                "kind: hook\n"
+                "setup: |\n"
+                "  echo staged > staged.txt\n"
+                'check: "test -f staged.txt && rm staged.txt"\n',
+            )
+            result = _run(root, ["--only", "setup-case"])
+            self.assertEqual(_last_line(result.stdout), "EVALS: 1 pass, 0 fail, 0 skipped", result.stdout)
+            self.assertEqual(result.returncode, 0)
+
+    def test_failing_setup_fails_the_case(self):
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _write_case(
+                root,
+                "bad-setup",
+                "name: bad-setup\n"
+                "kind: hook\n"
+                "setup: |\n"
+                "  echo fixture missing >&2; false\n"
+                'check: "true"\n',
+            )
+            result = _run(root, ["--only", "bad-setup"])
+            self.assertEqual(_last_line(result.stdout), "EVALS: 0 pass, 1 fail, 0 skipped", result.stdout)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("bad-setup (setup failed)", result.stdout)
+            self.assertIn("fixture missing", result.stdout)
+
+
+class AgentEvalsWorkflow(unittest.TestCase):
+    """The workflow watches every source that steers the agent, can be started by hand, and its nightly
+    job can go red (work/agent-evals R-4, R-6)."""
+
+    WORKFLOW = os.path.join(os.path.dirname(HERE), ".github", "workflows", "agent-evals.yml")
+
+    def setUp(self):
+        self.text = _read(self.WORKFLOW)
+
+    def test_paths_cover_agent_config(self):
+        for path in ("CLAUDE.md", "GEMINI.md", "AGENTS.md", "REVIEW.md", ".claude/**", ".gemini/**",
+                     ".claude-plugin/**", "docs/sdlc/rules/**", "docs/sdlc/templates/**", "evals/**",
+                     ".sdlc/**", "scripts/**"):
+            self.assertIn("'%s'" % path, self.text, path)
+
+    def test_nightly_requires_claude(self):
+        self.assertIn("scripts/run_evals.sh --require-claude", self.text)
+        # The PR-time job stays deterministic-only and holds no secret.
+        self.assertIn("scripts/run_evals.sh --kind hook", self.text)
+
+    def test_dispatchable(self):
+        self.assertIn("workflow_dispatch:", self.text)
+        self.assertIn("github.event_name != 'pull_request'", self.text)
+        self.assertNotIn("github.event_name == 'schedule'", self.text)
+
+    def test_nightly_trusts_the_checkout(self):
+        self.assertIn("hasTrustDialogAccepted", self.text)
+
 
 if __name__ == "__main__":
     unittest.main()

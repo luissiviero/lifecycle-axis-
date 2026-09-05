@@ -8,6 +8,6 @@ check: |
   echo base > README.md && git add -A && git commit -q -m base
   git checkout -q -b head
   printf '# agent edit\n' >> .sdlc/config.env && git add -A && git commit -q -m touch
-  ! SDLC_PR_AUTHOR_TYPE=User SDLC_PR_HEAD_REF=claude/foo SDLC_PR_LABELS='[]' "$R/scripts/check_control_plane.sh" main >/tmp/blocked.out 2>&1
+  ! SDLC_PR_AUTHOR_TYPE=User SDLC_PR_HEAD_REF=claude/foo SDLC_PR_LABELS='[]' "$R/scripts/check_control_plane.sh" main >/tmp/blocked.out 2>&1 || exit 1
   grep -q BLOCKED /tmp/blocked.out
   SDLC_PR_AUTHOR_TYPE=User SDLC_PR_HEAD_REF=claude/foo SDLC_PR_LABELS='["control-plane-approved"]' "$R/scripts/check_control_plane.sh" main | grep -q EXEMPT

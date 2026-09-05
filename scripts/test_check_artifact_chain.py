@@ -432,5 +432,37 @@ class ExampleMatchesTemplates(unittest.TestCase):
                 )
 
 
+class ApprovalAuthor(unittest.TestCase):
+    """The approval is attributed to the diff that set `status: approved`, never to a later commit that
+    merely mentions the phrase (work/agent-evals R-5; the PR #25 misattribution)."""
+
+    AGENT_NAME, AGENT_EMAIL = "claude", "noreply@anthropic.com"
+
+    def _commit_as(self, root, name, email, message):
+        _git(root, "add", "-A")
+        _git(root, "-c", f"user.email={email}", "-c", f"user.name={name}", "commit", "-q", "-m", message)
+
+    def test_prose_mention_after_approval_does_not_reattribute(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)  # approved, committed by a human-shaped author
+            with open(os.path.join(wd, "intent.md"), "a", encoding="utf-8") as f:
+                f.write("\nDeviation: the owner set status: approved from the web editor.\n")
+            self._commit_as(root, self.AGENT_NAME, self.AGENT_EMAIL, "agent deviation note")
+            result = _run(root, "--base", "HEAD")
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS", result.stdout)
+            self.assertNotIn("authored by an agent identity", result.stdout)
+
+    def test_agent_commit_that_sets_approved_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _write(os.path.join(wd, "intent.md"), "---\nstatus: in-review\napproved-by:\n---\n# artifact\n")
+            _commit(root, "back to review")
+            _write(os.path.join(wd, "intent.md"), _artifact("luissiviero"))
+            self._commit_as(root, self.AGENT_NAME, self.AGENT_EMAIL, "agent flips it to approved")
+            result = _run(root, "--base", "HEAD")
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
+            self.assertIn("authored by an agent identity (claude <noreply@anthropic.com>)", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
