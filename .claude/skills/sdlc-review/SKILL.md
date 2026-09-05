@@ -7,6 +7,8 @@ description: Deploy stage. Review a diff or PR against plan.md, spec.md, REVIEW.
 1. Determine the work item (`.sdlc/active` or `Work-Item:` in the PR body). Read plan.md, spec.md, REVIEW.md.
 2. Run `python3 scripts/check_artifact_chain.py` and `scripts/verify.sh`. Quote both final lines.
 3. Review in the order REVIEW.md prescribes. Delegate the security pass to the `security-reviewer` subagent and the plan-conformance pass to the `plan-reviewer` subagent; merge their evidence-backed findings, drop anything without `file:line`.
-4. Output findings exactly in REVIEW.md's format. Max five minor comments.
+4. Output findings exactly in REVIEW.md's format, ending with the summary line `Important: <n> | Nits: <m>`. Max
+   five minor comments. When the item is delegated, post the findings as a PR comment and mark the PR ready
+   (`gh pr ready`), logging `PR #<n> | draft -> in-review` in log.md.
 5. If the change touches `RELEASE_GATED_PATHS`, state the named human owner who must approve. Never approve those yourself.
 6. If the same class of mistake appeared in a previous review of this repo, add a line to CLAUDE.md "Lessons learned" in this PR.

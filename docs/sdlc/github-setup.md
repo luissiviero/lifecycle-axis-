@@ -3,7 +3,7 @@ type: doc
 title: GitHub-side setup for an adopted repository
 description: "The first hour after scripts/adopt.sh, in order, and the GitHub settings the kit's gates rely on: plan check, branch protection, the control-plane-approved label, secrets, and the review App."
 tags: [sdlc, adopt, github, setup, branch-protection]
-timestamp: 2026-09-05T03:00:57Z
+timestamp: 2026-09-05T20:00:00Z
 ---
 
 # GitHub-side setup for an adopted repository
@@ -84,6 +84,31 @@ public or on a paid plan.
       allows it, and store `RELEASE_APPROVAL` as an Environment secret per release
       (`knowledge/runbooks/rollback-deploy.md`), or commit `.sdlc/release-authorizations/<sha>` as a
       release manager.
+
+## Delegated mode (optional)
+
+A second mode where the agent signs its own progress and a CI workflow, not a click, merges the pull request.
+Off by default; opt in per repo.
+
+1. **Copy the policy template and edit it there.** `cp docs/sdlc/templates/delegation.yaml
+   .sdlc/delegation.yaml`, then tune `agents`, `signable`, `risk-classes`, `max-deviations`, `revisions`,
+   `min-reviewers` and `merge` to taste. This is the one tuning surface for the mode; it is human-only, like
+   `.sdlc/approvers.yaml`, and on `protect-paths.sh`'s never-unlock list.
+2. **Grant it on an intent, from your own shell:**
+   ```
+   python3 scripts/approve.py <slug> intent.md --delegate --activate --as <your-github-handle>
+   ```
+   or edit the same four keys (`risk-class`, `mode`, `delegated-by`, `delegated-on`) plus the ledger note
+   in the GitHub web editor.
+3. **Sign the grant commit.** A local commit needs `git commit -S`: the merge workflow verifies the grant
+   commit server-side (a verified signature, `author.login` holding `product-owner`), and an unsigned local
+   commit fails that check even with the right author. A web-editor commit is GitHub-signed already, so
+   this step only matters on the shell path.
+4. **What happens next, and when you are called back.** `/sdlc-run` drives the item from the grant to a
+   ready pull request without stopping, signing each artifact with `scripts/sign.py` under its own handle.
+   You are called back at a deviation cap, a `keep` verdict with no consensus on a plan revision, a path the
+   policy locks, a red check the item cannot fix, or a hook refusal it does not understand — otherwise the
+   delegated-merge workflow merges once its printed conditions hold.
 
 ## Related
 

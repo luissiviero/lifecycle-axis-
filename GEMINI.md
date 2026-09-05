@@ -25,6 +25,8 @@ named in `.sdlc/active`.
    `scripts/verify.sh`, `scripts/run_tests.py`, `scripts/run_evals.sh`, `scripts/checks/`, or secret
    files. Propose the change in the PR description instead. Never set `status: approved`, `approved-by` or
    `approved-on` on a chain artifact and never run `scripts/approve.py`: `protect-approvals.sh` refuses both.
+   Under a grant (`mode: delegated` on an approved intent, policy in `.sdlc/delegation.yaml`) an agent may
+   sign `delegated` with `scripts/sign.py` under its own handle; `approved` stays a word only a human writes.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.
@@ -48,7 +50,7 @@ Run all of them before reporting a task complete and paste the last lines. If a 
 One stage at a time: write `intent.md`, then `spec.md`, then `plan.md`, then implement,
 then review, and file `incident.md` when something breaks. Templates for each artifact
 are in `docs/sdlc/templates/`. Do not start an artifact until a human has approved the
-previous one.
+previous one, or the agent has signed it under a delegation grant.
 
 ## Conventions
 - Branch: `work/<slug>`. PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
@@ -61,6 +63,9 @@ previous one.
   `git config sdlc.approver <github-handle>`, or pass `--as <handle>`; it enforces intent → spec → plan order), or by
   editing the artifact plus `log.md` in the GitHub web editor; then commit as themselves. The script refuses to run
   inside an agent session; an agent asks for approval and waits. CI checks the approval commit's author.
+- When the intent has `mode: delegated`, the agent signs with `python3 scripts/sign.py <slug> <artifact>` under
+  its own handle; ledger lines read `-> delegated`, with `deviation:` and `revision <n>:` notes as the case may
+  be; re-signing an already-signed or approved artifact needs `--revision revisions/<n>.md`.
 
 ## Gemini CLI notes
 - `.gemini/settings.json` wires the same scripts as Claude: `BeforeTool` on
@@ -76,6 +81,8 @@ previous one.
   `/sdlc-*` procedures are the SKILL.md files under `.claude/skills/`: read and follow them.
   Keep one writer per work item: subagents read and return evidence, the session holding the plan
   makes every edit (`knowledge/decisions/one-writer-until-ledger.md`, provisional, with an expiry).
+- `/sdlc-run` drives a delegated item end to end (grant to ready pull request), the same way: read and
+  follow `.claude/skills/sdlc-run/SKILL.md`; a plan revision is the last resort and needs the consensus record.
 - Antigravity (IDE and `agy`) reads this file but ignores `.gemini/settings.json`, so there
   the rules above are advisory only and `sdlc-gate` plus the merge click are the gates.
 

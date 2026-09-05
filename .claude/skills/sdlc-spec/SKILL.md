@@ -4,10 +4,13 @@ description: Design stage. Read an approved intent.md, explore the codebase, app
 ---
 # /sdlc-spec — requirements and design in one pass
 
-Precondition: `work/<slug>/intent.md` has `status: approved`. If not, stop and say so.
+Precondition: `work/<slug>/intent.md` has `status: approved` (a delegated intent is still approved by a human).
+If not, stop and say so.
 
 1. Read intent.md, CLAUDE.md, and the relevant code. Use the `explorer` subagent for broad code questions; it returns file paths and evidence.
 2. Load every standards skill listed in `docs/sdlc/README.md` (at minimum `security-standards`). Treat their rules as requirements, not suggestions; list them in `skills-applied`.
 3. Fill `docs/sdlc/templates/spec.md`. Every requirement row maps to an intent success criterion and names a machine-checkable acceptance test.
 4. Record decisions as ADRs. Record gotchas you found in the code (they are the most valuable part).
 5. Write with `status: in-review`. Summarize open design choices for the human in five lines or fewer. Do not approve.
+   When the intent has `mode: delegated`, run `python3 scripts/sign.py <slug> spec.md` and continue to `/sdlc-plan`;
+   otherwise stop and wait for a human.

@@ -3,7 +3,7 @@ type: doc
 title: The AI-native SDLC loop, built into this repo
 description: A digest of the AI-native SDLC playbook mapped to enforcement mechanisms in this repo.
 tags: [sdlc, process, playbook]
-timestamp: 2026-09-05T04:48:42Z
+timestamp: 2026-09-05T20:00:00Z
 ---
 
 # The AI-native SDLC loop, built into this repo
@@ -56,7 +56,7 @@ the gates. The commit chain is the audit trail.
 ```
 CLAUDE.md                        one page: rules, commands, conventions, lessons learned; generated, see docs/sdlc/rules/
 REVIEW.md                        review passes, Important vs Nit, five-nit cap, do-not-report
-.sdlc/                           control plane (agents cannot edit; this repo unlocks it for its own sessions, logged: `knowledge/decisions/self-hooks-on.md`): config.env, active, environments.yaml, release-authorizations/, approvers.yaml
+.sdlc/                           control plane (agents cannot edit; this repo unlocks it for its own sessions, logged: `knowledge/decisions/self-hooks-on.md`): config.env, active, environments.yaml, release-authorizations/, approvers.yaml, delegation.yaml
 work/<slug>/                     intent.md → spec.md → plan.md → incident.md (YAML status, approved-by, record, kind) + log.md gate ledger
 docs/sdlc/templates/             the four artifact templates plus log.md, sections named as in the playbook
 docs/sdlc/rules/                 one rule source: fragments rendered into CLAUDE.md / GEMINI.md / AGENTS.md by gen_context_files.py
@@ -68,7 +68,7 @@ docs/sdlc/okf-pairing.md         how the artifact chain becomes an Open Knowledg
 knowledge/                       model-neutral OKF bundle: decisions/, lessons/, runbooks/, metrics/, services/
 .claude-plugin/                  plugin.json + marketplace.json; ships skills, agents, templates, scripts as a plugin
 scripts/adopt.sh                 installs this kit into another repo without overwriting; --with-hooks for .claude/hooks
-.claude/skills/sdlc-*            /sdlc-intent /sdlc-spec /sdlc-plan /sdlc-review /sdlc-incident
+.claude/skills/sdlc-*            /sdlc-intent /sdlc-spec /sdlc-plan /sdlc-review /sdlc-incident /sdlc-run
 .claude/skills/security-standards        policy-as-skill, backed by hooks and the review pass
 .claude/agents/                  explorer, plan-reviewer, security-reviewer, verifier (all read-only)
 .claude/hooks/                   protect-paths, block-secrets, require-plan, protect-tests, production-gate, post-edit-format, stop-verify-reminder
@@ -105,6 +105,9 @@ scripts/detect_bands.py          deterministic Western Electric detector (traili
 | Mistake twice → memory | rule 7, REVIEW.md Memory pass | — | reviewer insists |
 | Detection stays deterministic; tier bounds the agent | — | `detect_bands.py` (no model) + `bands.yaml` tier `tools:` passed to `claude -p` by `bands.yml`; the 3σ `routes:` are declared, not yet acted on | service owner triages |
 | `approved-by` is a real human role, backed by a ledger entry | rule 8, `docs/sdlc/rules/30-conventions.md` | `protect-approvals.sh` refuses an agent-side `status: approved|superseded`, `approved-by`, `approved-on` or `approve.py` call (no unlock); `check_artifact_chain.py` validates against `.sdlc/approvers.yaml` and requires a matching `work/<slug>/log.md` entry | approver named in the file |
+| An agent signs `delegated` only under a human grant | `knowledge/decisions/delegated-mode.md`, `/sdlc-run` | `require-plan.sh` and the chain check accept a signed artifact only when the intent's `mode` is `delegated`, the risk class is in policy, and the handle is in `.sdlc/delegation.yaml`'s `agents`; `scripts/sign.py` is the only writer | grants delegated mode on intent.md |
+| A plan revision needs a deviation cap and a consensus record | `docs/sdlc/templates/revision.md`, `/sdlc-run`'s revision rule | `check_artifact_chain.py` counts `deviation:` ledger lines against the policy's `max-deviations` and reads `work/<slug>/revisions/<n>.md` for a unanimous `verdict: revise` before accepting a re-signed artifact | reads `revisions/` |
+| A delegated pull request merges without a click | `knowledge/decisions/delegated-mode.md` | `.github/workflows/delegated-merge.yml` and `scripts/delegated_merge.py` merge only when every printed condition holds (lands in pull request 2 of `work/delegated-mode`); `github-actions[bot]` performs the merge | the grant is the click, for delegated items only |
 | Control-plane diff on an agent PR needs explicit human sign-off | rule 3 | CI blocks any agent-authored PR (head branch in `AGENT_BRANCH_PREFIXES`, a Bot author, or a Claude commit trailer) touching `PROTECTED_PATHS`; a human applying `control-plane-approved` is the only exemption | applies the label after reading the diff |
 | Context files stay one source, never hand-drift | CLAUDE.md play | `context-drift.sh` fails `verify.sh` when `CLAUDE.md`/`GEMINI.md`/`AGENTS.md` don't match `docs/sdlc/rules/*.md` | edits a fragment, not the generated file |
 | Workflows stay read-only and unprivileged | — | `workflow-permissions.sh`: every workflow declares `permissions:`, none grants `contents: write` outside an empty allowlist, none uses `pull_request_target` | reviews workflow diffs |
@@ -125,6 +128,9 @@ scripts/detect_bands.py          deterministic Western Electric detector (traili
   by construction. See `okf-pairing.md` for the multi-model argument.
 - **Evals cover the workflow.** Hook cases need no model and run in seconds; prompt cases run with `claude -p` and
   bounded tools, exactly as the playbook's `agent-evals.yml` does.
+- **One file tunes delegated mode.** `.sdlc/delegation.yaml` is the single human-only surface for the whole feature:
+  which handles may sign, which artifacts, which risk classes, the deviation cap, the revision rule, and the merge
+  conditions; a missing file or `enabled: false` leaves every artifact on the supervised, human-approved path.
 
 ## 3. Using it in a project
 1. Run `scripts/adopt.sh <target>` (add `--with-hooks` to also install `.claude/hooks/` and, from
