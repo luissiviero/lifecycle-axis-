@@ -1,0 +1,94 @@
+name: delegated-merge
+
+# The click, for delegated items only (work/delegated-mode R-14, D6;
+# knowledge/decisions/delegated-mode.md decision 6). Every supervised pull request still waits on
+# the owner's own merge click, as knowledge/decisions/merge-click-is-the-gate.md describes.
+#
+# Why workflow_run: it fires from the DEFAULT BRANCH, so scripts/delegated_merge.py, .sdlc/config.env,
+#   .sdlc/approvers.yaml and .sdlc/delegation.yaml are always main's copies. A pull request cannot
+#   change the code that judges it, and the script's locked-paths condition refuses any diff that
+#   touches those files anyway.
+# Who merges: github-actions[bot], with the repository token. No new credential, and no discretionary
+#   act left in the agent session's hands (decision D-e).
+# How it merges: merge_method comes from .sdlc/delegation.yaml, and the policy in this repo says
+#   `merge` -- never squash, which would re-author every agent-signed commit as the merger and lose
+#   the distinct authors the chain check's -G author checks read (decision D-f).
+# What it prints: one `CONDITION <name>: <ok|refused|waiting> — <detail>` line per condition, in a
+#   fixed order, into the job's step summary. Nothing is merged that the log does not explain.
+# When it does nothing: a missing .sdlc/delegation.yaml or `merge.enabled: false` makes the script
+#   print "policy off" and exit 0. Delegated merging is off until the owner turns it on, in a commit
+#   of their own on main.
+
+on:
+  workflow_run:
+    # The three workflows .sdlc/delegation.yaml names in `merge.require-checks`. Listing them here
+    # only decides when to *look*; the script re-reads the policy and checks every name again, so
+    # adding a name to the policy without adding it here delays the merge, never widens it.
+    workflows: [sdlc-gate, agent-evals, pr-review]
+    types: [completed]
+  # The owner's dry run: "Run workflow" with a head sha prints every condition and its verdict for
+  # that sha, from main's checkout, and never merges (the script forces --dry-run for this route).
+  # This is how R-15's supervised-item refusal is shown live without a shell holding `gh`.
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: "Head sha of an open pull request to judge, dry-run only"
+        required: true
+        type: string
+
+# Exactly the four scopes the script's calls need, and nothing else.
+#   contents: write      -- the merge endpoint (PUT /pulls/{n}/merge) and the branch delete. This is
+#                           the one file allowlisted for it in scripts/check_workflow_permissions.py
+#                           (CONTENTS_WRITE_ALLOWLIST); the checker rejects it everywhere else.
+#   pull-requests: write -- reading the pull request and its files.
+#   checks: read         -- GET /commits/{sha}/check-runs.
+#   actions: read        -- GET /actions/runs?head_sha=... for the required workflows.
+# The merge comment goes to the issues API, which the pull-requests scope covers for a pull request.
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+
+# One evaluation per head SHA at a time, and never cancel one in flight: a cancelled run between the
+# merge call and the comment would leave the pull request merged with no record of the grant.
+concurrency:
+  group: delegated-merge-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    # Only a completed, successful run of a pull request, or the owner's dry run. A failed required
+    # workflow needs no evaluation at all -- and the script would refuse it anyway.
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success')
+    steps:
+      # The ONLY checkout, and it takes the default branch, never the pull request head (spec D6).
+      # Checking out the head here would hand the code under review the job's contents: write token.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      # GITHUB_EVENT_PATH is set by the runner and holds this workflow_run payload; the script reads
+      # it by default. tee keeps the condition lines in the job summary, where the owner reads them.
+      - name: Evaluate the delegation conditions and merge
+        if: github.event_name == 'workflow_run'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # pipefail so a refusal (exit 1) still fails the job; a wait and "policy off" exit 0.
+          set -o pipefail
+          python3 scripts/delegated_merge.py | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The dispatch route: --head-sha forces --dry-run inside the script, so this step can never
+      # merge; the sha passes through env, never interpolated into the script text.
+      - name: Dry run against the given head sha
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          set -o pipefail
+          python3 scripts/delegated_merge.py --dry-run --head-sha "$HEAD_SHA" | tee -a "$GITHUB_STEP_SUMMARY" || true
