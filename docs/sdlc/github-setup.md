@@ -102,7 +102,9 @@ Off by default; opt in per repo.
    python3 scripts/approve.py <slug> intent.md --delegate --activate --as <your-github-handle>
    ```
    or edit the same four keys (`risk-class`, `mode`, `delegated-by`, `delegated-on`) plus the ledger note
-   in the GitHub web editor.
+   in the GitHub web editor. Land it on `main`: the merge workflow reads the grant, and the `.sdlc/active`
+   slug it must match, from the base branch only, so a grant that exists only on the pull request's own
+   branch never counts.
 3. **Sign the grant commit.** A local commit needs `git commit -S`: the merge workflow verifies the grant
    commit server-side (a verified signature, `author.login` holding `product-owner`), and an unsigned local
    commit fails that check even with the right author. A web-editor commit is GitHub-signed already, so
