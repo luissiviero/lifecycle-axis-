@@ -95,8 +95,12 @@ timestamp: 2026-09-05T04:48:42Z
   made, and do not answer automated stop-hook prompts in the chat (the owner reads only the last message).
 
 ## Suggested first prompt for the new session
-"Resume the lifecycle-axis SDLC work. Read docs/sdlc/handoff/HANDOFF.md on branch claude/session-handoff
-first, then follow its resume steps. Batch A is merged; open Batch B starting with WI-7 band-detector."
+"Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Task state'. The 2026-09-04 plan is complete and
+no work item is open, so do not resume it: pick up whichever follow-up that section lists, or wait for me."
+
+(Superseded, kept as a record: the prompt that opened Batch B read "Resume the lifecycle-axis SDLC work.
+Read docs/sdlc/handoff/HANDOFF.md on branch claude/session-handoff first, then follow its resume steps.
+Batch A is merged; open Batch B starting with WI-7 band-detector.")
 
 ## What the earlier sessions did
 1. Compared the repo (`main` @ `64bcb17`) against Anthropic's AI-native SDLC playbook with eight read-only
