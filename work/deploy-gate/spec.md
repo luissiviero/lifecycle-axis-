@@ -4,10 +4,10 @@ id: deploy-gate
 title: The deploy path fails open; every route to production must fail closed on a named human
 description: Requirements and design for validating release authorizations against the release-manager role, gating the gh and deploy.sh routes, and unbinding RELEASE_APPROVAL from github.sha.
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-05
 skills-applied: [security-standards]
 skills-version: 60ab0f5
 prompt: "Transcribed from the approved implementation plan (session above), section WI-5 and appendix A5, by a drafting subagent; reviewed by the orchestrator."
