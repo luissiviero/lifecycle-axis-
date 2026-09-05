@@ -4,7 +4,7 @@ id: delegation-boundary
 title: Decide whether a subagent may ever write code in this kit
 description: Two accepted-or-proposed spikes give opposite answers on delegating implementation; settle it before either is built.
 stage: plan
-status: draft
+status: in-review
 author: Luis Siviero (repo owner), drafted with Claude
 approved-by:
 approved-on:
@@ -86,14 +86,29 @@ cheap to reverse here and expensive to reverse after either is built.
 - Q: Can this be decided now, or does it wait on the Phase 2 cost ledger that both spikes name as
   the arbiter? A third option is a provisional answer with an explicit expiry ("one writer until the
   ledger exists").
-  A:
+  A: (proposed by the session on 2026-09-05; edit before approving) The third option. One writer per work
+  item, subagents read-only, recorded in `knowledge/decisions/one-writer-until-ledger.md`. It expires when
+  roadmap item 1's ledger produces its first `cost_per_merged_pr` reading for this repository, or on
+  2027-03-05, whichever comes first; on expiry the question reopens with the measurement named in the
+  record, not with a debate.
 - Q: Does the 37-run pilot's evidence transfer? It measured small/medium Python bug fixes in another
   repo, and the `implementer` proposal is about app-sized work items — the exact case the pilot's own
   routing wiki marks "ranking unknown, confidence low, zero local runs".
-  A:
+  A: (proposed) No. It bounds the decision, because it is the only measurement anyone has, but it does not
+  transfer to app-sized items; that is why the answer is provisional and names the measurement that would
+  replace it (this kit's own work items, not another repo's bug fixes).
 - Q: If a subagent may write, what makes the silent-delegation failure mode (41.8%) visible here —
   the verifier's evidence, the chain check, or something that does not exist yet?
-  A:
+  A: (proposed) Two of the three exist and one does not. The chain check keeps rule 2 checkable whoever
+  typed the diff, and the hooks are identity-blind by construction: they read `tool_name`, `tool_input`,
+  `cwd` and `session_id` from the tool-call payload and nothing else, so a subagent's Edit or Bash meets the
+  same gates as the lead's (pinned by a test in this item). What does not exist is any record of who
+  wrote what inside a work item, so the verifier's evidence contract (rule 8) is the only thing that would
+  make a silent delegation failure visible, and it is advisory. A conditional answer ("a subagent may
+  write when X") therefore has no checkable X today; hence one writer until the ledger, which is where
+  that record would live.
 - Q: Is the red-team-pass conflict the same question, or a separate one about read-only reviewers at
   the Design gate? If separate, it drops out of this work item.
-  A:
+  A: (proposed) Separate. Build-stage §4 rejects a reviewer *in the write pipeline* (measured weak for write
+  tasks); the red-team pass is a read-only reviewer at the spec gate, which build-stage's own `/sdlc-review`
+  already uses. It drops out of this item; the decision record says so in one line so it is not re-derived.
