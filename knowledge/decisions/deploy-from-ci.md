@@ -31,16 +31,19 @@ steps start — no workflow code can race or bypass it.
 Inside the job, `scripts/deploy.sh <environment>` is a guard, not a deployer. It refuses to run
 unless all of the following hold, and otherwise prints a clear refusal and exits 1:
 
-1. `RELEASE_APPROVAL` is set and equals `git rev-parse HEAD` — the approval is bound to the exact
-   commit being deployed, not to a branch or a person's say-so in chat.
+1. A human bound an approval to `git rev-parse HEAD`, by one of two routes: a release manager
+   stored the 40-hex SHA as the Environment secret `RELEASE_APPROVAL`, or committed
+   `.sdlc/release-authorizations/<sha>` whose `approved-by` holds `release-manager` in
+   `.sdlc/approvers.yaml`. A set `RELEASE_APPROVAL` wins and must equal HEAD; with it empty, the
+   committed file is checked and any other file refuses, naming the handle (work/deploy-gate).
 2. `CI` is set — the script refuses to run on a developer or agent machine at all
    ("deploy runs from CI only").
 3. The requested environment exists in `.sdlc/environments.yaml` (otherwise it lists the valid
    ones).
 4. For an environment whose `approval:` is `release-manager` (production today), `GITHUB_ACTIONS`
-   must be `true` — this asserts the job is actually running inside GitHub Actions, so the
-   Environment's required-reviewer gate really ran; it cannot be satisfied by exporting the two
-   env vars locally.
+   must be `true` — a hint that the job is running inside GitHub Actions, where the Environment's
+   required-reviewer gate fires before the job's steps. Any shell can export it, so it is not a
+   gate on its own; guard 1 is the gate.
 
 When every guard passes, `scripts/deploy.sh` prints `DEPLOY: would run <command> for <environment>
 at <sha>` and exits 0 without executing anything — the real command is a placeholder marked

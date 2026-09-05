@@ -14,15 +14,35 @@
 #
 # Human-only unlock: SDLC_CONTROL_PLANE_UNLOCK=1 in the environment that launched Claude Code
 # (captured in _lib.sh before the repo config is sourced, so a line planted in .sdlc/config.env
-# cannot grant it) lets writes under PROTECTED_PATHS through on BOTH branches, one audit line per
-# write on stderr. It never lifts the secret-material check (knowledge/decisions/self-hooks-on.md).
+# cannot grant it) lets writes under PROTECTED_PATHS through on BOTH branches. Each unlocked write
+# keeps its stderr audit line, is appended to .sdlc/hook-decisions.log (log_decision in _lib.sh)
+# and, once per hook run, is reported to the session as one {"systemMessage": ...} on stdout --
+# never a permissionDecision, which would silence the tool's own prompt. The unlock never lifts
+# the secret-material check (knowledge/decisions/self-hooks-on.md) and never covers the three
+# human-only files below (work/control-plane-visibility).
 . "$(dirname "$0")/_lib.sh"
+
+UNLOCKED=()
+finish() { # exit 0; one systemMessage when the unlock let something through, nothing otherwise
+  [ "${#UNLOCKED[@]}" -gt 0 ] || exit 0
+  jq -n --arg m "SDLC: control-plane unlock used: wrote ${UNLOCKED[*]} (logged in .sdlc/hook-decisions.log)" '{systemMessage:$m}'
+  exit 0
+}
 
 check_target() { # check_target <repo-relative canonical path> <where>
   local R="$1" where="$2"
+  # Hard-coded, not a config key, so no config line can widen it: the release authorizations
+  # (production-gate.sh), the approvers file (every approval check) and the decision log are
+  # written by a human from their own shell or by the hook process, never by a tool call.
+  case "$R" in
+    .sdlc/release-authorizations|.sdlc/release-authorizations/*|.sdlc/approvers.yaml|.sdlc/hook-decisions.log)
+      block "'$R' is a human-only file$where. The control-plane unlock never covers it; the release manager / repo owner writes it from their own shell.";;
+  esac
   if under_any "$R" "$PROTECTED_PATHS"; then
     if [ "${SDLC_CONTROL_PLANE_UNLOCK:-}" = 1 ]; then
       printf "SDLC: control plane unlocked by human env (SDLC_CONTROL_PLANE_UNLOCK=1): writing '%s'\n" "$R" >&2
+      log_decision unlock "$R$where"
+      UNLOCKED+=("$R")
     else
       block "'$R' is a protected path ($PROTECTED_PATHS)$where. Describe the change you want in the PR body; a human applies it."
     fi
@@ -33,8 +53,8 @@ check_target() { # check_target <repo-relative canonical path> <where>
 }
 
 if [ -n "$FILE" ]; then
-  check_target "$(canon "$FILE")" ""
-  exit 0
+  check_target "$(rel "$FILE")" ""   # rel: relative to the session's cwd when the input has one
+  finish
 fi
 
 [ -z "$CMD" ] && exit 0
@@ -45,4 +65,4 @@ while IFS= read -r CAND; do
   [ -z "$CAND" ] && continue
   check_target "$CAND" "$WHERE"
 done < <(bash_write_candidates "$CMD" "$PROTECTED_PATHS")
-exit 0
+finish

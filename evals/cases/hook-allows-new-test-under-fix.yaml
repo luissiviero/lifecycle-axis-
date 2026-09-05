@@ -1,0 +1,13 @@
+name: hook-allows-new-test-under-fix
+kind: hook
+source: work/loop-protection/spec.md (R-5: under kind: fix a new test or eval case is writable, an existing one is not)
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"; mkdir -p "$d/work/fixme" "$d/.sdlc" "$d/evals/cases"
+  cp "$R/.sdlc/config.env" "$d/.sdlc/"; printf -- '---\nstatus: approved\nkind: fix   # feature | fix\n---\n' > "$d/work/fixme/plan.md"
+  printf 'name: old\n' > "$d/evals/cases/old.yaml"
+  H="$R/.claude/hooks/protect-tests.sh"
+  printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"src/new.test.ts","content":"x"}}' | SDLC_WORK_ITEM=fixme CLAUDE_PROJECT_DIR="$d" "$H"
+  printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"evals/cases/incident-7.yaml","content":"x"}}' | SDLC_WORK_ITEM=fixme CLAUDE_PROJECT_DIR="$d" "$H"
+  ! printf '%s' '{"tool_name":"Edit","tool_input":{"file_path":"evals/cases/old.yaml"}}' | SDLC_WORK_ITEM=fixme CLAUDE_PROJECT_DIR="$d" "$H" 2>/dev/null
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat > src/another.test.ts <<EOF\nx\nEOF"}}' | SDLC_WORK_ITEM=fixme CLAUDE_PROJECT_DIR="$d" "$H"
+  ! printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sed -i s/a/b/ evals/cases/old.yaml"}}' | SDLC_WORK_ITEM=fixme CLAUDE_PROJECT_DIR="$d" "$H" 2>/dev/null

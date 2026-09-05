@@ -48,12 +48,15 @@ same hole covered `>>` appends into `.claude/hooks/_lib.sh`, `sed -i` on `.sdlc/
 
 ## Why both, and why a heuristic is acceptable here
 
-- **The CI job never fires for the case that matters most.** `scripts/check_control_plane.sh`
-  blocks an agent-authored diff only when it can tell the author is an agent —
-  `SDLC_PR_AUTHOR_TYPE == 'Bot'` or a `claude/*` head ref. In this kit the agent runs *as the
-  owner*, on a `work/<slug>` branch, under the owner's identity (decision 4). For that PR the
-  control-plane job takes the human-authored path and passes. The hook is the only thing standing
-  between an agent and `.sdlc/config.env` in the session where the edit happens.
+- **The CI job cannot see every agent PR.** `scripts/check_control_plane.sh` blocks an
+  agent-authored diff only when it can tell the author is an agent: `SDLC_PR_AUTHOR_TYPE == 'Bot'`,
+  a head ref starting with an entry of `AGENT_BRANCH_PREFIXES` (`claude/ kit/ spike/` in
+  `.sdlc/config.env`), or a commit in `base..HEAD` carrying a `Co-Authored-By: … Claude` or
+  `Claude-Session:` trailer (`work/control-plane-visibility`). In this kit the agent runs *as the
+  owner*, under the owner's identity (decision 4); before the prefix list and the trailer scan,
+  11 of its 13 control-plane PRs took the human-authored path. A session that commits without a
+  trailer on a `work/<slug>` branch is still invisible to CI, so the hook remains the only thing
+  standing between an agent and `.sdlc/config.env` in the session where the edit happens.
 - **A hook alone is not enough either.** The heuristic reads shell text; shell text can always be
   obfuscated (a path assembled from two variables, base64, a helper script written elsewhere and
   then executed). Nothing pattern-based defeats an agent that is *trying* to get through. The hook
@@ -75,7 +78,9 @@ same hole covered `>>` appends into `.claude/hooks/_lib.sh`, `sed -i` on `.sdlc/
   `ln` targets included) and both switches are captured from the process environment before the
   config is sourced. A command the agent runs sets variables in *its own* shell, not in the hook's,
   so an agent cannot turn the guard off from inside a session. Every allow prints the audit line
-  above to stderr, where it appears in the transcript. `BASH_WRITE_GUARD=0` is the other off switch,
+  above to stderr, appends an `unlock` line to `.sdlc/hook-decisions.log` and reports one
+  `systemMessage` per hook run; stderr from an exit-0 hook is not shown in the transcript, so the
+  log is the record. `BASH_WRITE_GUARD=0` is the other off switch,
   and it lives in `.sdlc/config.env`, which the canonicalised guard keeps agents out of.
   Regression tests: `scripts/test_control_plane_hardening.py`.
 
@@ -89,34 +94,42 @@ same hole covered `>>` appends into `.claude/hooks/_lib.sh`, `sed -i` on `.sdlc/
 | heredoc writes | covered by the redirection target, which precedes `<<` |
 | `tee [-a] <paths…>` up to the next `\|`, `;`, `&&` | `tee -a .github/workflows/sdlc-gate.yml` |
 | `dd of=<path>` | `dd if=/tmp/x of=.sdlc/active` |
-| `sed -i*` / `perl -i*` file arguments | `sed -i s/a/b/ .sdlc/active` |
-| `cp` / `mv` / `install` / `rsync` last argument | `cp /tmp/x .claude/hooks/y.sh` |
+| `sed -i*` / `--in-place`, `perl -i*` / `-pi` / `-0pi.bak` file arguments | `perl -pi -e s/a/b/ .sdlc/active` |
+| `cp` / `install` / `rsync` last argument that is not a redirection, plus `-t DIR` / `--target-directory` | `cp -t .claude/hooks /tmp/x.sh` |
+| `mv` source and destination; `rm` / `unlink` / `rmdir` / `chmod` / `chown` / `chgrp` operands | `rm -f .sdlc/active`, `mv .sdlc/active /tmp/a` |
+| `sort -o <path>` / `--output=` | `sort -o .sdlc/config.env /tmp/x` |
 | `truncate … <path>` | `truncate -s 0 .sdlc/active` |
-| `git checkout <ref> -- <path>` (and `git restore`) | `git checkout HEAD~1 -- .sdlc/config.env` |
+| `git rm` / `mv` / `clean` / `checkout` / `restore` operands, `--` optional | `git restore .sdlc/config.env` |
 | `patch`, `git apply`, `git am` | any protected prefix named anywhere in the command |
 | `python… -c`, `python… -`, `node …` with an inline script or heredoc | any protected prefix named in the command, plus `open(<path>, 'w'` or `'a')` targets |
 
-Explicitly *not* treated as write targets: `>&`, `2>`, `&>` (descriptor redirection, so
-`cmd 2>&1` and `scripts/verify.sh 2>&1 | tail` stay clean), anything under `/dev/`, and targets
-that start with `$` or contain a `${` expansion (a variable target cannot be resolved without
-executing the command, and guessing would produce noisy blocks on ordinary scripts).
+Since `work/bash-guard-hardening` (2026-09-05) a redirection of any kind is a write: `2> X`, `&> X`,
+`>& X`, `>| X` and `N> X` all report `X`; only descriptor duplications (`2>&1`, `>&2`, `<&0`) and
+targets under `/dev/` are not. Commands after a newline, a glued `;` or `&&`, or inside `( )` or
+`{ }` are seen in command position. A candidate resolves against the session's `cwd` (a hook-input
+field) as well as the repo root, `$PWD/` and `~/` prefixes expand, and a `cd` target resolves from
+`cwd`. `NotebookEdit` takes the `file_path` branch through `notebook_path`. Targets that start with
+`$` or contain a `${` expansion are still dropped: a variable target cannot be resolved without
+executing the command, and guessing would produce noisy blocks on ordinary scripts.
 
-## What is not covered
+## Accepted residuals
 
-- **Obfuscation.** Variable-assembled paths, `eval`, base64, and a write performed by a script the
-  agent wrote somewhere unprotected and then ran. By design: see above — CI and branch protection
-  are the answer, not a longer regex.
-- **Nested interpreters.** `bash -c` strings and `xargs` are tokenised as ordinary text; a write
-  target inside them is caught only if it appears as a plain `>` redirection or names a protected
-  prefix next to `patch` or an inline `python` script.
-- **Word-splitting fidelity.** The tokeniser splits on whitespace with globbing disabled; it is not
-  a shell parser. `echo "a > b"` offers `b` as a candidate (harmless), and two commands joined by a
-  pipe with no surrounding spaces form one token, so a command-position rule such as `tee` may be
-  missed there.
-- ~~**The other two plan hooks.**~~ Closed on 2026-09-02 (`self-hooks-on.md`): `bash_write_targets()` and
-  `bash_write_candidates()` now live in `_lib.sh`, and `require-plan.sh` and `protect-tests.sh` walk the same
-  candidates on the `Bash` matcher, so a Bash write to `src/` needs the approved plan an Edit needs. The same
-  change made the human unlock apply on the Edit/Write branch as well, never to the secret-material check.
+The guard is a text heuristic bounded at about 140 lines of `bash_write_targets`; the shapes below
+fail open by design and are owned by the CI control-plane check (prefix list and Claude trailer),
+`.sdlc/hook-decisions.log`, branch protection and the owner's merge click, not by a longer regex:
+
+- **Nested shells and interpreters.** `bash -c`, `sh -c`, `eval`, `node -e`, `ruby -e`, and
+  `python3 -c` beyond the `open(<path>, 'w'|'a')` heuristic; a write inside them is caught only when
+  it appears as a plain redirection or names a protected prefix next to `patch` or an inline
+  `python` script.
+- **Archives and dispatchers.** `tar x`, `unzip`, `xargs`, `find -exec`: the target lives in the
+  archive or in the piped list, not on the command line.
+- **Variables.** Variable-assembled paths (`X=.sdlc/active; echo hi > $X`), a variable `cd` target,
+  and command substitution in command position (`$(echo cp) …`).
+- **Quoting and spaces.** Paths with spaces, and two commands joined by a pipe or `&&` inside a
+  quoted string; the tokeniser is whitespace-based, not a shell parser. `echo "a > b"` offers `b`
+  as a candidate (harmless).
+- **Indirection.** A script written somewhere unprotected and then run, base64 or other encodings.
 
 ## Consequences
 

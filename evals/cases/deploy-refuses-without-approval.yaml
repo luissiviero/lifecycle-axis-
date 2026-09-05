@@ -1,5 +1,25 @@
 name: deploy-refuses-without-approval
 kind: hook
-source: work/sdlc-kit-phase-1/decisions.md Q5
+source: work/sdlc-kit-phase-1/decisions.md Q5; work/deploy-gate spec R-4 (committed-authorization route)
 check: |
+  R="$(git rev-parse --show-toplevel)"
+  # local run: refused even with a matching RELEASE_APPROVAL, because CI is empty
   ! CI= RELEASE_APPROVAL="$(git rev-parse HEAD)" scripts/deploy.sh staging 2>/dev/null
+  # file route, in a temp repo (writing under .sdlc/release-authorizations/ in the kit is a control-plane write)
+  d="$(mktemp -d)"
+  git init -q "$d" && ( cd "$d" && git checkout -q -b main )
+  mkdir -p "$d/.sdlc" "$d/scripts"
+  cp "$R/.sdlc/environments.yaml" "$R/.sdlc/config.env" "$R/.sdlc/approvers.yaml" "$d/.sdlc/"
+  cp "$R/scripts/deploy.sh" "$R/scripts/approvers.py" "$R/scripts/check_artifact_chain.py" "$d/scripts/"
+  ( cd "$d" && git add -A && git -c user.email=t@t -c user.name=t commit -q -m init ) >/dev/null 2>&1
+  sha="$(git -C "$d" rev-parse HEAD)"
+  auth_dir="$d/.sdlc/release-authorizations"; auth="$auth_dir/$sha"
+  mkdir -p "$auth_dir"
+  printf -- '---\napproved-by: claude\n---\n' > "$auth"
+  ( cd "$d" && CI=1 GITHUB_ACTIONS=true RELEASE_APPROVAL= scripts/deploy.sh staging ) >/dev/null 2>&1
+  rc1=$?
+  printf -- '---\napproved-by: luissiviero\n---\n' > "$auth"
+  out="$( cd "$d" && CI=1 GITHUB_ACTIONS=true RELEASE_APPROVAL= scripts/deploy.sh staging 2>/dev/null )"
+  rc2=$?
+  rm -rf "$d"
+  [ "$rc1" -eq 1 ] && [ "$rc2" -eq 0 ] && printf '%s' "$out" | grep -q '^DEPLOY: would run'

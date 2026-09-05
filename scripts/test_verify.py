@@ -43,12 +43,17 @@ def _write_check(root, name, body, executable=True):
     return path
 
 
-def _run_verify(root):
+def _run_verify(root, env=None):
+    run_env = dict(os.environ)
+    run_env.pop("VERIFY_ALLOW_SKIPPED_CHECKS", None)
+    if env:
+        run_env.update(env)
     return subprocess.run(
         ["bash", os.path.join(root, "scripts", "verify.sh")],
         cwd=root,
         capture_output=True,
         text=True,
+        env=run_env,
     )
 
 
@@ -73,14 +78,27 @@ class VerifyScript(unittest.TestCase):
             self.assertEqual(_last_line(result.stdout), "VERIFY: FAIL")
             self.assertEqual(result.returncode, 1)
 
-    def test_non_executable_check_is_skipped(self):
+    def test_non_executable_check_fails_verify_and_reports(self):
+        """work/loop-protection R-8: a check that lost its mode is reported, not skipped."""
         with tempfile.TemporaryDirectory() as root:
             _make_repo(root)
-            _write_check(
+            path = _write_check(
                 root, "zz-fail.sh", "#!/usr/bin/env bash\nexit 1\n", executable=False
             )
             result = _run_verify(root)
-            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("skipped (not executable): " + path, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "VERIFY: FAIL")
+
+    def test_non_executable_check_skipped_when_allowed_by_env(self):
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            path = _write_check(
+                root, "zz-fail.sh", "#!/usr/bin/env bash\nexit 1\n", executable=False
+            )
+            result = _run_verify(root, env={"VERIFY_ALLOW_SKIPPED_CHECKS": "1"})
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertIn("skipped (not executable): " + path, result.stdout)
             self.assertRegex(_last_line(result.stdout), r"^VERIFY: PASS")
 
     def test_empty_checks_dir_passes(self):

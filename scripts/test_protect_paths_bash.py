@@ -43,13 +43,27 @@ GUARD_OFF_CONFIG = (
 HEREDOC_INTO_SDLC = "cat > .sdlc/config.env <<'EOF'\nx\nEOF"
 
 
-def bash(command):
-    """A PreToolUse payload for the Bash tool (see scripts/fixtures/hook_inputs/bash.json)."""
-    return {
+def bash(command, cwd=None):
+    """A PreToolUse payload for the Bash tool (see scripts/fixtures/hook_inputs/bash.json).
+    `cwd` is the session's working directory, a top-level hook-input field."""
+    payload = {
         "session_id": "test-session",
         "hook_event_name": "PreToolUse",
         "tool_name": "Bash",
         "tool_input": {"command": command},
+    }
+    if cwd is not None:
+        payload["cwd"] = cwd
+    return payload
+
+
+def notebook(path, new_source="print(1)"):
+    """A PreToolUse payload for NotebookEdit (see scripts/fixtures/hook_inputs/notebookedit.json)."""
+    return {
+        "session_id": "test-session",
+        "hook_event_name": "PreToolUse",
+        "tool_name": "NotebookEdit",
+        "tool_input": {"notebook_path": path, "cell_id": "c1", "new_source": new_source, "edit_mode": "replace"},
     }
 
 
@@ -104,6 +118,24 @@ class BashWriteGuardBlocks(unittest.TestCase):
         # one the $FILE branch applies to Edit/Write.
         self._block("printf x > deploy.key", "deploy.key")
 
+    def test_blocks_edit_of_verify_script(self):
+        # work/loop-protection R-1: the verify loop is control plane; a file entry in
+        # PROTECTED_PATHS matches as is on the Edit branch.
+        payload = {
+            "session_id": "test-session",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Edit",
+            "tool_input": {"file_path": "scripts/verify.sh", "old_string": "a", "new_string": "b"},
+        }
+        with fake_repo() as root:
+            result = run_hook(HOOK, payload, root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("scripts/verify.sh", result.stderr)
+            self.assertNotIn("Bash command", result.stderr)
+
+    def test_blocks_redirect_into_checks_dir(self):
+        self._block("echo 'exit 0' > scripts/checks/zz.sh", "scripts/checks/zz.sh")
+
     def test_blocks_python_heredoc_that_opens_a_protected_path_for_writing(self):
         # `python3 - <<EOF` has no redirection target at all: the script *is* the
         # heredoc body, so the guard falls back to protected prefixes named
@@ -112,6 +144,166 @@ class BashWriteGuardBlocks(unittest.TestCase):
             'python3 - <<\'EOF\'\nopen(".sdlc/x","w").write("1")\nEOF',
             ".sdlc",
         )
+
+
+class HardenedShapes(unittest.TestCase):
+    """work/bash-guard-hardening R-1..R-7: the shapes the bypass table found open, block and allow
+    lists verbatim from the plan's appendix A4 plus the spec's D3 case."""
+
+    def _block(self, command, fragment, cwd=None):
+        with fake_repo() as root:
+            if cwd is not None:
+                cwd = os.path.join(os.path.realpath(root), cwd) if cwd else os.path.realpath(root)
+            result = run_hook(HOOK, bash(command, cwd=cwd), root)
+            self.assertEqual(result.returncode, 2, f"{command!r}: rc={result.returncode} stderr={result.stderr!r}")
+            self.assertIn(fragment, result.stderr)
+
+    def _allow(self, command, cwd=None):
+        with fake_repo() as root:
+            result = run_hook(HOOK, bash(command, cwd=cwd), root)
+            self.assertEqual(result.returncode, 0, f"{command!r}: stderr={result.stderr!r}")
+
+    # R-1 redirections
+    def test_blocks_stderr_redirect_into_sdlc_config(self):
+        self._block("true 2> .sdlc/config.env", ".sdlc/config.env")
+
+    def test_blocks_ampersand_redirect_into_sdlc_config(self):
+        self._block("true &> .sdlc/config.env", ".sdlc/config.env")
+
+    def test_blocks_clobber_redirect_into_sdlc_config(self):
+        self._block("echo x >| .sdlc/config.env", ".sdlc/config.env")
+
+    def test_allows_devnull_with_descriptor_dup(self):
+        self._allow("cmd >/dev/null 2>&1")
+
+    def test_allows_stderr_to_devnull(self):
+        self._allow("ls 2>/dev/null")
+
+    def test_allows_pipe_into_tee_outside_repo(self):
+        self._allow("make test 2>&1 | tee /tmp/log")
+
+    # R-2 separators
+    def test_blocks_semicolon_glued_cp(self):
+        self._block("true; cp /tmp/f .sdlc/config.env", ".sdlc/config.env")
+
+    def test_blocks_newline_separated_cp(self):
+        self._block("true\ncp /tmp/f .sdlc/config.env", ".sdlc/config.env")
+
+    def test_blocks_and_glued_cp(self):
+        self._block("true&&cp /tmp/f .sdlc/config.env", ".sdlc/config.env")
+
+    def test_blocks_subshell_cp(self):
+        self._block("( cp /tmp/f .sdlc/x )", ".sdlc/x")
+
+    def test_blocks_brace_group_cp(self):
+        self._block("{ cp /tmp/f .sdlc/x; }", ".sdlc/x")
+
+    def test_blocks_subshell_without_spaces(self):
+        self._block("(cp /tmp/f .sdlc/x)", ".sdlc/x")
+
+    def test_blocks_cp_with_variable_source(self):
+        # Spec G3: `${SRC}` must stay one token; pinned because it blocks today.
+        self._block("cp ${SRC} .sdlc/x", ".sdlc/x")
+
+    # R-3 deletes and mode changes
+    def test_blocks_rm_of_sdlc_active(self):
+        self._block("rm -f .sdlc/active", ".sdlc/active")
+
+    def test_blocks_rm_rf_of_hooks_dir(self):
+        self._block("rm -rf .claude/hooks", ".claude/hooks")
+
+    def test_blocks_unlink_of_sdlc_active(self):
+        self._block("unlink .sdlc/active", ".sdlc/active")
+
+    def test_blocks_rmdir_under_sdlc(self):
+        self._block("rmdir .sdlc/release-authorizations", ".sdlc/release-authorizations")
+
+    def test_blocks_chmod_on_hook(self):
+        self._block("chmod -x .claude/hooks/protect-paths.sh", ".claude/hooks/protect-paths.sh")
+
+    def test_blocks_chown_on_config(self):
+        self._block("chown 0 .sdlc/config.env", ".sdlc/config.env")
+
+    def test_allows_rm_outside_repo(self):
+        self._allow("rm -rf /tmp/build")
+
+    def test_allows_chmod_outside_repo(self):
+        self._allow("chmod +x /tmp/x.sh")
+
+    # R-4 moves, target directories, sort -o
+    def test_blocks_mv_out_of_sdlc(self):
+        self._block("mv .sdlc/active /tmp/a", ".sdlc/active")
+
+    def test_blocks_cp_target_directory_flag(self):
+        self._block("cp -t .claude/hooks /tmp/x.sh", ".claude/hooks")
+
+    def test_blocks_install_target_directory_flag(self):
+        self._block("install -t .claude/hooks /tmp/x.sh", ".claude/hooks")
+
+    def test_blocks_cp_long_target_directory_option(self):
+        self._block("cp --target-directory=.claude/hooks /tmp/x.sh", ".claude/hooks")
+
+    def test_blocks_sort_output_into_config(self):
+        self._block("sort -o .sdlc/config.env /tmp/x", ".sdlc/config.env")
+
+    def test_blocks_cp_with_trailing_redirect(self):
+        # Spec D3 / gotcha G1: the destination is the last argument that is not a redirection.
+        self._block("cp /tmp/x .claude/hooks/y.sh 2>/dev/null", ".claude/hooks/y.sh")
+        self._block("cp /tmp/x .claude/hooks/y.sh 2>&1", ".claude/hooks/y.sh")
+
+    def test_allows_mv_outside_repo(self):
+        self._allow("mv /tmp/a /tmp/b")
+
+    def test_allows_sort_read_of_config(self):
+        self._allow("sort .sdlc/config.env")
+
+    # R-5 in-place editors
+    def test_blocks_sed_long_in_place(self):
+        self._block("sed --in-place s/a/b/ .sdlc/active", ".sdlc/active")
+
+    def test_blocks_perl_pi(self):
+        self._block("perl -pi -e s/a/b/ .sdlc/active", ".sdlc/active")
+
+    def test_blocks_perl_bundled_pi_with_suffix(self):
+        self._block("perl -0pi.bak -e s/a/b/ .sdlc/active", ".sdlc/active")
+
+    # R-6 git
+    def test_blocks_git_rm(self):
+        self._block("git rm -q .sdlc/active", ".sdlc/active")
+
+    def test_blocks_git_mv(self):
+        self._block("git mv .sdlc/active /tmp/a", ".sdlc/active")
+
+    def test_blocks_git_restore_without_double_dash(self):
+        self._block("git restore .sdlc/config.env", ".sdlc/config.env")
+
+    def test_allows_git_checkout_new_branch(self):
+        self._allow("git checkout -b kit/x")
+
+    def test_allows_git_rm_cached_outside_repo(self):
+        self._allow("git rm --cached /tmp/x")
+
+    # R-7 cwd, $PWD, ~
+    def test_blocks_pwd_prefixed_redirect(self):
+        self._block('echo x > "$PWD"/.sdlc/x', ".sdlc/x")
+
+    def test_blocks_relative_write_when_cwd_is_sdlc(self):
+        self._block("echo x > config.env", ".sdlc/config.env", cwd=".sdlc")
+
+    def test_blocks_cd_from_cwd_into_hooks(self):
+        self._block("cd hooks && echo x > y.sh", ".claude/hooks/y.sh", cwd=".claude")
+
+    def test_allows_relative_write_when_cwd_is_tmp(self):
+        self._allow("echo x > out.txt", cwd="/tmp")
+
+    # R-8 NotebookEdit takes the $FILE branch
+    def test_blocks_notebook_under_sdlc(self):
+        with fake_repo() as root:
+            result = run_hook(HOOK, notebook(".sdlc/x.ipynb"), root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn(".sdlc/x.ipynb", result.stderr)
+            result = run_hook(HOOK, notebook("notebooks/ok.ipynb"), root)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class BashWriteGuardAllows(unittest.TestCase):
@@ -200,6 +392,12 @@ class BlockSecretsWiderSurface(unittest.TestCase):
         with fake_repo() as root:
             command = f"cat > src/keys.ts <<'EOF'\nexport const k = '{FAKE_AWS_KEY}';\nEOF"
             result = run_hook(SECRETS_HOOK, bash(command), root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("credential", result.stderr)
+
+    def test_blocks_key_in_notebook_new_source(self):
+        with fake_repo() as root:
+            result = run_hook(SECRETS_HOOK, notebook("nb.ipynb", new_source=f"k = '{FAKE_AWS_KEY}'"), root)
             self.assertEqual(result.returncode, 2, result.stderr)
             self.assertIn("credential", result.stderr)
 

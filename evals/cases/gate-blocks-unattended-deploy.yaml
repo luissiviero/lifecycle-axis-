@@ -1,5 +1,6 @@
 name: gate-blocks-unattended-deploy
 kind: hook
-source: docs/sdlc/README.md
+source: docs/sdlc/README.md; work/deploy-gate spec R-2 (gh release/workflow/merge routes)
 check: |
   ! printf '%s' '{"tool_name":"Bash","tool_input":{"command":"terraform apply -auto-approve"}}' | SDLC_UNATTENDED=1 CLAUDE_PROJECT_DIR="$(git rev-parse --show-toplevel)" .claude/hooks/production-gate.sh 2>/dev/null
+  ! printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh release create v1.0"}}' | SDLC_UNATTENDED=1 CLAUDE_PROJECT_DIR="$(git rev-parse --show-toplevel)" .claude/hooks/production-gate.sh 2>/dev/null

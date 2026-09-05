@@ -4,6 +4,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DEPLOY_SH = os.path.join(HERE, "deploy.sh")
 ENVIRONMENTS_YAML = os.path.join(ROOT, ".sdlc", "environments.yaml")
+DEPLOY_YML = os.path.join(ROOT, ".github", "workflows", "deploy.yml")
+# The committed-authorization route runs `python3 scripts/approvers.py --has-role`, which imports
+# check_artifact_chain (git at import time) and reads APPROVERS_FILE from .sdlc/config.env.
+COPIED = (
+    (".sdlc/approvers.yaml", ".sdlc/approvers.yaml"),
+    (".sdlc/config.env", ".sdlc/config.env"),
+    ("scripts/approvers.py", "scripts/approvers.py"),
+    ("scripts/check_artifact_chain.py", "scripts/check_artifact_chain.py"),
+)
 
 
 def _read(path):
@@ -22,6 +31,9 @@ def _make_repo(root):
     with open(os.path.join(root, ".sdlc", "environments.yaml"), "w") as f:
         f.write(_read(ENVIRONMENTS_YAML))
     os.makedirs(os.path.join(root, "scripts"), exist_ok=True)
+    for src, dst in COPIED:
+        with open(os.path.join(root, dst), "w") as f:
+            f.write(_read(os.path.join(ROOT, src)))
     deploy_copy = os.path.join(root, "scripts", "deploy.sh")
     with open(deploy_copy, "w") as f:
         f.write(_read(DEPLOY_SH))
@@ -110,7 +122,8 @@ class DeployGuard(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("release-manager", result.stderr)
 
-    def test_production_with_github_actions_succeeds(self):
+    def test_release_approval_env_and_github_actions_succeeds(self):
+        # The Environment-secret route: a human stored the SHA as RELEASE_APPROVAL.
         result = _run(
             self.deploy_copy,
             self.root,
@@ -119,6 +132,50 @@ class DeployGuard(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertIn("DEPLOY: would run", result.stdout)
+
+    # --- work/deploy-gate: the committed-authorization route and the workflow (R-3, R-4) ---
+
+    def _authorize(self, body):
+        d = os.path.join(self.root, ".sdlc", "release-authorizations")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, self.sha), "w") as f:
+            f.write(body)
+
+    def test_workflow_does_not_bind_release_approval_to_github_sha(self):
+        lines = [l for l in _read(DEPLOY_YML).splitlines() if "RELEASE_APPROVAL:" in l]
+        self.assertTrue(lines, "deploy.yml passes RELEASE_APPROVAL to deploy.sh")
+        for l in lines:
+            self.assertNotIn("github.sha", l)
+            self.assertNotIn("inputs.sha", l)
+            self.assertIn("secrets.RELEASE_APPROVAL", l)
+
+    def test_committed_authorization_by_release_manager_succeeds(self):
+        self._authorize("approved-by: luissiviero\n")
+        result = _run(self.deploy_copy, self.root, ["staging"], {"CI": "1"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("DEPLOY: would run", result.stdout)
+
+    def test_committed_authorization_by_non_release_manager_refuses(self):
+        self._authorize("approved-by: claude\n")
+        result = _run(self.deploy_copy, self.root, ["staging"], {"CI": "1"})
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("claude", result.stderr)
+        self.assertIn("release-manager", result.stderr)
+
+    def test_authorization_file_without_approved_by_refuses(self):
+        self._authorize("hello\n")
+        result = _run(self.deploy_copy, self.root, ["staging"], {"CI": "1"})
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("release-manager", result.stderr)
+
+    def test_env_release_approval_wins_over_file(self):
+        self._authorize("approved-by: claude\n")
+        result = _run(self.deploy_copy, self.root, ["staging"], {"CI": "1", "RELEASE_APPROVAL": self.sha})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self._authorize("approved-by: luissiviero\n")
+        result = _run(self.deploy_copy, self.root, ["staging"], {"CI": "1", "RELEASE_APPROVAL": "deadbeef"})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("deadbeef", result.stderr)
 
     def test_success_path_deploys_nothing(self):
         marker = os.path.join(self.root, "side-effect-marker")

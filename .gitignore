@@ -2,3 +2,5 @@
 evals/.last-*.json
 __pycache__/
 *.pyc
+.sdlc/hook-decisions.log
+monitoring/series/
