@@ -6,12 +6,12 @@ check: |
   # The spec skill names the provenance field the way the template spells it.
   grep -q '^skills-applied:' "$R/docs/sdlc/templates/spec.md"
   grep -q '`skills-applied`' "$R/.claude/skills/sdlc-spec/SKILL.md"
-  ! grep -q 'standards-applied' "$R/.claude/skills/sdlc-spec/SKILL.md"
+  ! grep -q 'standards-applied' "$R/.claude/skills/sdlc-spec/SKILL.md" || exit 1
   # The plan skill and both plan-reviewer agents name the headings the plan template has.
   grep -q '^## Files that change' "$R/docs/sdlc/templates/plan.md"
   grep -q '^## Proof' "$R/docs/sdlc/templates/plan.md"
   for f in "$R/.claude/skills/sdlc-plan/SKILL.md" "$R/.claude/agents/plan-reviewer.md" "$R/.gemini/agents/plan-reviewer.md"; do
     grep -q '`## Files that change`' "$f"
-    ! grep -qE '`## Files`|`## Verification`' "$f"
+    ! grep -qE '`## Files`|`## Verification`' "$f" || exit 1
   done
   grep -q '`## Proof`' "$R/.claude/skills/sdlc-plan/SKILL.md"

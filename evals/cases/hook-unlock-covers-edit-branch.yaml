@@ -4,6 +4,6 @@ source: knowledge/decisions/self-hooks-on.md (the unlock applies on both branche
 check: |
   set -e; R="$(git rev-parse --show-toplevel)"
   P='{"tool_name":"Edit","tool_input":{"file_path":".sdlc/x","old_string":"a","new_string":"b"}}'
-  ! printf '%s' "$P" | CLAUDE_PROJECT_DIR="$R" "$R/.claude/hooks/protect-paths.sh" 2>/dev/null
+  ! printf '%s' "$P" | CLAUDE_PROJECT_DIR="$R" "$R/.claude/hooks/protect-paths.sh" 2>/dev/null || exit 1
   printf '%s' "$P" | SDLC_CONTROL_PLANE_UNLOCK=1 CLAUDE_PROJECT_DIR="$R" "$R/.claude/hooks/protect-paths.sh" 2>&1 | grep -q unlocked
   ! printf '%s' '{"tool_name":"Write","tool_input":{"file_path":".env","content":"x"}}' | SDLC_CONTROL_PLANE_UNLOCK=1 CLAUDE_PROJECT_DIR="$R" "$R/.claude/hooks/protect-paths.sh" 2>/dev/null

@@ -1,0 +1,27 @@
+name: skill-incident-names-an-eval
+kind: skill
+source: work/agent-evals spec R-1 (consensus item 8); .claude/skills/sdlc-incident/SKILL.md step 4 (the eval is mandatory before the record is closed)
+setup: |
+  R="$(git rev-parse --show-toplevel)"; d="$R/work/eval-incident"; rm -rf "$d"; mkdir -p "$d"
+  # The incident template says the lesson is also appended to docs/sdlc/lessons.md; snapshot that file
+  # so the check can put back exactly what was there before the prompt, edits of yours included.
+  cp "$R/docs/sdlc/lessons.md" "$d/.lessons.before"
+prompt: "Use the sdlc-incident skill. The control band ci_test_failure_rate breached tier 3sigma tonight; detector output: {'tier': '3sigma', 'mean': 0.0, 'sd': 0.0, 'value': 1.0, 'index': 30, 'rule': 'one point beyond 3 sigma'}. Diagnose from what the repository holds (git log is allowed; state your confidence), write work/eval-incident/incident.md from docs/sdlc/templates/incident.md, and add the mandatory regression eval as a new file evals/cases/eval-incident-ci-failure.yaml with kind: hook and a deterministic check. Name that eval's path in the incident's '## Eval added' section. Do not open a PR, do not run any workflow, and do not create or edit any other file."
+allowed_tools: "Read,Grep,Glob,Write,Bash(mkdir *),Bash(git log *)"
+check: |
+  R="$(git rev-parse --show-toplevel)"; d="$R/work/eval-incident"; f="$d/incident.md"; rc=0
+  if [ ! -f "$f" ]; then echo "incident.md was not written"; rc=1; fi
+  if [ "$rc" = 0 ]; then
+    p="$(awk '/^## Eval added/{on=1; next} /^## /{on=0} on' "$f" | grep -o 'evals/cases/[A-Za-z0-9_.-]*\.yaml' | head -1)"
+    if [ -z "$p" ]; then echo "the Eval added section names no evals/cases path"; rc=1
+    elif [ ! -f "$R/$p" ]; then echo "the named eval $p does not exist"; rc=1
+    fi
+  fi
+  # Cleanup: only what this case created, and lessons.md only if the prompt changed it (restored to
+  # the pre-prompt snapshot, never to HEAD, so a developer's own uncommitted edit is kept).
+  if [ -f "$d/.lessons.before" ] && ! cmp -s "$d/.lessons.before" "$R/docs/sdlc/lessons.md"; then
+    cp "$d/.lessons.before" "$R/docs/sdlc/lessons.md"
+  fi
+  rm -f "$R"/knowledge/lessons/*eval-incident*.md "$R"/evals/cases/eval-incident-*.yaml
+  rm -rf "$d"
+  exit $rc

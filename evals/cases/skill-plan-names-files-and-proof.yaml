@@ -1,0 +1,22 @@
+name: skill-plan-names-files-and-proof
+kind: skill
+source: work/agent-evals spec R-1 (consensus item 8); .claude/skills/sdlc-plan/SKILL.md step 2 and 4 (explicit paths, requirement to test)
+setup: |
+  R="$(git rev-parse --show-toplevel)"; d="$R/work/eval-plan"; rm -rf "$d"; mkdir -p "$d"
+  for a in intent spec; do
+    sed -e 's/^id: _example$/id: eval-plan/' -e 's/^title: .*/title: Add a --json flag to scripts\/sdlc_metrics.py/' "$R/work/_example/$a.md" > "$d/$a.md"
+  done
+  printf '\n## Requirements added for this eval\n| # | Requirement | Intent outcome | Acceptance test (machine-checkable) |\n|---|---|---|---|\n| R1 | `python3 scripts/sdlc_metrics.py --json` prints one JSON object with the same keys as the text output | 1 | a new test in scripts/test_sdlc_metrics.py |\n' >> "$d/spec.md"
+prompt: "Use the sdlc-plan skill for the work item with slug eval-plan; its spec at work/eval-plan/spec.md is approved and asks for a --json flag on scripts/sdlc_metrics.py. Write work/eval-plan/plan.md from docs/sdlc/templates/plan.md with status: in-review, an explicit file list under '## Files that change' (real paths, no globs) and a '## Proof' section that maps each requirement to a named test. Do not implement anything, do not approve anything, do not create or edit any other file."
+allowed_tools: "Read,Grep,Glob,Write,Bash(mkdir *)"
+check: |
+  R="$(git rev-parse --show-toplevel)"; f="$R/work/eval-plan/plan.md"; rc=0
+  if [ ! -f "$f" ]; then echo "plan.md was not written"; rc=1; fi
+  if [ "$rc" = 0 ]; then
+    grep -q '^status: in-review' "$f" || { echo "status is not in-review"; rc=1; }
+    files="$(awk '/^## Files that change/{on=1; next} /^## /{on=0} on && /^- /' "$f")"
+    printf '%s\n' "$files" | grep -q 'scripts/sdlc_metrics.py' || { echo "the file list does not name scripts/sdlc_metrics.py"; rc=1; }
+    if printf '%s\n' "$files" | grep -q '\*\*'; then echo "the file list uses a glob"; rc=1; fi
+    awk '/^## Proof/{on=1; next} /^## /{on=0} on' "$f" | grep -q 'test_' || { echo "Proof names no test"; rc=1; }
+  fi
+  rm -rf "$R/work/eval-plan"; exit $rc

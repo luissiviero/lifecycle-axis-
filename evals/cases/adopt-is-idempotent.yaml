@@ -8,7 +8,7 @@ check: |
   # two consecutive runs: the second copies nothing
   "$R/scripts/adopt.sh" "$T" --with-hooks >/dev/null
   OUT="$("$R/scripts/adopt.sh" "$T" --with-hooks)"
-  ! printf '%s\n' "$OUT" | grep -q '^copy:'
+  ! printf '%s\n' "$OUT" | grep -q '^copy:' || exit 1
   # a fresh target's verify is red on the placeholder and says so
   git init -q "$T"
   set +e

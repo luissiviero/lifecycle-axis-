@@ -261,6 +261,9 @@ def main():
                         f"work/{slug}/log.md has no entry recording {name} {who_did}; append: {line}"
                     )
             # The commit that introduced `status: approved` must not be authored by an agent identity.
+            # `-G '^status: approved$'` finds the commit whose diff added or removed that exact line;
+            # `-S` counted the phrase anywhere in the file, so a later agent commit that mentioned it
+            # in prose was read as the approver (work/agent-evals R-5).
             # scripts/approve.py refuses to run inside an agent session, but an environment variable is
             # not a gate; the commit author is what CI can verify.
             # git pathspecs use forward slashes on every platform. os.path.join produced
@@ -272,7 +275,7 @@ def main():
             who = ""
             if front_matter_text(head_text).get("status") == status:
                 who = subprocess.run(
-                    ["git", "log", "-n1", "--format=%an%x00%ae", "-S", f"status: {status}", "--", rel],
+                    ["git", "log", "-n1", "--format=%an%x00%ae", "-G", f"^status: {status}$", "--", rel],
                     capture_output=True, text=True, cwd=ROOT,
                 ).stdout.strip()
             if not who:
