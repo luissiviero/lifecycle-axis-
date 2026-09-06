@@ -9,9 +9,9 @@ author: Luis Siviero (repo owner), interviewed by Claude in the session that clo
 approved-by: luissiviero
 approved-on: 2026-09-06
 risk-class: low
-mode: supervised
-delegated-by:
-delegated-on:
+mode: delegated
+delegated-by: luissiviero
+delegated-on: 2026-09-06
 supersedes:
 record:
 resource: https://github.com/luissiviero/lifecycle-axis-/pull/45
