@@ -268,6 +268,51 @@ class RealRepo(unittest.TestCase):
                 print(f"  {line}", file=sys.stderr)
 
 
+class SdlcGate(unittest.TestCase):
+    """R-13: the chain check's one new API surface is granted explicitly, not left to the code.
+
+    A scope the code needs and the workflow does not declare fails open here rather than loudly:
+    verify_dispatch_run finds no token, prints its note, and the attestation is never checked in the
+    one place it matters. So the oracle reads the parsed permissions block and the step's env,
+    rather than trusting that a token happens to be present at run time
+    (knowledge/lessons/workflow-permissions-name-every-api.md).
+    """
+
+    PATH = os.path.join(ROOT, ".github", "workflows", "sdlc-gate.yml")
+
+    def setUp(self):
+        import yaml
+
+        with open(self.PATH, encoding="utf-8") as f:
+            self.doc = yaml.safe_load(f)
+
+    def test_permissions_are_exactly_contents_read_and_actions_read(self):
+        self.assertEqual(self.doc["permissions"], {"contents": "read", "actions": "read"})
+
+    def test_the_artifact_chain_step_receives_gh_token(self):
+        steps = self.doc["jobs"]["artifact-chain"]["steps"]
+        chain = [s for s in steps if "check_artifact_chain.py" in (s.get("run") or "")]
+        self.assertEqual(len(chain), 1, "exactly one step runs the chain check")
+        self.assertIn("GH_TOKEN", chain[0].get("env", {}))
+
+    def test_no_other_workflow_gains_a_scope(self):
+        # The two that already declared `actions` keep it and gain nothing: delegated-merge.yml
+        # reads runs for R-7's route B, bands.yml reads its own run history for the metrics
+        # series. sdlc-gate.yml is the only file this work item adds the scope to.
+        import yaml
+
+        wf = os.path.join(ROOT, ".github", "workflows")
+        with_actions = []
+        for name in sorted(os.listdir(wf)):
+            if not name.endswith((".yml", ".yaml")):
+                continue
+            with open(os.path.join(wf, name), encoding="utf-8") as f:
+                perms = (yaml.safe_load(f) or {}).get("permissions")
+            if isinstance(perms, dict) and "actions" in perms:
+                with_actions.append(name)
+        self.assertEqual(with_actions, ["bands.yml", "delegated-merge.yml", "sdlc-gate.yml"])
+
+
 class ApproveWorkflow(unittest.TestCase):
     """R-1: the dispatch workflow is clean, allowlisted, and as small as it claims to be."""
 

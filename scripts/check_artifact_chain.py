@@ -37,7 +37,7 @@ clone with no remote configured) yields an empty diff, so check 3/4 pass trivial
 checks 1-2 are exercised locally. CI passes `--base origin/<base_ref>` so the changed-file
 checks run against the PR's real diff.
 """
-import argparse, fnmatch, os, re, subprocess, sys
+import argparse, fnmatch, json, os, re, subprocess, sys
 from datetime import datetime, timezone
 
 ROOT = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip() or "."
@@ -116,6 +116,10 @@ def config():
 
 AGENT_EMAIL_PATTERNS = (r"@anthropic\.com$", r"\[bot\]@", r"^noreply@")
 
+# The one workflow whose runs may stand as an approval. A trailer naming a run of any
+# other workflow is refused, not merely unverified (work/approve-by-dispatch R-6).
+DISPATCH_WORKFLOW_PATH = ".github/workflows/approve.yml"
+
 # A revision record's reviewer sections and their verdicts (work/delegated-mode R-5, D4).
 # docs/sdlc/templates/revision.md writes `## Reviewer: <role> (<model>)`; a `###` heading is read
 # the same way, so a record that nests its reviewers under one `## Reviewers` heading still counts.
@@ -132,6 +136,70 @@ def is_agent_identity(author_name, author_email, av):
         return True
     email = (author_email or "").casefold()
     return any(re.search(p, email) for p in AGENT_EMAIL_PATTERNS)
+
+
+APPROVED_RUN_RE = re.compile(r"^Approved-Run:\s*(\d+)\s*$", re.MULTILINE)
+APPROVED_ACTOR_RE = re.compile(r"^Approved-Actor:\s*(\S+)\s*$", re.MULTILINE)
+
+
+def dispatch_attestation(commit_sha):
+    """(run_id, actor) from a commit's Approved-Run / Approved-Actor trailers, or None.
+
+    .github/workflows/approve.yml writes both when an approval was made by pressing Run in the
+    Actions tab. Their presence is what selects the trailer route below; their *truth* is checked
+    against the Actions API by verify_dispatch_run, never taken from the message alone
+    (work/approve-by-dispatch R-5).
+    """
+    body = subprocess.run(["git", "log", "-n1", "--format=%B", commit_sha],
+                          capture_output=True, text=True, cwd=ROOT).stdout
+    run = APPROVED_RUN_RE.search(body or "")
+    actor = APPROVED_ACTOR_RE.search(body or "")
+    if not run or not actor:
+        return None
+    return run.group(1), actor.group(1)
+
+
+def verify_dispatch_run(run_id, actor):
+    """(True, detail) when the Actions API confirms the run; (False, reason) when it contradicts it;
+    (None, reason) when there is no token to ask with.
+
+    The run record is the anchor of the whole dispatch route: `actor.login` is set by GitHub when
+    the run starts and nothing inside the run can change it, so a commit trailer that matches a
+    successful workflow_dispatch run of approve.yml really was caused by that person pressing Run.
+    Four fields must all agree -- the event, the workflow path, the conclusion and the actor --
+    because any one of them alone could be satisfied by a different run (R-6).
+    """
+    if not (os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")):
+        return None, "no GH_TOKEN/GITHUB_TOKEN; the dispatch trailer was accepted on the author rule alone"
+    repo = os.environ.get("GITHUB_REPOSITORY") or _repo_slug()
+    if not repo:
+        return None, "cannot determine the repository; dispatch attestation skipped"
+    r = subprocess.run(["gh", "api", f"repos/{repo}/actions/runs/{run_id}"],
+                       capture_output=True, text=True, cwd=ROOT)
+    if r.returncode != 0:
+        return False, f"run {run_id} could not be read from {repo}: {r.stderr.strip()[:200]}"
+    try:
+        run = json.loads(r.stdout)
+    except ValueError:
+        return False, f"run {run_id} returned unparseable JSON"
+    checks = (
+        ("event", run.get("event"), "workflow_dispatch"),
+        ("path", run.get("path"), DISPATCH_WORKFLOW_PATH),
+        ("conclusion", run.get("conclusion"), "success"),
+        ("actor", (run.get("actor") or {}).get("login"), actor),
+    )
+    for field, got, want in checks:
+        if (got or "").casefold() != (want or "").casefold():
+            return False, f"run {run_id} {field} is {got!r}, expected {want!r}"
+    return True, f"run {run_id} verified: workflow_dispatch of {DISPATCH_WORKFLOW_PATH} by {actor}"
+
+
+def _repo_slug():
+    """`owner/name` from the origin remote, for the Actions API call."""
+    url = subprocess.run(["git", "remote", "get-url", "origin"],
+                         capture_output=True, text=True, cwd=ROOT).stdout.strip()
+    m = re.search(r"[:/]([^/:]+/[^/]+?)(?:\.git)?$", url)
+    return m.group(1) if m else ""
 
 
 def _active_slug():
@@ -542,15 +610,34 @@ def main():
             who = ""
             if front_matter_text(head_text).get("status") == status:
                 who = subprocess.run(
-                    ["git", "log", "-n1", "--format=%an%x00%ae", "-G", f"^status: {status}$", "--", rel],
+                    ["git", "log", "-n1", "--format=%H%x00%an%x00%ae", "-G", f"^status: {status}$", "--", rel],
                     capture_output=True, text=True, cwd=ROOT,
                 ).stdout.strip()
             if not who:
                 act = "approval" if status == "approved" else "supersession"
                 notes.append(f"work/{slug}/{name}: {act} not committed yet (author check skipped)")
             else:
-                an, _, ae = who.partition("\x00")
-                if is_agent_identity(an, ae, av):
+                sha, an, ae = (who.split("\x00") + ["", ""])[:3]
+                attested = dispatch_attestation(sha)
+                if attested:
+                    # The trailer route: the decision was a tap in the Actions tab, and the run --
+                    # not the commit -- says who made it. The deciding handle is the trailer's
+                    # actor, which must be the handle the artifact names; then the run itself is
+                    # checked, when there is a token to check it with (R-5, R-6).
+                    run_id, actor = attested
+                    if av.normalize(actor) != av.normalize(approved_by):
+                        errors.append(
+                            f"work/{slug}/{name}: the commit that set status: {status} carries "
+                            f"Approved-Actor: {actor}, but the artifact says approved-by: "
+                            f"{approved_by}; the run's actor is the deciding handle"
+                        )
+                    else:
+                        ok, detail = verify_dispatch_run(run_id, actor)
+                        if ok is False:
+                            errors.append(f"work/{slug}/{name}: dispatch attestation failed: {detail}")
+                        else:
+                            notes.append(f"work/{slug}/{name}: {detail}")
+                elif is_agent_identity(an, ae, av):
                     errors.append(
                         f"work/{slug}/{name}: the commit that set status: {status} is authored by an agent "
                         f"identity ({an} <{ae}>); a human must set it and commit"

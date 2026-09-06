@@ -483,6 +483,170 @@ class ApprovalAuthor(unittest.TestCase):
             self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
             self.assertIn("authored by an agent identity (claude <noreply@anthropic.com>)", result.stdout)
 
+    # --- work/approve-by-dispatch R-5: the trailer route -----------------------------------
+    TRAILERS = "\n\nApproved-Run: {run}\nApproved-Actor: {actor}\n"
+
+    def _reapprove_with_trailers(self, root, wd, handle, actor, run="12345"):
+        """Set status: approved in a commit carrying the dispatch trailers."""
+        _write(os.path.join(wd, "intent.md"), "---\nstatus: in-review\napproved-by:\n---\n# artifact\n")
+        _commit(root, "back to review")
+        _write(os.path.join(wd, "intent.md"), _artifact(handle))
+        _git(root, "add", "-A")
+        _git(root, "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com",
+             "-c", "user.name=github-actions[bot]", "commit", "-q",
+             "-m", "[demo] Approve intent.md" + self.TRAILERS.format(run=run, actor=actor))
+
+    def test_trailer_whose_actor_matches_approved_by_passes(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            # The committer is the bot, so without the trailer this would fail the author rule.
+            self._reapprove_with_trailers(root, wd, "luissiviero", "luissiviero")
+            result = _run(root, "--base", "HEAD")
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS", result.stdout)
+            self.assertNotIn("authored by an agent identity", result.stdout)
+
+    def test_trailer_naming_a_different_handle_than_approved_by_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            self._reapprove_with_trailers(root, wd, "luissiviero", "someone-else")
+            result = _run(root, "--base", "HEAD")
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
+            self.assertIn("Approved-Actor: someone-else", result.stdout)
+
+    def test_no_token_accepts_the_trailer_and_says_so(self):
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            self._reapprove_with_trailers(root, wd, "luissiviero", "luissiviero")
+            env = {k: v for k, v in os.environ.items()
+                   if k not in ("GH_TOKEN", "GITHUB_TOKEN")}
+            result = subprocess.run(
+                [sys.executable, os.path.join(HERE, "check_artifact_chain.py"), "--base", "HEAD"],
+                cwd=root, capture_output=True, text=True, env=env)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS", result.stdout)
+            self.assertIn("accepted on the author rule alone", result.stdout)
+
+    def test_an_agent_authored_commit_with_no_trailer_still_fails(self):
+        """The trailer route is additive: it must not soften the rule for everything else."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _write(os.path.join(wd, "intent.md"), "---\nstatus: in-review\napproved-by:\n---\n# artifact\n")
+            _commit(root, "back to review")
+            _write(os.path.join(wd, "intent.md"), _artifact("luissiviero"))
+            self._commit_as(root, self.AGENT_NAME, self.AGENT_EMAIL, "no trailers here")
+            result = _run(root, "--base", "HEAD")
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
+            self.assertIn("authored by an agent identity", result.stdout)
+
+
+class DispatchAttestation(unittest.TestCase):
+    """R-6: the trailer is checked against the run record, not believed."""
+
+    def setUp(self):
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import check_artifact_chain as cac
+
+        self.cac = cac
+
+    def _run_json(self, **overrides):
+        run = {"event": "workflow_dispatch", "path": ".github/workflows/approve.yml",
+               "conclusion": "success", "actor": {"login": "luissiviero"}}
+        run.update(overrides)
+        return run
+
+    def _verify(self, run, actor="luissiviero", token="t"):
+        """verify_dispatch_run with the API call stubbed out at the subprocess boundary."""
+        import json as _json
+        import subprocess as _sp
+
+        real = self.cac.subprocess.run
+        payload = _json.dumps(run)
+
+        def fake(args, **kw):
+            if args[:2] == ["gh", "api"]:
+                return _sp.CompletedProcess(args, 0, payload, "")
+            return real(args, **kw)
+
+        self.cac.subprocess.run = fake
+        env_keys = {"GH_TOKEN": token, "GITHUB_REPOSITORY": "luissiviero/lifecycle-axis-"}
+        saved = {k: os.environ.get(k) for k in env_keys}
+        try:
+            os.environ.update({k: v for k, v in env_keys.items() if v is not None})
+            if token is None:
+                os.environ.pop("GH_TOKEN", None)
+                os.environ.pop("GITHUB_TOKEN", None)
+            return self.cac.verify_dispatch_run("12345", actor)
+        finally:
+            self.cac.subprocess.run = real
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+    def test_matching_run_verifies(self):
+        ok, detail = self._verify(self._run_json())
+        self.assertIs(ok, True, detail)
+
+    def test_a_run_of_another_workflow_fails(self):
+        ok, detail = self._verify(self._run_json(path=".github/workflows/deploy.yml"))
+        self.assertIs(ok, False)
+        self.assertIn("path", detail)
+
+    def test_a_run_of_another_event_fails(self):
+        ok, detail = self._verify(self._run_json(event="push"))
+        self.assertIs(ok, False)
+        self.assertIn("event", detail)
+
+    def test_a_failed_run_fails(self):
+        ok, detail = self._verify(self._run_json(conclusion="failure"))
+        self.assertIs(ok, False)
+        self.assertIn("conclusion", detail)
+
+    def test_another_actor_fails(self):
+        ok, detail = self._verify(self._run_json(actor={"login": "someone-else"}))
+        self.assertIs(ok, False)
+        self.assertIn("actor", detail)
+
+    def test_no_token_returns_none_with_a_note(self):
+        saved = {k: os.environ.pop(k, None) for k in ("GH_TOKEN", "GITHUB_TOKEN")}
+        try:
+            ok, detail = self.cac.verify_dispatch_run("12345", "luissiviero")
+        finally:
+            for k, v in saved.items():
+                if v is not None:
+                    os.environ[k] = v
+        self.assertIsNone(ok)
+        self.assertIn("accepted on the author rule alone", detail)
+
+    def test_trailers_are_read_from_the_commit_body(self):
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _write(os.path.join(root, "note.txt"), "x\n")
+            _git(root, "add", "-A")
+            _git(root, "commit", "-q", "-m",
+                 "subject\n\nApproved-Run: 777\nApproved-Actor: luissiviero\n")
+            sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
+                                 capture_output=True, text=True).stdout.strip()
+            saved = self.cac.ROOT
+            self.cac.ROOT = root
+            try:
+                self.assertEqual(self.cac.dispatch_attestation(sha), ("777", "luissiviero"))
+            finally:
+                self.cac.ROOT = saved
+
+    def test_a_commit_without_trailers_has_no_attestation(self):
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
+                                 capture_output=True, text=True).stdout.strip()
+            saved = self.cac.ROOT
+            self.cac.ROOT = root
+            try:
+                self.assertIsNone(self.cac.dispatch_attestation(sha))
+            finally:
+                self.cac.ROOT = saved
+
 
 # --- work/delegated-mode R-4, R-5, R-6 ------------------------------------------------------
 # Written from spec.md's acceptance column before scripts/delegation.py and the chain-check
