@@ -16,4 +16,3 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 - 2026-09-06T16:10:00Z | spec.md | in-review -> in-review | claude | 47dbbe8 | revised for the reviewer's two findings on pull request 48: R-7 restructured into two grant routes, the signature gate moved inside route A where its own early return had made a dispatch-made commit unreachable, and R-13 added for the actions read scope and token sdlc-gate.yml needs; now thirteen requirements, seven decisions, six concerns
 - 2026-09-06T16:20:00Z | spec.md | in-review -> approved | luissiviero | 82537ce | approved from the GitHub web editor
 - 2026-09-06T17:00:00Z | intent.md | approved -> approved | luissiviero | <sha> | mode: delegated
-- 2026-09-06T17:00:00Z | intent.md | approved -> approved | luissiviero | <sha> | mode: delegated
