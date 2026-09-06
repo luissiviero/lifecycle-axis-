@@ -552,6 +552,123 @@ class GrantCommit(unittest.TestCase):
         self.assertIn("no commit adding the grant line", detail)
         self.assertIn("on %s" % BASE_REF, detail)
 
+    # --- work/approve-by-dispatch R-7: route B, the dispatch route ---------------------------
+    TRAILERS = "[demo] Approve intent.md as owner\n\nApproved-Run: 12345\nApproved-Actor: owner\n"
+
+    def dispatched_commit(self, message=None, **over):
+        """A grant commit as approve_dispatch.py makes one: unsigned, authored by the run's actor,
+        committed by the bot, carrying the two trailers."""
+        base = make_grant_commit(
+            author={"login": "owner"},
+            committer={"login": "github-actions[bot]"},
+            commit={"verification": {"verified": False, "reason": "unsigned"},
+                    "message": message if message is not None else self.TRAILERS})
+        for key, value in over.items():
+            if isinstance(value, dict) and isinstance(base.get(key), dict):
+                base[key].update(value)
+            else:
+                base[key] = value
+        return base
+
+    def dispatch_run(self, **over):
+        run = {"id": 12345, "event": "workflow_dispatch",
+               "path": ".github/workflows/approve.yml", "conclusion": "success",
+               "actor": {"login": "owner"},
+               "display_title": "approve intent.md (delegated) on demo by @owner"}
+        run.update(over)
+        return run
+
+    def grant(self, commit=None, run=None, **kw):
+        kw.setdefault("expected_handle", "owner")
+        kw.setdefault("slug", "demo")
+        return dm.check_grant_commit(commit if commit is not None else self.dispatched_commit(),
+                                     self.approvers,
+                                     dispatch=run if run is not None else self.dispatch_run(), **kw)
+
+    def test_route_b_with_a_matching_run_is_ok(self):
+        verdict, detail = self.grant()
+        self.assertEqual(verdict, dm.OK, detail)
+        self.assertIn("dispatch run 12345", detail)
+
+    def test_route_b_is_taken_although_the_commit_is_unsigned(self):
+        """The whole point of moving the signature gate inside route A: a runner's commit is
+        unsigned, so a gate ahead of the route choice refused every dispatch before it began."""
+        verdict, detail = self.grant()
+        self.assertEqual(verdict, dm.OK, detail)
+        self.assertNotIn("not GitHub-verified", detail)
+
+    def test_a_run_of_another_workflow_is_refused(self):
+        verdict, detail = self.grant(run=self.dispatch_run(path=".github/workflows/deploy.yml"))
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("path", detail)
+
+    def test_a_run_of_another_event_is_refused(self):
+        verdict, detail = self.grant(run=self.dispatch_run(event="push"))
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("event", detail)
+
+    def test_a_failed_run_is_refused(self):
+        verdict, detail = self.grant(run=self.dispatch_run(conclusion="failure"))
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("conclusion", detail)
+
+    def test_a_run_started_by_another_actor_is_refused(self):
+        verdict, detail = self.grant(run=self.dispatch_run(actor={"login": "mallory"}))
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("mallory", detail)
+
+    def test_a_trailer_actor_that_contradicts_the_run_is_refused(self):
+        """The trailer is a claim; the run is the record. When they disagree, the run wins."""
+        commit = self.dispatched_commit(
+            message="[demo] Approve intent.md\n\nApproved-Run: 12345\nApproved-Actor: mallory\n")
+        verdict, detail = self.grant(commit=commit)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("mallory", detail)
+
+    def test_a_run_name_naming_another_slug_is_refused(self):
+        run = self.dispatch_run(display_title="approve intent.md (delegated) on other by @owner")
+        verdict, detail = self.grant(run=run)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("run-name", detail)
+
+    def test_a_run_name_naming_another_artifact_is_refused(self):
+        run = self.dispatch_run(display_title="approve spec.md (supervised) on demo by @owner")
+        verdict, detail = self.grant(run=run)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("intent.md", detail)
+
+    def test_no_run_at_all_is_refused_and_never_falls_back(self):
+        """A trailer that does not resolve must not be a way to *choose* route A's checks."""
+        verdict, detail = self.grant(run=False)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("does not resolve", detail)
+
+    def test_delegated_by_must_match_the_run_actor(self):
+        verdict, detail = self.grant(expected_handle="someone-else")
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("someone-else", detail)
+
+    def test_a_dispatched_commit_committed_by_someone_else_is_refused(self):
+        commit = self.dispatched_commit(committer={"login": "mallory"})
+        verdict, detail = self.grant(commit=commit)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("mallory", detail)
+
+    def test_an_actor_without_the_product_owner_role_is_refused(self):
+        commit = self.dispatched_commit(
+            message="[demo] Approve intent.md\n\nApproved-Run: 12345\nApproved-Actor: mallory\n")
+        verdict, detail = self.grant(commit=commit, run=self.dispatch_run(actor={"login": "mallory"}),
+                                     expected_handle="mallory")
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("mallory", detail)
+
+    def test_a_commit_with_no_trailer_still_takes_route_a(self):
+        commit = make_grant_commit(commit={"message": "[demo] approve intent.md"})
+        verdict, detail = dm.check_grant_commit(commit, self.approvers, expected_handle="owner",
+                                                dispatch=self.dispatch_run(), slug="demo")
+        self.assertEqual(verdict, dm.OK, detail)
+        self.assertIn("verified commit", detail)
+
     def test_commit_adds_grant_reads_the_patch_of_that_file_only(self):
         self.assertTrue(dm.commit_adds_grant(make_grant_commit(), INTENT_PATH))
         self.assertFalse(dm.commit_adds_grant(make_grant_commit(), "work/other/intent.md"))
