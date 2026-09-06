@@ -486,14 +486,18 @@ class ApprovalAuthor(unittest.TestCase):
     # --- work/approve-by-dispatch R-5: the trailer route -----------------------------------
     TRAILERS = "\n\nApproved-Run: {run}\nApproved-Actor: {actor}\n"
 
-    def _reapprove_with_trailers(self, root, wd, handle, actor, run="12345"):
-        """Set status: approved in a commit carrying the dispatch trailers."""
+    def _reapprove_with_trailers(self, root, wd, handle, actor, run="12345", author=None):
+        """Set status: approved in a commit shaped exactly as approve_dispatch.py makes one:
+        authored by the run's actor, committed by the bot, carrying both trailers. The split
+        identity is the point -- an approval whose *author* is the bot too would be caught by the
+        author rule, and the fixture must not be gentler than reality."""
         _write(os.path.join(wd, "intent.md"), "---\nstatus: in-review\napproved-by:\n---\n# artifact\n")
         _commit(root, "back to review")
         _write(os.path.join(wd, "intent.md"), _artifact(handle))
         _git(root, "add", "-A")
+        who = author or "%s <69210737+%s@users.noreply.github.com>" % (actor, actor)
         _git(root, "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com",
-             "-c", "user.name=github-actions[bot]", "commit", "-q",
+             "-c", "user.name=github-actions[bot]", "commit", "-q", "--author", who,
              "-m", "[demo] Approve intent.md" + self.TRAILERS.format(run=run, actor=actor))
 
     def test_trailer_whose_actor_matches_approved_by_passes(self):
@@ -513,17 +517,32 @@ class ApprovalAuthor(unittest.TestCase):
             self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
             self.assertIn("Approved-Actor: someone-else", result.stdout)
 
+    def _run_without_token(self, root):
+        env = {k: v for k, v in os.environ.items() if k not in ("GH_TOKEN", "GITHUB_TOKEN")}
+        return subprocess.run(
+            [sys.executable, os.path.join(HERE, "check_artifact_chain.py"), "--base", "HEAD"],
+            cwd=root, capture_output=True, text=True, env=env)
+
     def test_no_token_accepts_the_trailer_and_says_so(self):
         with tempfile.TemporaryDirectory() as root:
             wd = _make_repo(root)
             self._reapprove_with_trailers(root, wd, "luissiviero", "luissiviero")
-            env = {k: v for k, v in os.environ.items()
-                   if k not in ("GH_TOKEN", "GITHUB_TOKEN")}
-            result = subprocess.run(
-                [sys.executable, os.path.join(HERE, "check_artifact_chain.py"), "--base", "HEAD"],
-                cwd=root, capture_output=True, text=True, env=env)
+            result = self._run_without_token(root)
             self.assertEqual(_last_line(result.stdout), "CHAIN: PASS", result.stdout)
             self.assertIn("accepted on the author rule alone", result.stdout)
+
+    def test_no_token_still_applies_the_author_rule_to_a_forged_trailer(self):
+        """Security pass on pull request 51: with no token the trailer cannot be checked against
+        the run, so it must not buy anything. An agent that writes two lines into its own commit
+        message would otherwise skip the one check that still applies."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            self._reapprove_with_trailers(
+                root, wd, "luissiviero", "luissiviero",
+                author="Claude <%s>" % self.AGENT_EMAIL)
+            result = self._run_without_token(root)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
+            self.assertIn("authored by an agent identity", result.stdout)
 
     def test_an_agent_authored_commit_with_no_trailer_still_fails(self):
         """The trailer route is additive: it must not soften the rule for everything else."""
@@ -550,11 +569,32 @@ class DispatchAttestation(unittest.TestCase):
 
     def _run_json(self, **overrides):
         run = {"event": "workflow_dispatch", "path": ".github/workflows/approve.yml",
-               "conclusion": "success", "actor": {"login": "luissiviero"}}
+               "conclusion": "success", "actor": {"login": "luissiviero"},
+               "display_title": "approve intent.md (delegated) on demo by @luissiviero"}
         run.update(overrides)
         return run
 
-    def _verify(self, run, actor="luissiviero", token="t"):
+    def test_a_real_run_for_a_different_item_is_refused(self):
+        """Security pass on pull request 51: run ids and actors are public. Without binding the run
+        to the slug and artifact, any past successful approval by the right person could be quoted
+        as the attestation for a forged one -- every other field would agree."""
+        run = self._run_json(display_title="approve spec.md (supervised) on other-item by @luissiviero")
+        ok, detail = self._verify(run, slug="demo", artifact="intent.md")
+        self.assertIs(ok, False)
+        self.assertIn("run-name", detail)
+
+    def test_a_real_run_for_a_different_artifact_is_refused(self):
+        run = self._run_json(display_title="approve spec.md (supervised) on demo by @luissiviero")
+        ok, detail = self._verify(run, slug="demo", artifact="intent.md")
+        self.assertIs(ok, False)
+        self.assertIn("intent.md", detail)
+
+    def test_the_matching_run_names_both(self):
+        run = self._run_json(display_title="approve intent.md (delegated) on demo by @luissiviero")
+        ok, detail = self._verify(run, slug="demo", artifact="intent.md")
+        self.assertIs(ok, True, detail)
+
+    def _verify(self, run, actor="luissiviero", token="t", slug=None, artifact=None):
         """verify_dispatch_run with the API call stubbed out at the subprocess boundary."""
         import json as _json
         import subprocess as _sp
@@ -575,7 +615,7 @@ class DispatchAttestation(unittest.TestCase):
             if token is None:
                 os.environ.pop("GH_TOKEN", None)
                 os.environ.pop("GITHUB_TOKEN", None)
-            return self.cac.verify_dispatch_run("12345", actor)
+            return self.cac.verify_dispatch_run("12345", actor, slug=slug, artifact=artifact)
         finally:
             self.cac.subprocess.run = real
             for k, v in saved.items():

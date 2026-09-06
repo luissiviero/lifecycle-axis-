@@ -159,7 +159,7 @@ def dispatch_attestation(commit_sha):
     return run.group(1), actor.group(1)
 
 
-def verify_dispatch_run(run_id, actor):
+def verify_dispatch_run(run_id, actor, slug=None, artifact=None):
     """(True, detail) when the Actions API confirms the run; (False, reason) when it contradicts it;
     (None, reason) when there is no token to ask with.
 
@@ -168,6 +168,13 @@ def verify_dispatch_run(run_id, actor):
     successful workflow_dispatch run of approve.yml really was caused by that person pressing Run.
     Four fields must all agree -- the event, the workflow path, the conclusion and the actor --
     because any one of them alone could be satisfied by a different run (R-6).
+
+    The run must also be *this* decision's run. Run ids and actors are public in the Actions tab, so
+    without binding the run to the slug and the artifact, any past successful approval by the right
+    person could be cited as the attestation for a different one: forge a commit approving anything,
+    quote a real run id, and the four fields above all agree. `run-name` carries both (R-1), so both
+    are checked here, exactly as delegated_merge.py's route B checks them for a grant. Found by the
+    security pass on pull request 51.
     """
     if not (os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")):
         return None, "no GH_TOKEN/GITHUB_TOKEN; the dispatch trailer was accepted on the author rule alone"
@@ -191,7 +198,12 @@ def verify_dispatch_run(run_id, actor):
     for field, got, want in checks:
         if (got or "").casefold() != (want or "").casefold():
             return False, f"run {run_id} {field} is {got!r}, expected {want!r}"
-    return True, f"run {run_id} verified: workflow_dispatch of {DISPATCH_WORKFLOW_PATH} by {actor}"
+    title = run.get("display_title") or run.get("name") or ""
+    for what in (slug, artifact):
+        if what and what not in title:
+            return False, f"run {run_id} run-name {title!r} does not name {what!r}"
+    return True, (f"run {run_id} verified: workflow_dispatch of {DISPATCH_WORKFLOW_PATH} by {actor}"
+                  f" for {slug or '?'}/{artifact or '?'}")
 
 
 def _repo_slug():
@@ -632,11 +644,22 @@ def main():
                             f"{approved_by}; the run's actor is the deciding handle"
                         )
                     else:
-                        ok, detail = verify_dispatch_run(run_id, actor)
+                        ok, detail = verify_dispatch_run(run_id, actor, slug=slug, artifact=name)
+                        notes.append(f"work/{slug}/{name}: {detail}")
                         if ok is False:
                             errors.append(f"work/{slug}/{name}: dispatch attestation failed: {detail}")
-                        else:
-                            notes.append(f"work/{slug}/{name}: {detail}")
+                        elif ok is None and is_agent_identity(an, ae, av):
+                            # No token, so the trailer cannot be checked against the run. Fall back
+                            # to the author rule -- what the spec means by "accepted on the author
+                            # rule alone". Without this, an unverifiable trailer would be *better*
+                            # than no trailer at all: any agent could write two lines into a commit
+                            # message and skip the one check that applies with no token
+                            # (security pass on pull request 51).
+                            errors.append(
+                                f"work/{slug}/{name}: the commit that set status: {status} carries an "
+                                f"unverified dispatch trailer and is authored by an agent identity "
+                                f"({an} <{ae}>); a human must set it and commit"
+                            )
                 elif is_agent_identity(an, ae, av):
                     errors.append(
                         f"work/{slug}/{name}: the commit that set status: {status} is authored by an agent "

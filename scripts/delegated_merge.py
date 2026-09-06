@@ -501,7 +501,11 @@ def _grant_route_b(commit_detail, approvers_file, expected_handle, sha, on, disp
         return REFUSED, "grant commit %s: dispatch run-name %r does not name intent.md" % (
             sha[:12], title)
     committer = _get(commit_detail, "committer", "login") or ""
-    if norm(committer) not in (norm(BOT_LOGIN), WEB_FLOW_LOGIN):
+    # The bot and nothing else. `web-flow` is GitHub's signer for web-editor and API commits, which
+    # is route A's territory: mechanism 1 never produces it, because approve_dispatch.py sets the
+    # committer explicitly. Accepting it here would widen route B past what the plan's step 1
+    # concluded, for no case that can actually arise (pull request 51 plan-conformance pass).
+    if norm(committer) != norm(BOT_LOGIN):
         return REFUSED, ("grant commit %s was dispatched but committed by '%s', not '%s'"
                          % (sha[:12], committer, BOT_LOGIN))
     return OK, "granted%s by dispatch run %s, started by %s (committed by %s)" % (

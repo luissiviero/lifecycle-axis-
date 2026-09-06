@@ -88,4 +88,17 @@ Paths under RELEASE_GATED_PATHS with a named human owner (leave "(none)" if none
 - Revert the merge commit. Nothing is stateful: no migration, no stored data, no artifact front-matter field is added, so every existing artifact and every existing approval stays valid under the unchanged author rule. `approve.yml` disappearing from `main` makes the workflow unselectable in the Actions tab; the shell and web-editor routes are untouched throughout and remain the fallback.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- deviation: step 1 measured D7 by a different method than spec.md's D7 names, and this should have
+  been declared when the plan was signed rather than found by the review. D7 specifies "a throwaway
+  dispatch on a scratch branch that prints the API's own view of the commit it just made ... for each
+  mechanism". That is not performable from here, for two independent reasons: a `workflow_dispatch`
+  workflow is only selectable once its file is on a ref, so `approve.yml` cannot be dispatched before
+  the pull request that adds it merges; and R-9 forbids this session pressing Run at all. What step 1
+  did instead is retrospective evidence from this repository's own history — `git log -1 --format=%G?`
+  on commits GitHub made server-side (`72bf0ef`, `bf15030`: `E`) against commits pushed over git
+  (`82537ce`, `47dbbe8`, `c62bfe1`: `N`) — plus ruling mechanisms 2 and 3 out on R-4's own
+  requirements, which needs no measurement. The conclusion is the same one D7 anticipated, and the
+  evidence was independently re-verified in the plan-conformance pass on pull request 51. But it is
+  evidence about the *category* (any locally-made `git commit` + `git push`) rather than a direct
+  observation of a runner-made commit, so the owner may want to amend D7 to match; that is a spec
+  edit on a human-approved artifact and is theirs, not this session's, to make.

@@ -654,6 +654,14 @@ class GrantCommit(unittest.TestCase):
         self.assertEqual(verdict, dm.REFUSED)
         self.assertIn("mallory", detail)
 
+    def test_route_b_does_not_accept_web_flow_as_committer(self):
+        """web-flow is route A's signer for web-editor and API commits. Mechanism 1 never produces
+        it, so accepting it on route B would widen the route for no case that can arise."""
+        commit = self.dispatched_commit(committer={"login": "web-flow"})
+        verdict, detail = self.grant(commit=commit)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("web-flow", detail)
+
     def test_an_actor_without_the_product_owner_role_is_refused(self):
         commit = self.dispatched_commit(
             message="[demo] Approve intent.md\n\nApproved-Run: 12345\nApproved-Actor: mallory\n")

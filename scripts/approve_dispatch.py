@@ -33,6 +33,7 @@ stdlib only. Exit codes: 0 ok, 1 refused/usage error.
 """
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -42,6 +43,15 @@ import approvers  # noqa: E402
 
 BOT_NAME = "github-actions[bot]"
 BOT_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
+
+# The same shape delegated_merge.py's SLUG_RE enforces, and for the same reason. The workflow's
+# `tr -cd 'A-Za-z0-9._-'` strips slashes but keeps dots, so `..` survives it intact -- and a slug of
+# `..` makes work/<slug>/ resolve to the repository root, so `allowed_paths` would name root files
+# rather than the item's. Nothing at the root is called intent.md today, which is the only reason
+# that failed softly rather than letting a `contents: write` run commit outside the work item. A
+# containment rule that holds only because of what happens not to exist is not a containment rule
+# (security pass on pull request 51).
+SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*$")
 
 # Exactly what an approval may touch. approve.py writes the artifact, log.md and (with --activate)
 # .sdlc/active; gen_index.py's index.md is regenerated in the same tree. Anything else is a bug in
@@ -57,11 +67,18 @@ def git(*args, root=None, check=True):
 
 
 def allowed_paths(slug):
+    if not SLUG_RE.match(slug or ""):
+        raise SystemExit("approve-dispatch: refusing a slug that is not a plain work-item name: "
+                         "%r (it would name paths outside work/<slug>/)" % (slug,))
     return {f"work/{slug}/{name}" for name in CHAIN_FILES} | {".sdlc/active"}
 
 
-def check_actor(login, artifact, mode=None, ref=None, default_branch=None, root=None):
+def check_actor(login, artifact, mode=None, ref=None, default_branch=None, root=None,
+                slug=None):
     """(True, "ok") when `login` may decide `artifact`; otherwise (False, reason)."""
+    if slug is not None and not SLUG_RE.match(slug or ""):
+        return False, ("slug %r is not a plain work-item name; it would name paths outside "
+                       "work/<slug>/" % (slug,))
     path = os.path.join(root, ".sdlc", "approvers.yaml") if root else None
     av = approvers.load(path)
     ok, reason = av.is_valid(artifact, login)
@@ -167,7 +184,7 @@ def main(argv=None):
             print("approve-dispatch: --check-actor needs --artifact", file=sys.stderr)
             return 1
         ok, reason = check_actor(a.check_actor, a.artifact, mode=a.mode, ref=a.ref,
-                                 default_branch=a.default_branch, root=a.root)
+                                 default_branch=a.default_branch, root=a.root, slug=a.slug)
         if not ok:
             print(f"approve-dispatch: {a.check_actor} may not approve {a.artifact}: {reason}",
                   file=sys.stderr)

@@ -258,17 +258,26 @@ class ApproveDelegate(unittest.TestCase):
 
 LEDGER_LINE = re.compile(
     r"^- \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z (\|.*\|) [0-9a-f]{7,40} (\|.*)$")
+# log.md's own front matter carries a creation timestamp, written once when the file is first made
+# (approve.py's header block). Two fixtures that each create their log.md straddling a second
+# boundary differ there and nowhere else, which made this comparison intermittently red in a full
+# suite run while passing in isolation -- found by the plan-conformance review of pull request 51.
+HEADER_TS = re.compile(r"^timestamp: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 def ledger_comparable(text):
-    """Blank the ledger's two environment-dependent columns so the rest compares byte for byte.
+    """Blank every wall-clock and repository-local field so the rest compares byte for byte.
 
-    The timestamp is wall-clock to the second, so two runs a moment apart differ there; the sha is
-    `git rev-parse --short HEAD` on the repository the call ran in, and the two fixtures are
-    separate `git init`s. Neither is written by the code under test in a way --from-dispatch could
-    change, and every other column -- artifact, from -> to, actor, note -- is compared exactly
-    (work/approve-by-dispatch R-3)."""
-    return "\n".join(LEDGER_LINE.sub(r"- <ts> \1 <sha> \2", line) for line in text.split("\n"))
+    Three of them: the ledger line's timestamp, the ledger line's sha (`git rev-parse --short HEAD`
+    in whichever repository the call ran in, and the two fixtures are separate `git init`s), and
+    log.md's front-matter creation timestamp. None is written by the code under test in a way
+    --from-dispatch could change, and every other column -- artifact, from -> to, actor, note --
+    is compared exactly (work/approve-by-dispatch R-3)."""
+    out = []
+    for line in text.split("\n"):
+        line = LEDGER_LINE.sub(r"- <ts> \1 <sha> \2", line)
+        out.append(HEADER_TS.sub("timestamp: <ts>", line))
+    return "\n".join(out)
 
 
 class ApproveFromDispatch(unittest.TestCase):

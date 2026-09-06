@@ -134,6 +134,52 @@ class Mode(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("default branch", reason)
 
+    def test_the_workflow_requires_an_explicit_slug_for_a_grant(self):
+        """Security pass on pull request 51: `run-name` can only interpolate the raw input, and
+        route B binds the grant to the run-name. A grant dispatched with a blank slug would produce
+        an empty slug segment there and be refused at merge time."""
+        wf = os.path.join(REPO, ".github", "workflows", "approve.yml")
+        with open(wf, encoding="utf-8") as f:
+            text = f.read()
+        self.assertIn('[ -z "$slug" ] && [ "$MODE" = delegated ]', text)
+        self.assertIn("must name its slug explicitly", text)
+
+
+class SlugContainment(unittest.TestCase):
+    """Security pass on pull request 51: the workflow's `tr -cd 'A-Za-z0-9._-'` keeps dots, so `..`
+    reaches the script intact and would make work/<slug>/ resolve to the repository root."""
+
+    def setUp(self):
+        self.root = make_repo()
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_allowed_paths_refuses_a_traversing_slug(self):
+        for bad in ("..", ".", "../..", ".git", "..hidden"):
+            with self.assertRaises(SystemExit, msg=bad):
+                approve_dispatch.allowed_paths(bad)
+
+    def test_allowed_paths_accepts_a_normal_slug(self):
+        for good in ("demo", "approve-by-dispatch", "item_1", "v1.2"):
+            paths = approve_dispatch.allowed_paths(good)
+            self.assertIn("work/%s/intent.md" % good, paths)
+
+    def test_allowed_paths_never_escapes_the_work_directory(self):
+        for path in approve_dispatch.allowed_paths("demo"):
+            self.assertTrue(path.startswith("work/demo/") or path == ".sdlc/active", path)
+
+    def test_check_actor_refuses_a_traversing_slug(self):
+        ok, reason = approve_dispatch.check_actor("luissiviero", "intent.md", root=self.root,
+                                                  slug="..")
+        self.assertFalse(ok)
+        self.assertIn("work/<slug>/", reason)
+
+    def test_check_actor_accepts_a_normal_slug(self):
+        ok, reason = approve_dispatch.check_actor("luissiviero", "intent.md", root=self.root,
+                                                  slug="demo")
+        self.assertTrue(ok, reason)
+
 
 class Commit(unittest.TestCase):
     """R-4: the trailers, the split identity, and the staged-path allowlist."""
