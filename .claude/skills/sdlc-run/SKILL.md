@@ -8,6 +8,11 @@ Precondition: `.sdlc/delegation.yaml` exists with `enabled: true`; `work/<slug>/
 and `mode: delegated` with a `risk-class` the policy lists; `.sdlc/active` names the slug. If any fails, stop at
 the first gate and say which.
 
+Missing the grant is the common failure, and it is one tap to fix: ask the owner to run
+**Actions -> approve -> Run workflow** (`.github/workflows/approve.yml`) with `slug` = the item, `artifact` = `intent.md`, `mode` = `delegated`,
+from the default branch (the workflow refuses a grant on any other ref). Then wait. Naming the inputs is not
+approving; the run records who pressed Run, and that record is what the chain check and the merge script verify.
+
 1. `/sdlc-spec`, then `python3 scripts/sign.py <slug> spec.md`.
 2. `/sdlc-plan`, then `python3 scripts/sign.py <slug> plan.md` (the plan gate opens on a signed plan under the grant).
 3. Implement on the session's own branch, whose prefix is in `AGENT_BRANCH_PREFIXES` (`.sdlc/config.env`, for

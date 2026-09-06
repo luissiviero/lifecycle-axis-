@@ -12,7 +12,7 @@ Precondition: `work/<slug>/spec.md` is approved. Work in plan mode; do not edit 
 4. Map each spec requirement to the test that will prove it under `## Proof`.
 5. Write with `status: in-review`. When the intent has `mode: delegated`, run `python3 scripts/sign.py <slug> plan.md`
    and continue implementing — the plan gate opens on a signed plan under the grant. Otherwise stop: implementation
-   hooks stay closed until a human sets `status: approved`.
+   hooks stay closed until a human sets `status: approved`. Ask for the tap: give the owner the three inputs to pick in the Actions tab (**Actions -> approve -> Run workflow**, `.github/workflows/approve.yml`): `slug`, `artifact`, `mode`. Naming the inputs is not approving -- the owner reads the artifact and chooses, and the run records who chose.
 
 During implementation: if you must deviate, edit `## Files that change` and
 `## Deviations log (append during implementation; same commit as the deviation)` in the same commit as the code

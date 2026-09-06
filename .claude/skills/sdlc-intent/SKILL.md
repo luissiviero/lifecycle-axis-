@@ -15,6 +15,7 @@ You are producing the first link in the artifact chain. Do not design or plan ye
 4. Write the file with `status: in-review` and `risk-class` from the answer. Always write `mode: supervised`:
    `delegated` on the intent is a grant only a human writes, with `scripts/approve.py --delegate` from their own
    shell or by editing the four grant keys in the GitHub web editor. Print the path and the open questions.
-5. Stop. A human sets `status: approved` and `approved-by`. Never set them yourself.
+5. Stop. A human sets `status: approved` and `approved-by`. Never set them yourself. Ask for the tap: give the owner the three inputs to pick in the Actions tab (**Actions -> approve -> Run workflow**, `.github/workflows/approve.yml`): `slug`, `artifact`, `mode`. Naming the inputs is not approving -- the owner reads the artifact and chooses, and the run records who chose. For an intent that is also to carry a grant, the owner picks `mode: delegated` there; the
+   workflow refuses a delegated grant on any ref but the default branch.
 
 Done means: every success criterion is observable and has a number or a test attached.
