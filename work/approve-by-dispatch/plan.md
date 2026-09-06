@@ -113,3 +113,10 @@ Paths under RELEASE_GATED_PATHS with a named human owner (leave "(none)" if none
   second that happened not to tick (`test_approve.py`, found by the plan-conformance review). Both
   are the same thing: the fixture did not supply what the test depended on. The lesson and its two
   pointer lines land in this pull request, as rule 7 and REVIEW.md's Memory pass both require.
+- deviation: `docs/sdlc/rules/30-conventions.md` gains a convention the spec does not ask for — a review
+  runs on a different model from the writer, and the item's ledger records both. The file is already in the
+  list above (for R-10), but the reason is new, so it is logged rather than folded in silently. The trigger
+  is this item's own history: three review rounds, each finding real defects in the previous round's fixes,
+  and two of those defects were introduced *by* the fix before them. That is the strongest evidence in this
+  repository for why the writer must not be the only reviewer, and it would be lost if it stayed in a chat
+  log. The owner writes the model names, here and on the ledger.
