@@ -9,12 +9,13 @@ timestamp: 2026-09-05T04:48:42Z
 # Session handoff (read this first after any context reset)
 
 ## How to resume in a NEW session (container state is gone; only git survives)
-1. Read, in this order, from branch `claude/session-handoff` (also PR'd): `docs/sdlc/handoff/HANDOFF.md`
-   (this file), `docs/sdlc/handoff/PLAN.md` (the approved implementation plan), and only if a
-   finding needs re-checking, `docs/sdlc/handoff/consensus.md` and `docs/sdlc/handoff/lifecycle-axis-vs-playbook.md`.
-2. Re-create the task list (12 items, statuses in "Task state" below).
+1. Read, in this order, from `main`: `docs/sdlc/handoff/HANDOFF.md` (this file), then
+   `work/delegated-mode/plan.md` (the last item's plan; its deviations log is the most recent design record)
+   and `knowledge/decisions/delegated-mode.md`. The older handoff files beside this one (`PLAN.md`,
+   `consensus.md`, `lifecycle-axis-vs-playbook.md`) are the record of the 2026-09-04 plan, all merged.
+2. No task list to re-create: no work item is open. The next act is a human grant (see "Task state").
 3. Re-arm an hourly `send_later` check-in and subscribe to each PR you open (`subscribe_pr_activity`).
-   The previous session deleted its trigger on handoff so two sessions never act on the same PR.
+   Every earlier session deleted its trigger on handoff so two sessions never act on the same PR.
 4. Continue at "Task state" below. ("Current state" is history from 2026-09-05 ~01:50 UTC and
    describes Batch B as still to open; it is kept as a record, not as instructions.)
 5. Helper scripts (copies in `docs/sdlc/handoff/`): `place.sh <slug> <title>` opens a chain
@@ -44,11 +45,16 @@ timestamp: 2026-09-05T04:48:42Z
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-05 ~21:00 UTC)
+## Task state (2026-09-06 ~01:20 UTC)
 - **`work/delegated-mode` is merged, in four pull requests**: #42 (1a, the vocabulary — `delegation.py`, the
-  chain check's `delegated` branch, the decision record), #43 (1b, the act — the hooks, `scripts/sign.py`,
-  `approve.py --delegate`), #44 (1c, the prose — skills, rule fragments, this doc set), and this one (2, the
-  merge). The repo now runs two modes side by side: supervised, where a human writes the `approved` status
+  chain check's `delegated` branch, the decision record; fce28c0), #43 (1b, the act — the hooks,
+  `scripts/sign.py`, `approve.py --delegate`; 2e01c12), #44 (1c, the prose — skills, rule fragments, this doc
+  set; 924f5c0) and #45 (2, the merge — `delegated-merge.yml`, `scripts/delegated_merge.py`; 1851edd). The
+  session that built it ended after #45; nothing of the item is open, and the plan's step 6 below is the next
+  act. #45's merge script carries the security pass's seven fixes (the grant read from the base branch, the
+  committer as well as the author checked, the review verdict bound to a `pr-review` run, `pull_request`-only
+  required runs, renames and a locked-path floor, the slug bound to `.sdlc/active`): `plan.md`'s deviations
+  log and the decision record's residuals are the record. The repo now runs two modes side by side: supervised, where a human writes the `approved` status
   as `human-only-approvals.md` always required; and delegated, where an agent signs the `delegated` status
   under a grant and `.github/workflows/delegated-merge.yml` merges the pull request once every printed
   condition holds, no click needed.

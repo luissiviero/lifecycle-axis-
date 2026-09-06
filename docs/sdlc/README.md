@@ -86,6 +86,7 @@ scripts/detect_bands.py          deterministic Western Electric detector (traili
 .github/workflows/bands.yml      daily: matrix from bands.yaml, collect GitHub metrics (kept as a run artifact), run the band detector, file an issue on a breach or comment on the open one
 .github/workflows/deploy.yml     workflow_dispatch behind a GitHub Environment; the only place scripts/deploy.sh runs
 .github/workflows/pr-review.yml  reviews against REVIEW.md on PR open with no Bash; quotes Chain/Verify from the gate run; posts via the action's tracking comment
+.github/workflows/delegated-merge.yml  on workflow_run completion, from main only: scripts/delegated_merge.py prints every condition and merges a delegated pull request as github-actions[bot]; workflow_dispatch with a head sha is a dry run
 ```
 
 ### Enforcement matrix
