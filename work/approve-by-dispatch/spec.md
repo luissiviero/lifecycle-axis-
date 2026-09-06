@@ -27,13 +27,14 @@ timestamp: 2026-09-06T15:45:00Z
 | R-3 | `scripts/approve.py` gains `--from-dispatch RUN_ID` (with `--as` required alongside it): it skips the `CLAUDECODE` refusal only when `GITHUB_ACTIONS=true` and `GITHUB_RUN_ID` equals the value, records the run id for the commit trailer, and changes nothing else about what it writes | one tap | `scripts/test_approve.py::ApproveFromDispatch`: `--from-dispatch` outside Actions exits 3; inside a faked Actions env writes exactly the same files as a plain run (byte-compared); the ledger line and front matter are unchanged |
 | R-4 | The workflow commits what `approve.py` wrote with `author` set to the actor's GitHub identity (`<id>+<login>@users.noreply.github.com`, resolved from the users API) and `committer` set to `github-actions[bot]`, and the message ends with the trailers `Approved-Run: <run id>` and `Approved-Actor: <login>`. It pushes to the dispatch ref. Nothing else is staged: `git status --porcelain` after the run lists only the item's files and `.sdlc/active` | one tap; the tap is the human act | `scripts/test_approve_dispatch.py::Commit`: the message ends with both trailers; the author matches the actor and the committer is the bot; a diff containing any other path aborts the push |
 | R-5 | `scripts/check_artifact_chain.py` accepts a dispatch-made approval: when the commit that introduced `status: approved` carries an `Approved-Run:` trailer, the author check reads the trailer's `Approved-Actor` as the deciding handle and requires it to equal the artifact's `approved-by`; the existing git-author rule still applies to every commit without the trailer | one tap; the tap is the human act | `scripts/test_check_artifact_chain.py::ApprovalAuthor`: a trailer commit whose `Approved-Actor` matches passes; one whose trailer names a different handle than `approved-by` fails; an agent-authored commit with no trailer still fails |
-| R-6 | When a token is available (`GH_TOKEN` or `GITHUB_TOKEN`), the chain check verifies the trailer against the run: the run exists in this repository, its `event` is `workflow_dispatch`, its `path` is `.github/workflows/approve.yml`, its `conclusion` is `success`, and its `actor.login` equals `Approved-Actor`. A mismatch fails; no token means the trailer is accepted on the author rule alone and the run says so in one note line | the tap is the human act | `scripts/test_check_artifact_chain.py::DispatchAttestation`: a fixture run with a different actor, a different workflow path or a different event fails; with no token the check passes and prints the note |
-| R-7 | `scripts/delegated_merge.py` accepts a dispatch-made grant: `check_grant_commit` takes a third path beside "product-owner committer" and "web-flow", namely a commit whose `Approved-Run:` trailer resolves to a successful `workflow_dispatch` run of `.github/workflows/approve.yml` in this repository whose actor holds `product-owner` and equals the intent's `delegated-by`. Every other condition is unchanged, and a trailer that does not resolve is refused | one tap | `scripts/test_delegated_merge.py::GrantCommit`: a trailer commit with a matching run is ok; with a run of another workflow, another event, a failed conclusion, another actor, or no run at all, refused; the existing unverified-signature and spoofed-author cases still refuse |
+| R-6 | When a token is available (`GH_TOKEN` or `GITHUB_TOKEN`), the chain check verifies the trailer against the run: the run exists in this repository, its `event` is `workflow_dispatch`, its `path` is `.github/workflows/approve.yml`, its `conclusion` is `success`, and its `actor.login` equals `Approved-Actor`. A mismatch fails; no token means the trailer is accepted on the author rule alone and the run says so in one note line. The scope and the token that make this path live in CI are R-13; without them the check would silently take the no-token path in the one place the attestation is relied on | the tap is the human act | `scripts/test_check_artifact_chain.py::DispatchAttestation`: a fixture run with a different actor, a different workflow path or a different event fails; with no token the check passes and prints the note |
+| R-7 | `scripts/delegated_merge.py` accepts a dispatch-made grant through a route that **substitutes** conditions rather than adding one: `check_grant_commit` is restructured so the identity conditions are evaluated per route, not as a single fall-through. Route A (today's, unchanged in behaviour): `verification.verified` and `reason == "valid"`, author holds `product-owner` and equals `delegated-by`, committer holds `product-owner` or is `web-flow`. Route B (new), taken only when the commit carries an `Approved-Run:` trailer: the trailer resolves to a successful `workflow_dispatch` run of `.github/workflows/approve.yml` in this repository whose `actor.login` holds `product-owner`, equals `Approved-Actor`, and equals the intent's `delegated-by`, and whose `run-name` names this slug and `intent.md`; which of the signature and committer conditions route B keeps is decided by the plan's step 1 (D7, C6). A trailer that does not resolve is refused outright, never falling back to route A | one tap | `scripts/test_delegated_merge.py::GrantCommit`: a route-B commit with a matching run is ok; with a run of another workflow, another event, a failed conclusion, another actor, a `run-name` naming another slug or artifact, or no run at all, refused; every existing route-A case (unverified signature, spoofed author, bot committer with no trailer) still refuses unchanged |
 | R-8 | With `mode: delegated` the workflow refuses unless the dispatch ref is the repository's default branch, and passes `--delegate --activate` so the grant and `.sdlc/active` land on `main` | both directions, per item | `scripts/test_approve_dispatch.py::Mode`: a delegated dispatch on a non-default ref fails naming the ref; a supervised dispatch on any ref proceeds; the delegated call carries both flags |
 | R-9 | An agent session still cannot press it: `production-gate.sh` continues to catch `gh workflow run` (ask when attended, block when unattended), and `protect-approvals.sh` continues to refuse a Bash command naming `approve.py` | the AI still cannot press it | `evals/cases/gate-blocks-workflow-dispatch.yaml`: an unattended session running `gh workflow run approve.yml` is blocked; `evals/cases/approve-refuses-in-agent-session.yaml` still passes unchanged |
 | R-10 | The skills ask for the tap instead of "wait for a human": `sdlc-intent`, `sdlc-spec`, `sdlc-plan`, `sdlc-incident` and `sdlc-run` name the three inputs to give the owner (`slug`, `artifact`, `mode`); the rule fragments and `docs/sdlc/README.md`'s matrix say the tap is the human act; `docs/sdlc/github-setup.md` and `docs/sdlc/handoff/HANDOFF.md` carry the routine | one tap | `scripts/checks/context-drift.sh` passes; `wc -l CLAUDE.md` ≤ 120; `grep -c 'approve.yml' .claude/skills/*/SKILL.md` ≥ 4; `python3 scripts/check_okf.py` ends `0 warnings` |
 | R-11 | `knowledge/decisions/approve-by-dispatch.md` amends `delegated-mode.md` and `human-only-approvals.md`: the human act is the tap, recorded by GitHub, and `approved` is still a word only a human causes to be written | the tap is the human act | `python3 scripts/check_okf.py` ends `0 warnings`; `grep -c approve-by-dispatch knowledge/decisions/human-only-approvals.md knowledge/decisions/delegated-mode.md` prints 1 each; `knowledge/decisions/index.md` lists it |
 | R-12 | The whole loop is green: `scripts/verify.sh` ends `VERIFY: PASS`, the chain check ends `CHAIN: PASS`, `scripts/run_evals.sh` ends `0 fail`, `check_okf.py` ends `0 warnings` | every outcome | those four last lines, pasted in the pull request |
+| R-13 | `.github/workflows/sdlc-gate.yml` grants `actions: read` alongside `contents: read`, and its "Artifact chain" step receives `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` in its `env:`, in the same pull request that lands R-6. No other workflow gains a scope: `delegated-merge.yml` already declares `actions: read` (`.github/workflows/delegated-merge.yml:55`), so R-7's route B needs nothing there | the tap is the human act | `scripts/test_check_workflow_permissions.py::SdlcGate`: the parsed `permissions` block of `sdlc-gate.yml` equals `{contents: read, actions: read}` and the chain step's `env` names `GH_TOKEN`; the run of the chain check on this repository's own pull request resolves the trailer instead of printing the no-token note |
 
 ## Design
 
@@ -91,10 +92,21 @@ commit alone.
   `gh api repos/{repo}/actions/runs/{id}` when a token is present. The existing
   `git log -n1 --format=%an%x00%ae -G '^status: approved$'` call stays as the path for every commit with
   no trailer.
-- `delegated_merge.py`: `check_grant_commit(..., dispatch=None)` where `dispatch` is the resolved run for
-  the grant commit; the third acceptance path is `dispatch.event == "workflow_dispatch"`,
-  `dispatch.path == ".github/workflows/approve.yml"`, `dispatch.conclusion == "success"`,
-  `dispatch.actor.login` holds `product-owner` and equals the intent's `delegated-by`.
+- `.github/workflows/sdlc-gate.yml`: `permissions: {contents: read, actions: read}`, and the "Artifact
+  chain" step's `env:` gains `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` beside `BASE_REF` and `SLUG`. The
+  scope covers exactly one endpoint, `repos/{repo}/actions/runs/{id}`, and no other step or workflow
+  changes.
+- `delegated_merge.py`: `check_grant_commit(commit_detail, approvers_file, expected_handle=None,
+  base_ref=None, dispatch=None)`. The body splits into `_grant_route_a(...)` (today's conditions in
+  today's order, the only route when `dispatch` is None) and `_grant_route_b(...)`
+  (`dispatch.event == "workflow_dispatch"`, `dispatch.path == ".github/workflows/approve.yml"`,
+  `dispatch.conclusion == "success"`, `dispatch.actor.login` holds `product-owner` and equals both
+  `Approved-Actor` and the intent's `delegated-by`, and `dispatch.display_title` names the slug and
+  `intent.md`). The signature gate that today runs first
+  (`scripts/delegated_merge.py:440-441`, `if not verified or reason != "valid": return REFUSED`) moves
+  inside route A, because it would otherwise refuse every route-B commit before the route is chosen; if
+  the plan's step 1 shows a dispatch-made commit can be GitHub-signed, route B keeps the gate too and the
+  move is presentational.
 
 ### Data and migrations
 
@@ -113,7 +125,11 @@ regulated).
 - The push races another push to the same ref → the push fails, the run is red, nothing is half-applied
   (the commit is local to the runner). The owner taps again.
 - No token where the chain check runs (a local `verify.sh`) → the trailer is accepted on the author rule
-  and the run prints one note line saying the attestation was not verified. CI always has a token.
+  and the run prints one note line saying the attestation was not verified. In CI the token and the
+  `actions: read` scope are R-13's, granted in the same pull request as R-6; a workflow that shipped the
+  code without them would take this same path silently, which is the failure
+  `knowledge/lessons/workflow-permissions-name-every-api.md` records, so R-13's oracle reads the parsed
+  permissions block rather than trusting that a token is present.
 - The Actions API is unreachable from the merge script → `MergeError`, the merge is refused, the pull
   request waits. Fail closed, as every other condition there does.
 
@@ -132,15 +148,23 @@ regulated).
 - C3: anyone with write access can press Run, not only the owner — policy: `.sdlc/approvers.yaml` —
   contradiction? no — owner: luissiviero — resolution: pressing is not deciding; the workflow refuses an
   actor outside the artifact's role before writing, and on this repository that role is the owner alone.
-- C4: `delegated_merge.py` gains a third acceptance path, so the grant no longer always carries a GitHub
+- C4: `delegated_merge.py` gains a second acceptance route, so a grant may no longer carry a GitHub
   signature — policy: `knowledge/decisions/delegated-mode.md` decision 6 — contradiction? partial —
   owner: luissiviero — resolution: the signature was a proxy for "a human caused this"; the run record is
-  a stronger proxy, since it names the actor server-side and cannot be set by the commit. Both paths stay;
-  the new one is not a fallback but an alternative with its own conditions, and a trailer that fails to
-  resolve is refused rather than falling back.
+  a stronger proxy, since it names the actor server-side and cannot be set by the commit. Both routes
+  stay; route B is not a fallback but an alternative with its own conditions, and a trailer that fails to
+  resolve is refused rather than falling back to route A.
 - C5: the session that drafts an item also tells the owner which inputs to tap — policy:
   security-standards §8 — contradiction? no — owner: luissiviero — resolution: naming the inputs is not
   approving; the owner reads the artifact and chooses, and the run records who chose.
+- C6: this spec cannot say whether a dispatch-made commit is GitHub-signed, and R-7's route B is written
+  around that gap — policy: security-standards §8 (evidence, not opinion) — contradiction? no — owner:
+  luissiviero — resolution: the session that wrote this spec has no way to make a commit from an Actions
+  run, so the three candidate mechanisms' signing and identity semantics (D7) are read from documentation,
+  not measured. R-4 and R-7 therefore state the property required rather than the mechanism, and the
+  plan's first step is the measurement that closes this concern before any code is written. Should the
+  measurement show that a mechanism yields both a valid signature and the actor as author, route B keeps
+  the signature condition and the two routes differ only in how the actor is established.
 
 ## Open questions carried from intent.md
 
@@ -156,7 +180,9 @@ regulated).
   is git-only and reads the commit author; the merge script reads the API and wants a signature; neither
   can see a dispatch by itself. Decision: the run writes `Approved-Run` and `Approved-Actor` trailers, and
   both checkers gain a path that resolves them against the Actions API. Consequences: one new API surface
-  for the chain check (`actions: read` on `sdlc-gate.yml`), and the trailer becomes the audit anchor.
+  for the chain check, which R-13 grants explicitly on `sdlc-gate.yml` rather than leaving to the code
+  change alone (`knowledge/lessons/workflow-permissions-name-every-api.md`), and the trailer becomes the
+  audit anchor.
 - D2: **Author is the actor, committer is the bot.** Alternative considered: commit entirely as
   `github-actions[bot]`. Rejected because `is_agent_identity` matches `[bot]@` in the email, so every
   dispatch-made approval would need the API path to pass the chain check, which fails closed on a local
@@ -175,6 +201,19 @@ regulated).
 - D6: **The staged-path allowlist is in the committer, not in the workflow.** A shell `git add work/...`
   would glob; the script compares `git status --porcelain` against the exact list and aborts on anything
   else, so a stray file from a future change to `approve.py` cannot ride along.
+- D7: **Which commit mechanism the workflow uses is decided by measurement, in the plan's step 1, not
+  asserted here.** Context: three mechanisms are available and they differ in exactly the two fields the
+  checkers read. A plain `git commit` + `git push` on the runner sets any author and committer but is
+  unsigned, so `verification.verified` is false. The REST contents API (`PUT .../contents/{path}`) accepts
+  explicit `author` and `committer` objects and GitHub signs what it writes, but it writes one file per
+  call, so an approval touching the artifact, `log.md`, `index.md` and `.sdlc/active` becomes three or
+  four commits. The GraphQL `createCommitOnBranch` writes every file in one signed commit but sets both
+  author and committer to the token's own identity, which `is_agent_identity` reads as an agent. Decision:
+  the plan's first step is a throwaway dispatch on a scratch branch that prints the API's own view of the
+  commit it just made (`verification.verified`, `verification.reason`, `author.login`, `committer.login`)
+  for each mechanism, and the plan picks from the measurement. Consequences: R-4 and R-7 are written to
+  the property required (attributable author, resolvable trailer, refusal on a mismatch), not to a
+  mechanism; the measurement lands in the plan's gotchas so the next reader does not have to repeat it.
 
 ## Gotchas found while reading the codebase
 
@@ -214,7 +253,9 @@ regulated).
 - Pre-filling the dispatch inputs from a link: GitHub offers no URL that populates a `workflow_dispatch`
   form, so the AI hands the owner three values to pick, not a one-click link.
 - A demotion or a revocation route: out of scope by the intent's own answer; both stay web-editor edits.
-- Signing the dispatch-made commit: the runner has no key, and the run record replaces the signature for
-  the one check that wanted it (C4). Stated here as security-standards §2's "state the authz rule": the
-  authz rule for every write this workflow makes is "the run's actor holds the artifact's role".
+- Requiring a GitHub signature on the dispatch-made commit: the run record replaces the signature for the
+  one check that wanted it (C4), and whether a signature is available at all depends on the mechanism the
+  plan measures (D7, C6), so no requirement here demands one. Stated as security-standards §2's "state the
+  authz rule": the authz rule for every write this workflow makes is "the run's actor holds the artifact's
+  role", established by the run, not by the commit.
 - Changing `.sdlc/approvers.yaml`, `.sdlc/delegation.yaml` or `.sdlc/config.env`.
