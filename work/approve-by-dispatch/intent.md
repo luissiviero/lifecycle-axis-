@@ -4,10 +4,10 @@ id: approve-by-dispatch
 title: Give permission for the AI to change from one mode to the other when I request, without doing everything manually
 description: "Make every approval and every delegation grant one tap in the Actions tab: a workflow_dispatch workflow that writes what approve.py writes, with GitHub's own record of who pressed Run as the human act, so the owner chooses supervised or delegated per item on request and never edits a file by hand."
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), interviewed by Claude in the session that closed work/delegated-mode
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-06
 risk-class: low
 mode: supervised
 delegated-by:
