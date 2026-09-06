@@ -32,11 +32,15 @@ import re
 import subprocess
 import sys
 
-# Rule (b) allowlist: workflow files permitted to declare `contents: write`.
-# Empty -- this repo grants no exceptions. A workflow that legitimately
-# needs to write should narrow the permission to itself and add its path
-# here in a reviewed PR, not by editing around this checker.
-CONTENTS_WRITE_ALLOWLIST = ()
+# Rule (b) allowlist: workflow files permitted to declare `contents: write`,
+# as repo-relative paths with forward slashes. One entry: the delegated-merge
+# workflow, which merges a delegated pull request through the API and needs
+# `contents: write` for the merge endpoint (work/delegated-mode R-14, D6). It
+# runs from the default branch and never checks out the pull request head. A
+# workflow that legitimately needs to write should narrow the permission to
+# itself and add its path here in a reviewed PR, not by editing around this
+# checker.
+CONTENTS_WRITE_ALLOWLIST = (".github/workflows/delegated-merge.yml",)
 
 CONTENTS_WRITE_RE = re.compile(r"(?<![\w-])contents\s*:\s*['\"]?write['\"]?(?![\w-])")
 PERMISSIONS_WRITE_ALL_RE = re.compile(
@@ -115,8 +119,18 @@ def check_pull_request_target(lines):
     ]
 
 
-def check_contents_write(lines, path):
-    if path in CONTENTS_WRITE_ALLOWLIST:
+def relative_path(path, root):
+    """`path` as the repo-relative, forward-slash spelling the allowlist uses.
+
+    `default_files` yields absolute paths and a caller may pass either form, so
+    the comparison normalises first; before this the allowlist compared the raw
+    argument and could never match (work/delegated-mode R-14)."""
+    rel = os.path.relpath(os.path.abspath(path), os.path.abspath(root or repo_root()))
+    return rel.replace(os.sep, "/")
+
+
+def check_contents_write(lines, path, root=None):
+    if relative_path(path, root) in CONTENTS_WRITE_ALLOWLIST:
         return []
     return [
         (lineno, "contents-write", "contents: write is not allowed (no allowlist entry for this file)")
@@ -140,12 +154,12 @@ def check_top_level_permissions(lines):
     return [(1, "missing-permissions", "workflow has no top-level `permissions:` key")]
 
 
-def check_file(path):
+def check_file(path, root=None):
     lines = list(read_lines(path))
     violations = []
     violations += check_anchors_aliases(lines)
     violations += check_pull_request_target(lines)
-    violations += check_contents_write(lines, path)
+    violations += check_contents_write(lines, path, root)
     violations += check_write_all(lines)
     violations += check_top_level_permissions(lines)
     return sorted(violations, key=lambda v: v[0])
@@ -166,7 +180,7 @@ def main(argv=None):
 
     total = 0
     for path in files:
-        for lineno, rule, detail in check_file(path):
+        for lineno, rule, detail in check_file(path, root):
             print(f"VIOLATION {path}:{lineno} {rule} {detail}")
             total += 1
     print(f"WORKFLOWS: {len(files)} files, {total} violations")

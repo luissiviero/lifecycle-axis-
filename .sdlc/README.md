@@ -1,7 +1,8 @@
-`.sdlc/` is the control plane for this repo's SDLC loop. Agents cannot edit it (see `protect-paths.sh`). This repo's own sessions run with `SDLC_CONTROL_PLANE_UNLOCK=1` (`knowledge/decisions/self-hooks-on.md`), which lets a write here through with a line in `hook-decisions.log` and a `systemMessage`, but never to `release-authorizations/`, `approvers.yaml` or `hook-decisions.log` itself.
+`.sdlc/` is the control plane for this repo's SDLC loop. Agents cannot edit it (see `protect-paths.sh`). This repo's own sessions run with `SDLC_CONTROL_PLANE_UNLOCK=1` (`knowledge/decisions/self-hooks-on.md`), which lets a write here through with a line in `hook-decisions.log` and a `systemMessage`, but never to `release-authorizations/`, `approvers.yaml`, `delegation.yaml` or `hook-decisions.log` itself.
 
 - `config.env` — path classes and verify commands used by hooks, CI, and scripts.
 - `active` — slug of the work item the current session is implementing (`work/<slug>/`).
+- `delegation.yaml` — policy for delegated mode: which handles may sign, which artifacts, which risk classes, the deviation cap, the revision rule, and the merge conditions. Human-only, never-unlock; a missing file or `enabled: false` turns delegated mode off everywhere.
 - `release-authorizations/<sha>` — one file per human-authorized release; created by a human from their own shell (the control-plane unlock never covers it), and it counts only when its `approved-by` holds `release-manager` in `approvers.yaml`; checked by `production-gate.sh` and `scripts/deploy.sh`.
 - `APPROVERS_FILE` — path to the roles/approvers file used to validate `approved-by` in chain artifacts.
 - `KNOWLEDGE_PATHS` — directories scanned by the OKF conformance checker.

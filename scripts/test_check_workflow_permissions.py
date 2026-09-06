@@ -101,6 +101,27 @@ class CheckFile(unittest.TestCase):
             rules = [r for _, r, _ in violations]
             self.assertIn("contents-write", rules)
 
+    def test_allowlist_matches_relative_path(self):
+        # work/delegated-mode R-14: default_files() yields absolute paths, and the allowlist
+        # holds repo-relative ones, so the comparison must normalise or no entry ever matches.
+        body = CONFORMING.replace("contents: read", "contents: write")
+        with tempfile.TemporaryDirectory() as d:
+            wf = os.path.join(d, ".github", "workflows")
+            os.makedirs(wf)
+            allowed = _write(wf, "delegated-merge.yml", body)
+            other = _write(wf, "other.yml", body)
+            rules = [r for _, r, _ in cwp.check_file(allowed, root=d)]
+            self.assertNotIn("contents-write", rules, "the allowlisted file, passed as an absolute path")
+            self.assertIn("contents-write", [r for _, r, _ in cwp.check_file(other, root=d)])
+            # A relative argument is resolved against the working directory, as any CLI path is.
+            rel = _run([os.path.join(".github", "workflows", "delegated-merge.yml"), "--root", d], cwd=d)
+            self.assertEqual(rel.returncode, 0, rel.stdout)
+            # The CLI resolves against --root the same way.
+            result = _run(["--root", d])
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("other.yml", result.stdout)
+            self.assertNotIn("delegated-merge.yml:", result.stdout)
+
     def test_contents_read_is_not_flagged(self):
         with tempfile.TemporaryDirectory() as d:
             path = _write(d, "good.yml", CONFORMING)

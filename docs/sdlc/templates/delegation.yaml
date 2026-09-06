@@ -48,8 +48,11 @@ merge:
   enabled: true
   # require-review: wait for the claude[bot] tracking comment to end `Important: 0` before merging.
   require-review: true
-  # require-checks: check-run names that must all be completed and successful on the head SHA.
-  require-checks: [sdlc-gate, agent-evals, pr-review]
+  # require-checks: workflow names that must all have a completed, successful run on the head SHA.
+  # List only workflows that run on every pull request: a workflow with a `paths:` filter
+  # (agent-evals.yml) has no run at all for a diff outside those paths, and the merge script refuses
+  # a missing run rather than waiting forever. Every other check run on the head must still be green.
+  require-checks: [sdlc-gate, pr-review]
   # method: the merge method passed to the GitHub API. Never squash: squash-merging would re-author
   # every agent-signed commit as the person who clicked, which the -G author checks read.
   method: merge

@@ -114,6 +114,24 @@ the owner's attention was never the scarce resource.
   `require-review` condition simply never becomes true; the pull request waits for the owner, same
   as a missing policy file. The owner can lower `require-review` in `.sdlc/delegation.yaml`; that is
   a deliberate loosening, not a default.
+- **The merge script trusts only what the judged diff cannot have written.** The grant (the intent
+  and the commit that added it) is read from the base branch, never the head; the review verdict is
+  read only from the tracking comment that links a successful `pr-review` run of the head sha, the
+  earliest such comment, which the action opens when its run starts; the required workflows are the
+  `pull_request` runs on the head branch, all of them green; the grant commit's committer, not only
+  its author, must be the product owner or GitHub's own `web-flow` signer; the slug must be the one
+  `.sdlc/active` names on the base; and a floor of always-locked prefixes (`.github`, `.claude`,
+  `.gemini`, the rule and template sources, the context files, `REVIEW.md`, `.sdlc`, the verify
+  loop) sits beneath the policy's `locked-paths`, renames included. Each of these closed a hole the
+  security pass on pull request 45 found; the residual that stays is the identity boundary above: a
+  session holding the owner's own login can make a `web-flow` grant commit through the API, and a
+  grant stays a merge lane for its slug until `.sdlc/active` moves on.
+- **The advisory reviewer cannot see a pull request's own changes to `.claude/` or `CLAUDE.md`.**
+  `pr-review.yml` restores both from the base branch before it runs, so a delegated pull request that
+  touches `.claude/skills/`, `.claude/agents/` or `CLAUDE.md` always draws a false `Important` from
+  the reviewer and so always waits for the owner under `require-review`, observed on pull request 44.
+  This is the same fail-closed shape as a missing credential, not a separate hole; the owner can lower
+  `require-review` to accept the trade for such a pull request.
 - **The `-G` pickaxe reads text, not meaning.** The grant-commit author check and the hooks' word
   rule both look for the literal `mode: delegated` (or `status: approved`) on its own line in a
   commit's diff. A prose sentence that happened to contain that exact line, inside `work/`, would
@@ -126,5 +144,6 @@ the owner's attention was never the scarce resource.
 
 - `work/delegated-mode/intent.md`, `work/delegated-mode/spec.md`, `work/delegated-mode/plan.md`
 - `knowledge/decisions/human-only-approvals.md`, `knowledge/decisions/merge-click-is-the-gate.md`
-- `.sdlc/delegation.yaml` (created by the owner from `docs/sdlc/templates/delegation.yaml`)
+- `.sdlc/delegation.yaml` (shipped in pull request 43, a byte-for-byte copy of
+  `docs/sdlc/templates/delegation.yaml`; switched off by the owner's commit 9e405fa)
 - `scripts/sign.py`, `scripts/delegated_merge.py`, `scripts/delegation.py`

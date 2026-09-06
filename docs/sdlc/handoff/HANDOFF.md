@@ -44,43 +44,42 @@ timestamp: 2026-09-05T04:48:42Z
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-05 ~07:10 UTC)
-- **The 2026-09-04 plan is complete and merged**: Step 0 (PR 38), WI-1 to WI-6 (Batch A, PRs 24 to 29),
-  WI-7 to WI-11 (Batch B, PRs 31 to 37), and `work/batch-b-followups` (PR 39), which closed the three
-  leftovers Batch B recorded: the untrusted `sdlc-gate` triage step, the adopter placeholder that could
-  approve, and the chain check rejecting a fully retired item. No work item is open.
-- **Both manual checks are done, and each found a defect.**
-  - `bands`: every run since WI-7 had failed. `bands.yml` granted `contents: read`, `issues: write` and
-    `actions: read`, but `pr_cycle_time_hours` reads `repos/.../pulls`, so `gh` returned HTTP 403 and the
-    job died before collecting a series; the other two metrics were unaffected and hid it. The owner added
-    `pull-requests: read` directly on `main` (07c7275). Run 7 is the first green one, and the first time the
-    Maintain stage ran end to end: it detected a 3sigma breach (21.31h against a trailing mean of 2.67h),
-    diagnosed it read-only, and filed issue 40 with a drafted `pr-review-bottleneck` intent. That issue is
-    open for the owner to answer or close; note the baseline is thin, since the burst of merges on
-    2026-09-05 dominates the series.
-  - `agent-evals`: the manual run (118) passed on 0a311fb, `EVALS: 39 pass, 0 fail`. The nightly run (119)
-    on **the same commit** failed one case: `skill-spec-flags-concerns`, "C1 is missing or still the
-    template placeholder". Same code, same sha, different result, so that prompt case is
-    non-deterministic. First observed 2026-09-05; it will make the nightly red intermittently until the
-    case is made robust or its oracle loosened.
-- Nothing is pending on the session. What remains is future work, none of it started:
-  - **The stale active slug, and why it is not a one-liner.** `.sdlc/active` still reads
-    `batch-b-followups`, whose `plan.md` is `approved` although the item is merged and done.
-    `require-plan.sh` only blocks an edit under `PLAN_REQUIRED_PATHS` when the slug is *empty*, so a
-    future session's edits to `scripts/` are silently authorized by that finished plan instead of being
-    refused (rule 1). Clearing the file does not fix it on its own: with `.sdlc/active` empty and a PR
-    body carrying no `Work-Item:` line, `check_artifact_chain.py` resolves an empty slug and fails with
-    `work//spec.md is missing`. Both halves — retire the slug when an item completes, and make the chain
-    check handle an unset slug — belong in one work item. Found by the automated reviewer on PR 41 and
-    confirmed by running the check against an emptied file.
-  - **A pointer line for the newest lesson.** `knowledge/lessons/workflow-permissions-name-every-api.md`
-    is filed and indexed but has no bullet in `docs/sdlc/rules/60-lessons.md`, so it does not reach
-    `CLAUDE.md`, `GEMINI.md` or `AGENTS.md`. Rule 7 asks for the pointer in the same PR; it was left out
-    because that fragment regenerates `GEMINI.md` and `AGENTS.md`, which are not in the chain check's
-    `EXEMPT` list, so the line needs a plan naming them.
-  - **The flaky eval** (`skill-spec-flags-concerns`), the B13 list in `lifecycle-axis-vs-playbook.md`, the
-    Phase 2 roadmap, and a check for control bytes in tracked text (a raw NUL byte in this file went
-    unnoticed by `check_okf.py` and `check_front_matter.py`, which both read with `errors="replace"`).
+## Task state (2026-09-05 ~21:00 UTC)
+- **`work/delegated-mode` is merged, in four pull requests**: #42 (1a, the vocabulary — `delegation.py`, the
+  chain check's `delegated` branch, the decision record), #43 (1b, the act — the hooks, `scripts/sign.py`,
+  `approve.py --delegate`), #44 (1c, the prose — skills, rule fragments, this doc set), and this one (2, the
+  merge). The repo now runs two modes side by side: supervised, where a human writes the `approved` status
+  as `human-only-approvals.md` always required; and delegated, where an agent signs the `delegated` status
+  under a grant and `.github/workflows/delegated-merge.yml` merges the pull request once every printed
+  condition holds, no click needed.
+- **`.sdlc/delegation.yaml` is the one tuning surface for the mode**, and it stays `enabled: false` on
+  `main` — the owner's own commit, 9e405fa — until the owner flips it back. Until then every delegated path
+  stays closed: `sign.py`, the hooks and `delegated_merge.py` all treat the disabled policy the same as a
+  missing one, so every artifact goes through the supervised path regardless. When the owner flips it, the
+  same edit sets `require-checks: [sdlc-gate, pr-review]`: the live file still lists `agent-evals`, whose
+  `paths:` filter means a docs-only pull request has no run for it, and the merge script refuses a missing
+  required run (the template already carries the trimmed list).
+- **The owner's routine for a grant**, once the policy is on: `python3 scripts/approve.py <slug> intent.md
+  --delegate --activate --as <handle>` from a shell, or the same four keys (`risk-class`, `mode`,
+  `delegated-by`, `delegated-on`) plus the ledger note edited in the GitHub web editor — either way, on
+  `main`, as a human commit. `docs/sdlc/github-setup.md`, "Delegated mode (optional)", has the full routine
+  and the two waits that fail closed by design (no Claude credential; a diff touching `.claude/skills/`,
+  `.claude/agents/` or `CLAUDE.md`).
+- **The first live delegated item is next** (plan step 6): a `scripts/`- or docs-only follow-up — the
+  NUL-byte check and the flaky eval `skill-spec-flags-concerns` are the two candidates already on file below
+  — granted by the owner and run end to end with `/sdlc-run`. Not the control-plane tiering item:
+  `delegated_merge.py` refuses any diff under a locked or protected path by design, so that item stays
+  supervised regardless of a grant.
+- **Open follow-ups this work did not touch**, carried over from the previous task state, plus one new one:
+  control-plane tiering; the stale-active-slug retirement (both halves — retire the slug when an item
+  completes, and make the chain check handle an unset slug); the flaky eval (`skill-spec-flags-concerns`);
+  the NUL-byte check (control bytes in tracked text); the B13 list in `lifecycle-axis-vs-playbook.md`; the
+  Phase 2 roadmap. New from this work: `check_control_plane.sh` reported "clean" on pull request 42's diff,
+  which changed `.sdlc/active` — `check_artifact_chain.py` treats that line as this item's own file, but
+  `check_control_plane.sh` does not (deviation 1 in `work/delegated-mode/plan.md`), so the two checkers
+  disagree on the same diff; worth a look, and likely the same fix as the stale-slug item above. Issue 40
+  (the `pr-review-bottleneck` intent the band detector filed) is still open for the owner to answer or
+  close; this work neither read nor answered it.
 
 ## Owner routine (the owner works from a phone; keep every ask to taps)
 - Approvals: send GitHub web-editor links (`https://github.com/luissiviero/lifecycle-axis-/edit/<branch>/work/<slug>/<artifact>.md`)
@@ -91,12 +90,18 @@ timestamp: 2026-09-05T04:48:42Z
 - Merge: the owner clicks merge on the PR page; never merge from the session. CI is informational here
   (`knowledge/decisions/merge-click-is-the-gate.md`): the owner merged #25 with the chain check still red on the
   pickaxe misattribution above, having read the explanation.
+- Grant (delegated mode, once `.sdlc/delegation.yaml` is `enabled: true`): send the web-editor link for
+  `intent.md`'s four keys (`risk-class`, `mode`, `delegated-by`, `delegated-on`) plus the ledger note, on
+  `main`; or the owner runs `approve.py --delegate --activate` from their own shell. Either way it lands as
+  a human commit — after that, `/sdlc-run` calls the owner back only at a deviation cap, a stalled revision,
+  a locked path, or a red check it cannot fix.
 - Every request to the owner ends with the phone steps. Send one clear list; do not restate a decision already
   made, and do not answer automated stop-hook prompts in the chat (the owner reads only the last message).
 
 ## Suggested first prompt for the new session
-"Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Task state'. The 2026-09-04 plan is complete and
-no work item is open, so do not resume it: pick up whichever follow-up that section lists, or wait for me."
+"Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Task state'. work/delegated-mode is merged and no
+work item is open, so do not resume it: the next step is the first live delegated item, which needs my grant
+first; until then pick up whichever follow-up that section lists, or wait for me."
 
 (Superseded, kept as a record: the prompt that opened Batch B read "Resume the lifecycle-axis SDLC work.
 Read docs/sdlc/handoff/HANDOFF.md on branch claude/session-handoff first, then follow its resume steps.
