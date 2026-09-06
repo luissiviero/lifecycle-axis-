@@ -36,6 +36,9 @@ Every path that will change. Globs allowed. CI fails the PR if the diff touches 
 - knowledge/decisions/human-only-approvals.md — amend: the tap is the human act (R-11)
 - knowledge/decisions/delegated-mode.md — amend: decision 6's signature proxy is replaced by the run record (R-11, C4)
 - knowledge/decisions/index.md — list the new record (R-11)
+- knowledge/lessons/tests-carry-their-own-environment.md — new; rule 7, a mistake made twice in this pull request
+- knowledge/lessons/index.md — list the new lesson (rule 7)
+- docs/sdlc/rules/60-lessons.md — the pointer line for it (rule 7)
 - .claude/skills/sdlc-intent/SKILL.md — ask for the tap, naming slug/artifact/mode (R-10)
 - .claude/skills/sdlc-spec/SKILL.md — ask for the tap (R-10)
 - .claude/skills/sdlc-plan/SKILL.md — ask for the tap (R-10)
@@ -102,3 +105,11 @@ Paths under RELEASE_GATED_PATHS with a named human owner (leave "(none)" if none
   evidence about the *category* (any locally-made `git commit` + `git push`) rather than a direct
   observation of a runner-made commit, so the owner may want to amend D7 to match; that is a spec
   edit on a human-approved artifact and is theirs, not this session's, to make.
+- deviation: three files added to the list above that the signed plan did not name —
+  `knowledge/lessons/tests-carry-their-own-environment.md`, `knowledge/lessons/index.md` and
+  `docs/sdlc/rules/60-lessons.md`. Rule 7 requires it: the same mistake appeared twice inside this
+  one pull request. A test inherited this container's global git identity and exited 128 on the CI
+  runner (`test_check_artifact_chain.py`, red on `ddac58a`), and a comparison inherited a wall-clock
+  second that happened not to tick (`test_approve.py`, found by the plan-conformance review). Both
+  are the same thing: the fixture did not supply what the test depended on. The lesson and its two
+  pointer lines land in this pull request, as rule 7 and REVIEW.md's Memory pass both require.

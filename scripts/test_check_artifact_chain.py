@@ -663,9 +663,9 @@ class DispatchAttestation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             _make_repo(root)
             _write(os.path.join(root, "note.txt"), "x\n")
-            _git(root, "add", "-A")
-            _git(root, "commit", "-q", "-m",
-                 "subject\n\nApproved-Run: 777\nApproved-Actor: luissiviero\n")
+            # Via _commit, which sets an identity: a bare `git commit` inherits the developer's
+            # global git config and exits 128 on a runner that has none (CI on ddac58a).
+            _commit(root, "subject\n\nApproved-Run: 777\nApproved-Actor: luissiviero\n")
             sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
                                  capture_output=True, text=True).stdout.strip()
             saved = self.cac.ROOT
