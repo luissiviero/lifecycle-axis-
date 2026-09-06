@@ -1,9 +1,9 @@
 ---
 type: doc
-title: Session handoff (2026-09-05)
-description: "How to resume the playbook-comparison work: constraints, PR state, task state, resume steps."
-tags: [sdlc, handoff, playbook-comparison]
-timestamp: 2026-09-05T04:48:42Z
+title: Session handoff (2026-09-06)
+description: "How to resume after the delegated-mode work: constraints, task state, the owner's grant routine, resume steps."
+tags: [sdlc, handoff, playbook-comparison, delegated-mode]
+timestamp: 2026-09-06T01:20:00Z
 ---
 
 # Session handoff (read this first after any context reset)
