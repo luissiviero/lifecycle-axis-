@@ -13,4 +13,4 @@ If not, stop and say so.
 4. Record decisions as ADRs. Record gotchas you found in the code (they are the most valuable part).
 5. Write with `status: in-review`. Summarize open design choices for the human in five lines or fewer. Do not approve.
    When the intent has `mode: delegated`, run `python3 scripts/sign.py <slug> spec.md` and continue to `/sdlc-plan`;
-   otherwise stop and wait for a human.
+   otherwise stop and ask for the tap. Ask for the tap: give the owner the three inputs to pick in the Actions tab (**Actions -> approve -> Run workflow**, `.github/workflows/approve.yml`): `slug`, `artifact`, `mode`. Naming the inputs is not approving -- the owner reads the artifact and chooses, and the run records who chose.

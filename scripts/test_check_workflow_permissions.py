@@ -268,5 +268,121 @@ class RealRepo(unittest.TestCase):
                 print(f"  {line}", file=sys.stderr)
 
 
+class SdlcGate(unittest.TestCase):
+    """R-13: the chain check's one new API surface is granted explicitly, not left to the code.
+
+    A scope the code needs and the workflow does not declare fails open here rather than loudly:
+    verify_dispatch_run finds no token, prints its note, and the attestation is never checked in the
+    one place it matters. So the oracle reads the parsed permissions block and the step's env,
+    rather than trusting that a token happens to be present at run time
+    (knowledge/lessons/workflow-permissions-name-every-api.md).
+    """
+
+    PATH = os.path.join(ROOT, ".github", "workflows", "sdlc-gate.yml")
+
+    def setUp(self):
+        import yaml
+
+        with open(self.PATH, encoding="utf-8") as f:
+            self.doc = yaml.safe_load(f)
+
+    def test_permissions_are_exactly_contents_read_and_actions_read(self):
+        self.assertEqual(self.doc["permissions"], {"contents": "read", "actions": "read"})
+
+    def test_the_artifact_chain_step_receives_gh_token(self):
+        steps = self.doc["jobs"]["artifact-chain"]["steps"]
+        chain = [s for s in steps if "check_artifact_chain.py" in (s.get("run") or "")]
+        self.assertEqual(len(chain), 1, "exactly one step runs the chain check")
+        self.assertIn("GH_TOKEN", chain[0].get("env", {}))
+
+    def test_no_other_workflow_gains_a_scope(self):
+        # The two that already declared `actions` keep it and gain nothing: delegated-merge.yml
+        # reads runs for R-7's route B, bands.yml reads its own run history for the metrics
+        # series. sdlc-gate.yml is the only file this work item adds the scope to.
+        import yaml
+
+        wf = os.path.join(ROOT, ".github", "workflows")
+        with_actions = []
+        for name in sorted(os.listdir(wf)):
+            if not name.endswith((".yml", ".yaml")):
+                continue
+            with open(os.path.join(wf, name), encoding="utf-8") as f:
+                perms = (yaml.safe_load(f) or {}).get("permissions")
+            if isinstance(perms, dict) and "actions" in perms:
+                with_actions.append(name)
+        self.assertEqual(with_actions, ["bands.yml", "delegated-merge.yml", "sdlc-gate.yml"])
+
+
+class ApproveWorkflow(unittest.TestCase):
+    """R-1: the dispatch workflow is clean, allowlisted, and as small as it claims to be."""
+
+    PATH = os.path.join(ROOT, ".github", "workflows", "approve.yml")
+
+    def setUp(self):
+        import yaml
+
+        self.assertTrue(os.path.exists(self.PATH), "approve.yml must exist")
+        with open(self.PATH, encoding="utf-8") as f:
+            self.text = f.read()
+        self.doc = yaml.safe_load(self.text)
+        # YAML 1.1 reads a bare `on:` key as the boolean True, which is why this is not doc["on"].
+        self.triggers = self.doc[True] if True in self.doc else self.doc["on"]
+
+    def test_is_clean_under_the_checker(self):
+        self.assertEqual(cwp.check_file(self.PATH), [])
+
+    def test_is_allowlisted_for_contents_write(self):
+        self.assertIn(".github/workflows/approve.yml", cwp.CONTENTS_WRITE_ALLOWLIST)
+
+    def test_declares_contents_write_and_no_other_scope(self):
+        self.assertEqual(self.doc["permissions"], {"contents": "write"})
+
+    def test_checks_out_exactly_once(self):
+        # A second checkout would be a second ref in play, and the whole design rests on the
+        # dispatch ref being the only thing this workflow reads and writes (D3).
+        self.assertEqual(self.text.count("actions/checkout"), 1)
+
+    def test_installs_no_dependency(self):
+        for forbidden in ("pip install", "npm install", "setup-python", "setup-node"):
+            self.assertNotIn(forbidden, self.text)
+
+    def test_is_dispatch_only(self):
+        self.assertEqual(list(self.triggers), ["workflow_dispatch"])
+
+    def test_offers_the_four_inputs(self):
+        inputs = self.triggers["workflow_dispatch"]["inputs"]
+        self.assertEqual(sorted(inputs), ["artifact", "mode", "note", "slug"])
+        self.assertEqual(inputs["artifact"]["options"],
+                         ["intent.md", "spec.md", "plan.md", "incident.md"])
+        self.assertEqual(inputs["mode"]["options"], ["supervised", "delegated"])
+
+    def test_run_name_carries_actor_slug_artifact_and_mode(self):
+        run_name = self.doc["run-name"]
+        for fragment in ("github.actor", "inputs.slug", "inputs.artifact", "inputs.mode"):
+            self.assertIn(fragment, run_name)
+
+    def test_run_name_still_matches_the_checker_that_parses_it(self):
+        """check_artifact_chain.RUN_NAME_RE parses this title to tell a blank slug segment from a
+        different one. If the format drifts, the parse fails and the slug binding quietly stops
+        applying — so pin the two together rather than leaving it to a comment."""
+        import re as _re
+        import sys as _sys
+
+        if HERE not in _sys.path:
+            _sys.path.insert(0, HERE)
+        import check_artifact_chain as cac
+
+        # Render the template the way GitHub would, for a filled and a blank slug.
+        for slug in ("demo", ""):
+            rendered = self.doc["run-name"]
+            for expr, value in (("inputs.artifact", "spec.md"), ("inputs.mode", "supervised"),
+                                ("inputs.slug", slug), ("github.actor", "owner")):
+                rendered = _re.sub(r"\$\{\{\s*%s\s*\}\}" % _re.escape(expr), value, rendered)
+            match = cac.RUN_NAME_RE.match(rendered)
+            self.assertIsNotNone(match, "RUN_NAME_RE no longer parses %r" % rendered)
+            self.assertEqual(match.group("slug"), slug)
+            self.assertEqual(match.group("artifact"), "spec.md")
+
+
 if __name__ == "__main__":
     unittest.main()

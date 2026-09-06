@@ -4,6 +4,12 @@ on:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 permissions:
   contents: read   # read-only token: this workflow only checks and reports
+  # One endpoint, repos/{repo}/actions/runs/{id}: the artifact chain check resolves a dispatch-made
+  # approval's Approved-Run trailer against the run record that names its actor. Without this scope
+  # and the token below, that check would silently take its no-token path in the one place the
+  # attestation is relied on (work/approve-by-dispatch R-13;
+  # knowledge/lessons/workflow-permissions-name-every-api.md).
+  actions: read
 
 jobs:
   artifact-chain:
@@ -31,6 +37,7 @@ jobs:
           # slug are attacker-influenced)
           BASE_REF: ${{ github.base_ref }}
           SLUG: ${{ steps.wi.outputs.slug }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/check_artifact_chain.py --base "origin/$BASE_REF" --slug "$SLUG"
       - name: Verify
         run: scripts/verify.sh

@@ -3,6 +3,7 @@
 
 Usage:
   scripts/approve.py <slug> <artifact>... [--as HANDLE] [--note TEXT] [--delegate] [--activate] [--dry-run]
+                     [--from-dispatch RUN_ID]
 
   <artifact> is one of intent.md, spec.md, plan.md, incident.md (or several).
   --as HANDLE   GitHub handle recorded as approved-by (default: `git config sdlc.approver`; there is
@@ -15,6 +16,14 @@ Usage:
                 the closed state, so the grant is refused there too.
   --activate    also point .sdlc/active at <slug>.
   --dry-run     print what would change, write nothing.
+  --from-dispatch RUN_ID
+                run inside `.github/workflows/approve.yml`'s workflow_dispatch run RUN_ID, where the
+                human act was pressing Run and GitHub recorded the actor. Requires --as (the run's
+                actor), and is refused with exit 3 unless GITHUB_ACTIONS is "true" and GITHUB_RUN_ID
+                equals RUN_ID, so a session cannot reach this path by passing the flag. It suppresses
+                only the CLAUDECODE refusal and writes the run id, actor and approved artifacts to
+                $GITHUB_OUTPUT for the committer step; every file it writes is byte-identical to a
+                plain run (work/approve-by-dispatch R-3).
 
 What it does, per artifact: sets `status: approved`, `approved-by: HANDLE`, `approved-on: <today UTC>` in
 the YAML front matter, and appends `- <ts> | <artifact> | <old> -> approved | HANDLE | <sha> | <note>` to
@@ -80,10 +89,25 @@ def main(argv=None):
     ap.add_argument("--delegate", action="store_true",
                     help="with intent.md: also grant delegated mode (mode/delegated-by/delegated-on)")
     ap.add_argument("--activate", action="store_true")
+    ap.add_argument("--from-dispatch", dest="from_dispatch", metavar="RUN_ID",
+                    help="run inside the approve.yml workflow_dispatch run RUN_ID; requires --as")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
 
-    if os.environ.get("CLAUDECODE"):
+    # A dispatch run is the one caller that is neither a human shell nor an agent session: the
+    # human act happened in the Actions tab, and GitHub -- not this process -- recorded who made
+    # it. The three conditions below are all checkable from the environment the runner sets and
+    # none of them is settable by the workflow's inputs, so a session cannot fake its way in by
+    # passing the flag (work/approve-by-dispatch R-3).
+    if a.from_dispatch is not None:
+        if not a.handle:
+            print("approve: --from-dispatch requires --as <github-handle> (the run's actor)", file=sys.stderr)
+            return 1
+        if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("GITHUB_RUN_ID") != a.from_dispatch:
+            print("approve: --from-dispatch is only valid inside the GitHub Actions run it names "
+                  "(GITHUB_ACTIONS=true and GITHUB_RUN_ID matching).", file=sys.stderr)
+            return 3
+    elif os.environ.get("CLAUDECODE"):
         print("approve: refused — this is a Claude Code session (CLAUDECODE is set). Only a human approves; "
               "run this from your own shell.", file=sys.stderr)
         return 3
@@ -199,7 +223,16 @@ def main(argv=None):
             f.write(a.slug + "\n")
         print(f"activated: .sdlc/active -> {a.slug}")
 
-    if changed and not a.dry_run:
+    if changed and not a.dry_run and a.from_dispatch is not None:
+        # The committer step reads these instead of re-deriving them: it must stage exactly what
+        # this call wrote, and name the same run in the commit trailer (R-4).
+        out = os.environ.get("GITHUB_OUTPUT")
+        if out:
+            with open(out, "a", encoding="utf-8") as f:
+                f.write(f"approved={' '.join(changed)}\n")
+                f.write(f"run-id={a.from_dispatch}\n")
+                f.write(f"actor={handle}\n")
+    elif changed and not a.dry_run:
         paths = f"work/{a.slug}" + (" .sdlc/active" if a.activate else "")
         print("\nNext: review the diff, then commit as yourself:")
         print(f"  git add {paths} && git commit -m \"[{a.slug}] approve {' '.join(changed)}\"")

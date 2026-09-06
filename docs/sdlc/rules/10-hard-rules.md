@@ -19,6 +19,9 @@ timestamp: 2026-09-05T20:00:00Z
    `approved-on` on a chain artifact and never run `scripts/approve.py`: `protect-approvals.sh` refuses both.
    Under a grant (`mode: delegated` on an approved intent, policy in `.sdlc/delegation.yaml`) an agent may
    sign `delegated` with `scripts/sign.py` under its own handle; `approved` stays a word only a human writes.
+   That human act may be one tap: a `workflow_dispatch` run of `.github/workflows/approve.yml` writes what the
+   approval script writes, with the run's actor as the deciding handle. Ask for the tap and wait; the production
+   gate catches every route an agent has to press it.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.

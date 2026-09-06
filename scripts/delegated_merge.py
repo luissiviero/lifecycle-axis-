@@ -77,6 +77,10 @@ OK_CHECK_CONCLUSIONS = ("success", "skipped", "neutral")
 # GitHub's own committer for web-editor and API commits: it signs with GitHub's key, and the
 # author of a commit it makes is the authenticated account that asked for it.
 WEB_FLOW_LOGIN = "web-flow"
+# The identity approve_dispatch.py commits as. A dispatch-made grant is authored by the
+# run's actor and committed by the bot, so route B checks the committer against this
+# rather than against a product-owner role (work/approve-by-dispatch D2, R-7).
+BOT_LOGIN = "github-actions[bot]"
 # The paths this script locks whatever any file says: the control plane, the judging surfaces and
 # the rules an agent's pull request must not be able to rewrite on its way in. See
 # `check_locked_paths` -- the policy's `locked-paths` only ever adds to this floor.
@@ -415,26 +419,23 @@ def commit_adds_grant(commit_detail, path):
     return False
 
 
-def check_grant_commit(commit_detail, approvers_file, expected_handle=None, base_ref=None):
-    """5b. The grant commit is GitHub-verified with reason `valid`, authored by the product owner
-    the intent names, and committed by someone this repository trusts -- server-side, not
-    git-authored: a local `git commit --author` cannot satisfy `commit.verification.verified`, and
-    `author.login` is the account GitHub attributed the commit to (spec D2, decision 6).
-    `expected_handle` is the intent's `delegated-by`: the file's own claim of who granted must be
-    the login that wrote it, or the ledger would name one human and the commit another.
+def _grant_route_a(commit_detail, approvers_file, expected_handle, sha, on):
+    """The signed-commit route, unchanged in behaviour: a human's own commit, GitHub-verified.
 
-    Author and committer are two different people, and the signature covers only the committer:
-    `author.login` is resolved from an author email the committer sets freely, so a valid signature
-    by anybody over an author line reading `owner` proved nothing. The committer must therefore be
-    a product owner too, or GitHub's own `web-flow` signer, which commits web-editor and API edits
-    and whose author is the authenticated account that made them (pull request 45 security pass,
-    finding 1). `reason == "valid"` is required alongside `verified` for the same fail-closed
-    reason: no other reason string is a signature this script understands."""
-    on = (" on %s" % base_ref) if base_ref else ""
-    if not commit_detail:
-        return REFUSED, ("no commit adding the grant line in the last %d commits touching the "
-                         "intent%s" % (GRANT_WINDOW, on))
-    sha = commit_detail.get("sha") or "?"
+    The signature gate lives here rather than ahead of the route choice. It used to run first, and
+    a first-running gate would refuse every route-B commit before its route was ever considered:
+    an Actions runner pushes over git, and a git-pushed commit carries no signature at all
+    (work/approve-by-dispatch, the plan's step 1 measurement).
+
+    `author.login` is the account GitHub attributed the commit to, and `expected_handle` is the
+    intent's own `delegated-by`: the file's claim of who granted must be the login that wrote it,
+    or the ledger names one human and the commit another. Author and committer are two different
+    people and the signature covers only the committer -- `author.login` is resolved from an author
+    email the committer sets freely -- so the committer must be a product owner too, or GitHub's own
+    `web-flow` signer (pull request 45 security pass, finding 1). `reason == "valid"` is required
+    alongside `verified` for the same fail-closed reason: no other reason string is a signature this
+    script understands.
+    """
     verified = _get(commit_detail, "commit", "verification", "verified")
     reason = _get(commit_detail, "commit", "verification", "reason") or "unverified"
     if not verified or reason != "valid":
@@ -455,6 +456,101 @@ def check_grant_commit(commit_detail, approvers_file, expected_handle=None, base
                          % (sha[:12], committer, login, committer_why, WEB_FLOW_LOGIN))
     return OK, "granted%s in verified commit %s by %s (committed by %s)" % (
         on, sha[:12], login, committer)
+
+
+def _grant_route_b(commit_detail, approvers_file, expected_handle, sha, on, dispatch,
+                   trailer_actor, slug=None):
+    """The dispatch route: the grant was a tap in the Actions tab, and the run says who made it.
+
+    Not a fallback. It is taken only when the commit carries an `Approved-Run` trailer, and a
+    trailer that does not resolve to a matching run is refused outright rather than retried on
+    route A -- otherwise a forged trailer would be a way to *choose* the weaker check.
+
+    It substitutes conditions rather than adding one. Route A's signature is replaced by the run
+    record, which is the stronger proxy for "a human caused this": `actor.login` is set by GitHub
+    when the run starts and nothing inside the run can change it, whereas a signature only proves
+    the committer held a key. The signature condition is dropped because it cannot be met -- a
+    commit pushed over git from a runner is unsigned -- and the committer condition survives as the
+    bot identity approve_dispatch.py sets (spec R-7, C4; the plan's step 1).
+    """
+    norm = approvers.Approvers.normalize
+    if not dispatch:
+        return REFUSED, ("grant commit %s carries an Approved-Run trailer but the run could not be "
+                         "read; a trailer that does not resolve is refused" % sha[:12])
+    for field, got, want in (("event", dispatch.get("event"), "workflow_dispatch"),
+                             ("path", dispatch.get("path"), chain.DISPATCH_WORKFLOW_PATH),
+                             ("conclusion", dispatch.get("conclusion"), "success")):
+        if (got or "") != want:
+            return REFUSED, "grant commit %s: dispatch run %s is %r, expected %r" % (
+                sha[:12], field, got, want)
+    actor = _get(dispatch, "actor", "login") or ""
+    ok, why = approvers_file.has_role("product-owner", actor)
+    if not ok:
+        return REFUSED, "grant commit %s: dispatch actor '%s': %s" % (sha[:12], actor, why)
+    if norm(trailer_actor or "") != norm(actor):
+        return REFUSED, ("grant commit %s says Approved-Actor '%s' but the run was started by '%s'"
+                         % (sha[:12], trailer_actor, actor))
+    if expected_handle is not None and norm(expected_handle) != norm(actor):
+        return REFUSED, "intent.md says delegated-by '%s' but the dispatch was run by '%s'" % (
+            expected_handle, actor)
+    title = dispatch.get("display_title") or dispatch.get("name") or ""
+    if slug and slug not in title:
+        return REFUSED, "grant commit %s: dispatch run-name %r does not name '%s'" % (
+            sha[:12], title, slug)
+    if "intent.md" not in title:
+        return REFUSED, "grant commit %s: dispatch run-name %r does not name intent.md" % (
+            sha[:12], title)
+    committer = _get(commit_detail, "committer", "login") or ""
+    # The bot and nothing else. `web-flow` is GitHub's signer for web-editor and API commits, which
+    # is route A's territory: mechanism 1 never produces it, because approve_dispatch.py sets the
+    # committer explicitly. Accepting it here would widen route B past what the plan's step 1
+    # concluded, for no case that can actually arise (pull request 51 plan-conformance pass).
+    if norm(committer) != norm(BOT_LOGIN):
+        return REFUSED, ("grant commit %s was dispatched but committed by '%s', not '%s'"
+                         % (sha[:12], committer, BOT_LOGIN))
+    return OK, "granted%s by dispatch run %s, started by %s (committed by %s)" % (
+        on, dispatch.get("id") or "?", actor, committer)
+
+
+def _dispatch_run(repo, commit_detail):
+    """The Actions run a grant commit's `Approved-Run` trailer names, or None.
+
+    None is not "no trailer": route B refuses a commit whose trailer it cannot resolve, so a run
+    that 404s or an API that is unreachable fails the merge closed, as every other condition here
+    does. A commit with no trailer never reaches this call's result, because route A is chosen
+    before `dispatch` is read.
+    """
+    message = _get(commit_detail or {}, "commit", "message") or ""
+    m = chain.APPROVED_RUN_RE.search(message)
+    if not m:
+        return None
+    try:
+        return gh_api("GET", "repos/%s/actions/runs/%s" % (repo, m.group(1)))
+    except MergeError:
+        return None
+
+
+def check_grant_commit(commit_detail, approvers_file, expected_handle=None, base_ref=None,
+                       dispatch=None, slug=None):
+    """5b. The grant commit really was caused by the product owner the intent names.
+
+    Two routes, chosen by the commit itself, never tried in turn. Route A (`_grant_route_a`) is a
+    human's own signed commit. Route B (`_grant_route_b`) is a tap in the Actions tab, taken when
+    and only when the commit carries an `Approved-Run` trailer. Each names its own conditions, and
+    a commit that fails the route it selected is refused -- there is no second attempt, because
+    falling back would let a forged trailer pick which check to face (spec R-7, C4).
+    """
+    on = (" on %s" % base_ref) if base_ref else ""
+    if not commit_detail:
+        return REFUSED, ("no commit adding the grant line in the last %d commits touching the "
+                         "intent%s" % (GRANT_WINDOW, on))
+    sha = commit_detail.get("sha") or "?"
+    message = _get(commit_detail, "commit", "message") or ""
+    actor_match = chain.APPROVED_ACTOR_RE.search(message)
+    if chain.APPROVED_RUN_RE.search(message):
+        return _grant_route_b(commit_detail, approvers_file, expected_handle, sha, on, dispatch,
+                              actor_match.group(1) if actor_match else "", slug=slug)
+    return _grant_route_a(commit_detail, approvers_file, expected_handle, sha, on)
 
 
 def check_locked_paths(files, prefixes):
@@ -715,7 +811,8 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
             detail = _grant_commit(repo, slug, base_ref)
             grant_sha = (detail or {}).get("sha") or ""
             grant_result = check_grant_commit(detail, approvers_file,
-                                              expected_handle=grant_handle, base_ref=base_ref)
+                                              expected_handle=grant_handle, base_ref=base_ref,
+                                              dispatch=_dispatch_run(repo, detail), slug=slug)
         ok = out.record("grant", grant_result)
         if not out.keep_going(ok):
             return out.finish()

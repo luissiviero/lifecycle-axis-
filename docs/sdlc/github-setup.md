@@ -30,6 +30,14 @@ keeps every check green from the first pull request.
    ```
    `work/_example/` ships `in-review` with a plan that lists exactly the files `adopt.sh` installed, so the
    plan gate is closed until this step and the install commit is covered by that plan after it.
+
+   **Or approve from the Actions tab, once this branch is on GitHub.** *Actions → approve → Run workflow*,
+   with `artifact` (the chain file), `mode` (`supervised`, or `delegated` to grant delegated mode on an
+   intent), `slug` (blank means whatever `.sdlc/active` names on the selected branch) and an optional `note`.
+   The branch selector is the target: the run commits and pushes to it, so a grant must be dispatched from
+   the default branch. This is the same script with the run's actor as the handle, and it is the routine an
+   agent will ask you for, because it is one gesture rather than a shell. The run refuses before writing
+   anything if the actor does not hold the artifact's role, so a wrong tap changes nothing.
 4. **Commit as yourself** and open the install pull request. `sdlc-gate` runs `check_artifact_chain.py`
    against the base branch; with the approvals in the same PR it ends `CHAIN: PASS`.
 5. **Fill the top of `CLAUDE.md`.** `adopt.sh` seeded `## Commands`, `## Architecture` and `## Lessons

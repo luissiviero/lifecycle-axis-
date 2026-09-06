@@ -12,6 +12,14 @@ timestamp: 2026-09-05T01:38:56Z
 > `delegated`, may be signed by an agent under a human's delegation grant on the intent;
 > `approved` stays exactly as this record decided — no hook, script or check ever lets an agent
 > write it.
+>
+> **Amended on 2026-09-06 by [`approve-by-dispatch.md`](approve-by-dispatch.md).** The human act
+> may now be a tap in the Actions tab rather than a keystroke in a shell: a `workflow_dispatch`
+> run of `approve.yml` writes what this record's script writes, with the run's `github.actor` —
+> a field nothing inside the run can set — as the deciding handle. `approved` is still a word only
+> a human causes to be written, and the hook and the unlock exclusion below are unchanged; what
+> changed is that the act leaves a *server-side* record, which CI verifies against the run rather
+> than inferring from the commit author alone.
 
 ## Context
 

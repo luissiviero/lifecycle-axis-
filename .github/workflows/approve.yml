@@ -1,0 +1,132 @@
+name: approve
+
+# One tap in the Actions tab writes what scripts/approve.py writes (work/approve-by-dispatch).
+#
+# Why this exists: approving used to mean editing YAML front matter and a ledger line by hand, in a
+#   shell or the web editor. This makes it a form: pick the artifact, pick the mode, press Run.
+# What makes it a human act: GitHub records `github.actor` on the run. Nothing inside the run can
+#   set that field -- it is not an input, not a commit field, and not writable by the token -- so
+#   everything the run writes is attributable to whoever pressed Run. The commit carries the run id
+#   and the actor as trailers, and check_artifact_chain.py and delegated_merge.py both resolve them
+#   against the Actions API rather than trusting the commit alone (R-5, R-6, R-7).
+# Why the actor is not simply trusted: pressing Run needs only write access, which is not the same
+#   as holding the artifact's role. The first step refuses an actor outside the role in
+#   .sdlc/approvers.yaml, before anything is written, so a refusal leaves the tree untouched (R-2).
+# Which ref it writes: the one selected in "Use workflow from branch". GitHub's own selector is the
+#   input, so there is no second branch field to disagree with it (D3). A delegation grant is the
+#   exception -- it must land on the default branch, or later checks would never see it (R-8).
+# Why contents: write is safe here: one checkout of the dispatch ref, no pull-request head code is
+#   ever executed, no dependency is installed, and the committer refuses to stage any path outside
+#   work/<slug>/ and .sdlc/active (D6). It is the second entry in CONTENTS_WRITE_ALLOWLIST.
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact:
+        description: Which artifact to approve
+        required: true
+        type: choice
+        options: [intent.md, spec.md, plan.md, incident.md]
+      mode:
+        description: "Supervised, or grant delegated mode (intent.md only, default branch only)"
+        required: true
+        default: supervised
+        type: choice
+        options: [supervised, delegated]
+      slug:
+        description: Work item slug (blank = the slug in .sdlc/active on this ref; required for a grant)
+        required: false
+        type: string
+      note:
+        description: Optional note for the ledger line
+        required: false
+        type: string
+
+run-name: "approve ${{ inputs.artifact }} (${{ inputs.mode }}) on ${{ inputs.slug }} by @${{ github.actor }}"
+
+permissions:
+  contents: write   # allowlisted: this workflow commits the approval it was asked to make
+
+concurrency:
+  # Two approvals racing on one ref would make the loser's push fail on a stale parent. Queue them.
+  group: approve-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  approve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Resolve the slug
+        id: item
+        env:
+          SLUG: ${{ inputs.slug }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          slug="$(printf '%s' "$SLUG" | tr -cd 'A-Za-z0-9._-' | head -c 100)"
+          # `run-name` is evaluated before any job runs, so it can only interpolate the raw input --
+          # it cannot name a slug resolved here. delegated_merge.py's route B binds the grant to the
+          # run-name, so a grant dispatched with a blank slug would produce a run-name with an empty
+          # slug segment and be refused at merge time, even though the tap was made exactly as
+          # documented. Requiring the slug for a grant is the narrow fix: route B only ever judges
+          # grants, so supervised approvals keep the blank-slug convenience
+          # (security pass on pull request 51).
+          if [ -z "$slug" ] && [ "$MODE" = delegated ]; then
+            echo "::error::a delegation grant must name its slug explicitly, so the run-name records it"
+            exit 1
+          fi
+          # The blank case is the common one for a supervised approval: whatever this ref says is active.
+          [ -z "$slug" ] && slug="$(tr -cd 'A-Za-z0-9._-' < .sdlc/active | head -c 100)"
+          if [ -z "$slug" ]; then
+            echo "::error::no slug given and .sdlc/active is empty on this ref"
+            exit 1
+          fi
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+
+      - name: "Refuse unless the actor holds the artifact's role"
+        env:
+          ACTOR: ${{ github.actor }}
+          ARTIFACT: ${{ inputs.artifact }}
+          MODE: ${{ inputs.mode }}
+          REF: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          SLUG: ${{ steps.item.outputs.slug }}
+        run: |
+          if ! out="$(python3 scripts/approve_dispatch.py --check-actor "$ACTOR" \
+                        --artifact "$ARTIFACT" --mode "$MODE" --ref "$REF" \
+                        --default-branch "$DEFAULT_BRANCH" --slug "$SLUG" 2>&1)"; then
+            echo "::error::$out"
+            { echo "### Approval refused"; echo; echo '```'; echo "$out"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Approve
+        id: approve
+        env:
+          ACTOR: ${{ github.actor }}
+          ARTIFACT: ${{ inputs.artifact }}
+          MODE: ${{ inputs.mode }}
+          NOTE: ${{ inputs.note }}
+          SLUG: ${{ steps.item.outputs.slug }}
+        run: |
+          set -- "$SLUG" "$ARTIFACT" --as "$ACTOR" --from-dispatch "$GITHUB_RUN_ID"
+          [ -n "$NOTE" ] && set -- "$@" --note "$NOTE"
+          # The grant also points .sdlc/active at the item, so the delegated run that follows
+          # finds it without a second edit (R-8).
+          [ "$MODE" = delegated ] && set -- "$@" --delegate --activate
+          python3 scripts/approve.py "$@"
+
+      - name: Commit and push
+        env:
+          ACTOR: ${{ github.actor }}
+          ARTIFACT: ${{ inputs.artifact }}
+          NOTE: ${{ inputs.note }}
+          SLUG: ${{ steps.item.outputs.slug }}
+          REF: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/approve_dispatch.py --commit --actor "$ACTOR" \
+            --run-id "$GITHUB_RUN_ID" --slug "$SLUG" --artifact "$ARTIFACT" --note "$NOTE"
+          git push origin "HEAD:$REF"
+          { echo "### Approved"; echo; echo "\`$ARTIFACT\` on \`$SLUG\` by @$ACTOR"; } >> "$GITHUB_STEP_SUMMARY"

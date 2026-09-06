@@ -1,5 +1,6 @@
 """Tests for scripts/approve.py: the human approval helper."""
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -54,10 +55,11 @@ def make_repo():
     return root
 
 
-def run(root, *args, agent=False):
+def run(root, *args, agent=False, env_extra=None):
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     if agent:
         env["CLAUDECODE"] = "1"
+    env.update(env_extra or {})
     return subprocess.run([sys.executable, "scripts/approve.py", *args], cwd=root,
                           capture_output=True, text=True, env=env)
 
@@ -252,6 +254,108 @@ class ApproveDelegate(unittest.TestCase):
         self.assertIn("delegation", r.stderr.lower())
         text = self.read("work/demo/intent.md")
         self.assertNotIn("mode: delegated", text)
+
+
+LEDGER_LINE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z (\|.*\|) [0-9a-f]{7,40} (\|.*)$")
+# log.md's own front matter carries a creation timestamp, written once when the file is first made
+# (approve.py's header block). Two fixtures that each create their log.md straddling a second
+# boundary differ there and nowhere else, which made this comparison intermittently red in a full
+# suite run while passing in isolation -- found by the plan-conformance review of pull request 51.
+HEADER_TS = re.compile(r"^timestamp: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+
+def ledger_comparable(text):
+    """Blank every wall-clock and repository-local field so the rest compares byte for byte.
+
+    Three of them: the ledger line's timestamp, the ledger line's sha (`git rev-parse --short HEAD`
+    in whichever repository the call ran in, and the two fixtures are separate `git init`s), and
+    log.md's front-matter creation timestamp. None is written by the code under test in a way
+    --from-dispatch could change, and every other column -- artifact, from -> to, actor, note --
+    is compared exactly (work/approve-by-dispatch R-3)."""
+    out = []
+    for line in text.split("\n"):
+        line = LEDGER_LINE.sub(r"- <ts> \1 <sha> \2", line)
+        out.append(HEADER_TS.sub("timestamp: <ts>", line))
+    return "\n".join(out)
+
+
+class ApproveFromDispatch(unittest.TestCase):
+    """R-3: --from-dispatch opens the one non-shell route, and changes nothing it writes."""
+
+    ACTIONS = {"GITHUB_ACTIONS": "true", "GITHUB_RUN_ID": "12345"}
+
+    def setUp(self):
+        self.root = make_repo()
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def read(self, rel, root=None):
+        with open(os.path.join(root or self.root, rel), encoding="utf-8") as f:
+            return f.read()
+
+    def test_outside_actions_exits_3(self):
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero", "--from-dispatch", "12345")
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+        self.assertIn("GITHUB_RUN_ID", r.stderr)
+        self.assertNotIn("status: approved", self.read("work/demo/intent.md"))
+
+    def test_run_id_mismatch_exits_3(self):
+        env = dict(self.ACTIONS, GITHUB_RUN_ID="99999")
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero",
+                "--from-dispatch", "12345", env_extra=env)
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+        self.assertNotIn("status: approved", self.read("work/demo/intent.md"))
+
+    def test_requires_as(self):
+        r = run(self.root, "demo", "intent.md", "--from-dispatch", "12345", env_extra=self.ACTIONS)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("--as", r.stderr)
+        self.assertNotIn("status: approved", self.read("work/demo/intent.md"))
+
+    def test_agent_session_still_refused_without_the_flag(self):
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero", agent=True)
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+
+    def test_claudecode_does_not_block_a_real_dispatch(self):
+        """A runner has no CLAUDECODE, but the suppression must be the flag's, not the runner's."""
+        env = dict(self.ACTIONS)
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero",
+                "--from-dispatch", "12345", agent=True, env_extra=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("status: approved", self.read("work/demo/intent.md"))
+
+    def test_writes_the_same_files_as_a_plain_run(self):
+        other = make_repo()
+        self.addCleanup(shutil.rmtree, other, ignore_errors=True)
+        plain = run(other, "demo", "intent.md", "--as", "luissiviero", "--note", "n")
+        self.assertEqual(plain.returncode, 0, plain.stdout + plain.stderr)
+        dispatched = run(self.root, "demo", "intent.md", "--as", "luissiviero", "--note", "n",
+                         "--from-dispatch", "12345", env_extra=self.ACTIONS)
+        self.assertEqual(dispatched.returncode, 0, dispatched.stdout + dispatched.stderr)
+        # The artifact carries only date-granular fields, so it compares byte for byte.
+        self.assertEqual(self.read("work/demo/intent.md", other),
+                         self.read("work/demo/intent.md"))
+        self.assertEqual(ledger_comparable(self.read("work/demo/log.md", other)),
+                         ledger_comparable(self.read("work/demo/log.md")))
+
+    def test_writes_run_id_and_actor_to_github_output(self):
+        out = os.path.join(self.root, "gh_output")
+        env = dict(self.ACTIONS, GITHUB_OUTPUT=out)
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero",
+                "--from-dispatch", "12345", env_extra=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        with open(out, encoding="utf-8") as f:
+            written = f.read()
+        self.assertIn("run-id=12345", written)
+        self.assertIn("actor=luissiviero", written)
+        self.assertIn("approved=intent.md", written)
+
+    def test_does_not_print_the_human_commit_hint(self):
+        r = run(self.root, "demo", "intent.md", "--as", "luissiviero",
+                "--from-dispatch", "12345", env_extra=self.ACTIONS)
+        self.assertNotIn("commit as yourself", r.stdout)
 
 
 if __name__ == "__main__":

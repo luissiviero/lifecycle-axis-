@@ -88,7 +88,16 @@ timestamp: 2026-09-06T01:20:00Z
   close; this work neither read nor answered it.
 
 ## Owner routine (the owner works from a phone; keep every ask to taps)
-- Approvals: send GitHub web-editor links (`https://github.com/luissiviero/lifecycle-axis-/edit/<branch>/work/<slug>/<artifact>.md`)
+- **Approvals and grants, preferred route: the tap.** *Actions → approve → Run workflow*
+  (`.github/workflows/approve.yml`). Send the owner four values and nothing else: the **branch** for the
+  selector, `artifact`, `mode` (`supervised`, or `delegated` for a grant) and `slug` (blank means the branch's
+  `.sdlc/active`). It runs the approval script as the run's actor and commits the result, so the owner never
+  edits front matter or pastes a ledger line. A grant must be dispatched from `main`; the run refuses on any
+  other ref. It also refuses, before writing anything, if the actor does not hold the artifact's role, so a
+  mistaken tap changes nothing and shows one line in the step summary. GitHub records who pressed Run, and
+  the chain check and the merge script verify the commit's trailers against that record.
+- Approvals, the older route (still valid, and the one to use for a demotion, which the workflow does not do):
+  send GitHub web-editor links (`https://github.com/luissiviero/lifecycle-axis-/edit/<branch>/work/<slug>/<artifact>.md`)
   with the line numbers and exact replacement text for `status:`, `approved-by:`, `approved-on:`, and
   the three ledger lines to append to `work/<slug>/log.md` in a fenced block (never as bullets: a pasted
   bullet arrives as `- - <ts>`; run `python3 scripts/log_ledger.py work/<slug>/log.md` after the commit).
@@ -96,11 +105,12 @@ timestamp: 2026-09-06T01:20:00Z
 - Merge: the owner clicks merge on the PR page; never merge from the session. CI is informational here
   (`knowledge/decisions/merge-click-is-the-gate.md`): the owner merged #25 with the chain check still red on the
   pickaxe misattribution above, having read the explanation.
-- Grant (delegated mode, once `.sdlc/delegation.yaml` is `enabled: true`): send the web-editor link for
-  `intent.md`'s four keys (`risk-class`, `mode`, `delegated-by`, `delegated-on`) plus the ledger note, on
-  `main`; or the owner runs `approve.py --delegate --activate` from their own shell. Either way it lands as
-  a human commit — after that, `/sdlc-run` calls the owner back only at a deviation cap, a stalled revision,
-  a locked path, or a red check it cannot fix.
+- Grant (delegated mode, once `.sdlc/delegation.yaml` is `enabled: true`): one tap, as above — `artifact`
+  `intent.md`, `mode` `delegated`, branch `main`, which also points `.sdlc/active` at the item. Or the older
+  routes: the web-editor link for `intent.md`'s four keys (`risk-class`, `mode`, `delegated-by`,
+  `delegated-on`) plus the ledger note, on `main`; or `approve.py --delegate --activate` from the owner's own
+  shell. Every route lands as a human-caused commit — after that, `/sdlc-run` calls the owner back only at a
+  deviation cap, a stalled revision, a locked path, or a red check it cannot fix.
 - Every request to the owner ends with the phone steps. Send one clear list; do not restate a decision already
   made, and do not answer automated stop-hook prompts in the chat (the owner reads only the last message).
 

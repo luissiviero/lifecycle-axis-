@@ -27,6 +27,9 @@ named in `.sdlc/active`.
    `approved-on` on a chain artifact and never run `scripts/approve.py`: `protect-approvals.sh` refuses both.
    Under a grant (`mode: delegated` on an approved intent, policy in `.sdlc/delegation.yaml`) an agent may
    sign `delegated` with `scripts/sign.py` under its own handle; `approved` stays a word only a human writes.
+   That human act may be one tap: a `workflow_dispatch` run of `.github/workflows/approve.yml` writes what the
+   approval script writes, with the run's actor as the deciding handle. Ask for the tap and wait; the production
+   gate catches every route an agent has to press it.
 4. Never deploy, publish, or push to a protected branch. The production gate hook
    stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.
@@ -57,9 +60,19 @@ previous one, or the agent has signed it under a delegation grant.
   (`claude/`). PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
+- A review runs on a **different model from the one that wrote the work**, whenever a second one is available:
+  a writer re-reading its own diff shares its own blind spots, and this repo has the scars to prove it (three
+  review rounds on pull request 51, each finding real defects in the previous round's fixes, two of them
+  introduced by the fix before). The item's ledger records which model wrote it and which reviewed it — the
+  owner writes those names, as `revisions/<n>.md`'s `## Reviewer: <role> (<model>)` heading already expects —
+  so a later reader can tell whether the second pair of eyes was genuinely a second pair.
 - `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
   handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
   `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.
+- Humans approve one of three ways; the tap is the cheapest. **Actions -> approve -> Run workflow**
+  (`.github/workflows/approve.yml`) with `slug`, `artifact` and `mode` runs the approval script as the run's
+  actor and commits the result with `Approved-Run`/`Approved-Actor` trailers that CI verifies against the run
+  record. An agent asks for the tap by naming those three inputs, and waits.
 - Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone:
   `git config sdlc.approver <github-handle>`, or pass `--as <handle>`; it enforces intent → spec → plan order), or by
   editing the artifact plus `log.md` in the GitHub web editor; then commit as themselves. The script refuses to run
@@ -99,4 +112,5 @@ A mistake made twice becomes a file there and a pointer line here, in the same P
 - Send ledger lines to the owner in a fenced block, never as bullets; run `log_ledger.py` after the approval lands — knowledge/lessons/send-ledger-lines-in-a-fenced-block.md
 - `git add` every new file before `verify.sh`: the front-matter check reads `git ls-files`, and a colon in an unquoted value is what it catches — knowledge/lessons/stage-new-files-before-verify.md
 - A workflow's permissions block names every API surface its scripts touch, not only the one in mind when it was written — knowledge/lessons/workflow-permissions-name-every-api.md
+- A fixture supplies its own identity and time; a test that reads the ambient environment passes here and fails on the runner — knowledge/lessons/tests-carry-their-own-environment.md
 <!-- END GENERATED -->

@@ -13,6 +13,15 @@ timestamp: 2026-09-05T12:05:00Z
 > decided) **and supersedes [`merge-click-is-the-gate.md`](merge-click-is-the-gate.md) for
 > delegated items only** (the CI merge workflow is the gate for those; every supervised item still
 > waits on the owner's click, unchanged).
+>
+> **Amended on 2026-09-06 by [`approve-by-dispatch.md`](approve-by-dispatch.md).** Decision 6's
+> requirement that a grant commit be GitHub-verified now holds for that record's route A only.
+> A grant may also be made by a tap in the Actions tab, and such a commit is pushed over git from
+> a runner, so it carries no signature at all — measured, not assumed. `delegated_merge.py`
+> therefore *chooses* between two routes on the commit rather than applying one set of conditions
+> to all: the signature is replaced by the run record, which names the actor server-side and
+> cannot be set from inside the run. A trailer that fails to resolve is refused outright, never
+> retried on the signed route.
 
 ## Context
 
