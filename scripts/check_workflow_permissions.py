@@ -33,14 +33,20 @@ import subprocess
 import sys
 
 # Rule (b) allowlist: workflow files permitted to declare `contents: write`,
-# as repo-relative paths with forward slashes. One entry: the delegated-merge
-# workflow, which merges a delegated pull request through the API and needs
+# as repo-relative paths with forward slashes. Two entries. The delegated-merge
+# workflow merges a delegated pull request through the API and needs
 # `contents: write` for the merge endpoint (work/delegated-mode R-14, D6). It
-# runs from the default branch and never checks out the pull request head. A
-# workflow that legitimately needs to write should narrow the permission to
-# itself and add its path here in a reviewed PR, not by editing around this
-# checker.
-CONTENTS_WRITE_ALLOWLIST = (".github/workflows/delegated-merge.yml",)
+# runs from the default branch and never checks out the pull request head. The
+# approve workflow commits and pushes the approval it was dispatched to make
+# (work/approve-by-dispatch R-1, C2): one checkout of the dispatch ref, no
+# pull-request head code, no dependency installed, and approve_dispatch.py
+# refuses to stage any path outside work/<slug>/ and .sdlc/active. A workflow
+# that legitimately needs to write should narrow the permission to itself and
+# add its path here in a reviewed PR, not by editing around this checker.
+CONTENTS_WRITE_ALLOWLIST = (
+    ".github/workflows/delegated-merge.yml",
+    ".github/workflows/approve.yml",
+)
 
 CONTENTS_WRITE_RE = re.compile(r"(?<![\w-])contents\s*:\s*['\"]?write['\"]?(?![\w-])")
 PERMISSIONS_WRITE_ALL_RE = re.compile(
