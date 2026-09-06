@@ -4,10 +4,10 @@ id: approve-by-dispatch
 title: One tap in the Actions tab writes what approve.py writes, with the run's actor as the human act
 description: "A workflow_dispatch workflow runs scripts/approve.py with the run's actor as the handle and commits the result, so every approval and every delegation grant is one tap; the commit carries the run id, and the chain check and the merge script verify a dispatch-made decision against the run's server-side record."
 stage: design
-status: in-review
+status: approved
 reads: intent.md
-approved-by:
-approved-on:
+approved-by: luissiviero 
+approved-on: 2026-09-06
 skills-applied: [security-standards]
 skills-version: c98cb19
 prompt: "/sdlc-spec approve-by-dispatch, in the session that built delegated mode (session_01EF2oWHtpLmPRkivdcz75p1), from the approved intent and an explorer pass over approve.py, check_artifact_chain.py, delegated_merge.py, the existing workflows and production-gate.sh"
