@@ -594,7 +594,44 @@ class DispatchAttestation(unittest.TestCase):
         ok, detail = self._verify(run, slug="demo", artifact="intent.md")
         self.assertIs(ok, True, detail)
 
-    def _verify(self, run, actor="luissiviero", token="t", slug=None, artifact=None):
+    # --- the blank-slug case (pr-review on pull request 51) -------------------------------
+    BLANK = "approve spec.md (supervised) on  by @luissiviero"
+
+    def test_run_name_regex_separates_a_blank_slug_from_a_different_one(self):
+        self.assertEqual(self.cac.RUN_NAME_RE.match(self.BLANK).group("slug"), "")
+        named = self.cac.RUN_NAME_RE.match("approve spec.md (supervised) on other by @luissiviero")
+        self.assertEqual(named.group("slug"), "other")
+
+    def test_a_blank_slug_run_verifies_against_active_at_the_parent(self):
+        """R-1 documents leaving `slug` blank, and run-name is evaluated before any step runs, so
+        the title has no slug segment. The run's own resolution is still reproducible from git."""
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)  # .sdlc/active == "demo"
+            _write(os.path.join(root, "note.txt"), "x\n")
+            _commit(root, "an approval would sit here")
+            sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
+                                 capture_output=True, text=True).stdout.strip()
+            saved, self.cac.ROOT = self.cac.ROOT, root
+            try:
+                ok, detail = self._verify(self._run_json(display_title=self.BLANK),
+                                          slug="demo", artifact="spec.md", commit_sha=sha)
+                self.assertIs(ok, True, detail)
+                # ...and a slug that is not what was active is still refused.
+                ok, detail = self._verify(self._run_json(display_title=self.BLANK),
+                                          slug="other-item", artifact="spec.md", commit_sha=sha)
+                self.assertIs(ok, False)
+                self.assertIn("not 'other-item'", detail)
+            finally:
+                self.cac.ROOT = saved
+
+    def test_a_blank_slug_run_with_no_readable_parent_is_refused(self):
+        ok, detail = self._verify(self._run_json(display_title=self.BLANK),
+                                  slug="demo", artifact="spec.md", commit_sha=None)
+        self.assertIs(ok, False)
+        self.assertIn("names no slug", detail)
+
+    def _verify(self, run, actor="luissiviero", token="t", slug=None, artifact=None,
+                commit_sha=None):
         """verify_dispatch_run with the API call stubbed out at the subprocess boundary."""
         import json as _json
         import subprocess as _sp
@@ -615,7 +652,8 @@ class DispatchAttestation(unittest.TestCase):
             if token is None:
                 os.environ.pop("GH_TOKEN", None)
                 os.environ.pop("GITHUB_TOKEN", None)
-            return self.cac.verify_dispatch_run("12345", actor, slug=slug, artifact=artifact)
+            return self.cac.verify_dispatch_run("12345", actor, slug=slug,
+                                                artifact=artifact, commit_sha=commit_sha)
         finally:
             self.cac.subprocess.run = real
             for k, v in saved.items():

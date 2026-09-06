@@ -120,6 +120,14 @@ AGENT_EMAIL_PATTERNS = (r"@anthropic\.com$", r"\[bot\]@", r"^noreply@")
 # other workflow is refused, not merely unverified (work/approve-by-dispatch R-6).
 DISPATCH_WORKFLOW_PATH = ".github/workflows/approve.yml"
 
+# approve.yml's `run-name`. Parsed rather than substring-matched so a blank slug segment is
+# distinguishable from a slug that simply differs: the first falls back to .sdlc/active at the
+# approval's parent, the second is a refusal. test_check_workflow_permissions.py asserts the
+# workflow's own run-name still matches this, so a format change breaks loudly rather than
+# silently turning the slug binding off.
+RUN_NAME_RE = re.compile(
+    r"^approve (?P<artifact>\S+) \((?P<mode>\w+)\) on (?P<slug>\S*) by @(?P<actor>\S+)\s*$")
+
 # A revision record's reviewer sections and their verdicts (work/delegated-mode R-5, D4).
 # docs/sdlc/templates/revision.md writes `## Reviewer: <role> (<model>)`; a `###` heading is read
 # the same way, so a record that nests its reviewers under one `## Reviewers` heading still counts.
@@ -159,7 +167,7 @@ def dispatch_attestation(commit_sha):
     return run.group(1), actor.group(1)
 
 
-def verify_dispatch_run(run_id, actor, slug=None, artifact=None):
+def verify_dispatch_run(run_id, actor, slug=None, artifact=None, commit_sha=None):
     """(True, detail) when the Actions API confirms the run; (False, reason) when it contradicts it;
     (None, reason) when there is no token to ask with.
 
@@ -199,11 +207,44 @@ def verify_dispatch_run(run_id, actor, slug=None, artifact=None):
         if (got or "").casefold() != (want or "").casefold():
             return False, f"run {run_id} {field} is {got!r}, expected {want!r}"
     title = run.get("display_title") or run.get("name") or ""
-    for what in (slug, artifact):
-        if what and what not in title:
-            return False, f"run {run_id} run-name {title!r} does not name {what!r}"
+    if artifact and artifact not in title:
+        return False, f"run {run_id} run-name {title!r} does not name {artifact!r}"
+    if slug:
+        named = RUN_NAME_RE.match(title)
+        if named and named.group("slug"):
+            if named.group("slug") != slug:
+                return False, (f"run {run_id} run-name {title!r} names slug "
+                               f"{named.group('slug')!r}, not {slug!r}")
+        else:
+            # A blank `slug` input means "whatever .sdlc/active names on this ref" (R-1), and
+            # run-name is evaluated from the raw input before any step runs -- so a blank-slug
+            # dispatch has no slug segment for the check above to match, and requiring one would
+            # refuse every supervised approval made the documented way (pr-review on pull request
+            # 51). The run's own resolution is still reproducible from git: `.sdlc/active` at the
+            # approval commit's parent is the file the run read. That is a fact, not a guess, so
+            # the binding holds without making the owner type a slug.
+            resolved = _active_at_parent(commit_sha) if commit_sha else None
+            if resolved is None:
+                return False, (f"run {run_id} run-name {title!r} names no slug and .sdlc/active "
+                               f"could not be read at the approval's parent")
+            if resolved != slug:
+                return False, (f"run {run_id} run-name {title!r} names no slug, and .sdlc/active "
+                               f"at the approval's parent was {resolved!r}, not {slug!r}")
     return True, (f"run {run_id} verified: workflow_dispatch of {DISPATCH_WORKFLOW_PATH} by {actor}"
                   f" for {slug or '?'}/{artifact or '?'}")
+
+
+def _active_at_parent(commit_sha):
+    """`.sdlc/active` as it stood in the commit's first parent, or None if unreadable.
+
+    The parent is the dispatch ref's tip at the moment the run checked it out, so this is exactly
+    the value the run's own "Resolve the slug" step read.
+    """
+    r = subprocess.run(["git", "show", f"{commit_sha}^:.sdlc/active"],
+                       capture_output=True, text=True, cwd=ROOT)
+    if r.returncode != 0:
+        return None
+    return r.stdout.strip() or None
 
 
 def _repo_slug():
@@ -644,7 +685,8 @@ def main():
                             f"{approved_by}; the run's actor is the deciding handle"
                         )
                     else:
-                        ok, detail = verify_dispatch_run(run_id, actor, slug=slug, artifact=name)
+                        ok, detail = verify_dispatch_run(run_id, actor, slug=slug, artifact=name,
+                                                         commit_sha=sha)
                         notes.append(f"work/{slug}/{name}: {detail}")
                         if ok is False:
                             errors.append(f"work/{slug}/{name}: dispatch attestation failed: {detail}")

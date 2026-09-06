@@ -361,6 +361,28 @@ class ApproveWorkflow(unittest.TestCase):
         for fragment in ("github.actor", "inputs.slug", "inputs.artifact", "inputs.mode"):
             self.assertIn(fragment, run_name)
 
+    def test_run_name_still_matches_the_checker_that_parses_it(self):
+        """check_artifact_chain.RUN_NAME_RE parses this title to tell a blank slug segment from a
+        different one. If the format drifts, the parse fails and the slug binding quietly stops
+        applying — so pin the two together rather than leaving it to a comment."""
+        import re as _re
+        import sys as _sys
+
+        if HERE not in _sys.path:
+            _sys.path.insert(0, HERE)
+        import check_artifact_chain as cac
+
+        # Render the template the way GitHub would, for a filled and a blank slug.
+        for slug in ("demo", ""):
+            rendered = self.doc["run-name"]
+            for expr, value in (("inputs.artifact", "spec.md"), ("inputs.mode", "supervised"),
+                                ("inputs.slug", slug), ("github.actor", "owner")):
+                rendered = _re.sub(r"\$\{\{\s*%s\s*\}\}" % _re.escape(expr), value, rendered)
+            match = cac.RUN_NAME_RE.match(rendered)
+            self.assertIsNotNone(match, "RUN_NAME_RE no longer parses %r" % rendered)
+            self.assertEqual(match.group("slug"), slug)
+            self.assertEqual(match.group("artifact"), "spec.md")
+
 
 if __name__ == "__main__":
     unittest.main()
