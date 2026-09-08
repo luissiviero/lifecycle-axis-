@@ -15,5 +15,5 @@ timestamp: 2026-09-05T20:00:00Z
 - Subagents live in `.claude/agents/` with a named role and a bounded `tools:` list. Keep one writer per work item:
   subagents read and return evidence, the session holding the plan makes every edit
   (`knowledge/decisions/one-writer-until-ledger.md`, provisional, with an expiry).
-- `/sdlc-run` drives a delegated item end to end (grant to ready pull request); a plan revision is the last
-  resort and needs the consensus record.
+- `/sdlc-run` drives every granted item end to end (grant to merged pull request, then the next queued item on
+  each merge, no human in between); a plan revision is the last resort and needs the consensus record.

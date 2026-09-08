@@ -14,9 +14,12 @@ from the default branch (the workflow refuses a grant on any other ref). Then wa
 approving; the run records who pressed Run, and that record is what the chain check and the merge script verify.
 
 **The queue.** The owner grants N intents up front, one tap each, and this runs them in order without
-coming back for anything. Before starting, print the queue so the owner knows what will happen before
-they leave: `python3 scripts/next_item.py --list` — earliest `delegated-on` first, ties by slug. Steps
-1-6 are one item; step 7 is what makes it a queue.
+coming back for anything. The first item is always the one `.sdlc/active` names (the merge script accepts
+no other), and every grant tap repoints that file — so the *last* tap runs first, then the rest by
+earliest `delegated-on`, ties by slug. Before starting, print the order the run will actually take, so the
+owner knows what will happen before they leave: the active slug, then
+`python3 scripts/next_item.py --list --exclude "$(cat .sdlc/active)"`. Steps 1-6 are one item; step 7 is
+what makes it a queue.
 
 1. `/sdlc-spec`, then `python3 scripts/sign.py <slug> spec.md`.
 2. `/sdlc-plan`, then `python3 scripts/sign.py <slug> plan.md` (the plan gate opens on a signed plan under the grant).

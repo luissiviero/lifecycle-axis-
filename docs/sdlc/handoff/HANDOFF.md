@@ -156,9 +156,16 @@ Batch A is merged; open Batch B starting with WI-7 band-detector.")
   `delegated -> superseded`) ledger line per artifact, and set `.sdlc/active` to the next item or to empty.
   `require-plan.sh` refuses a `superseded` plan; `check_artifact_chain.py` fails every pull request whose base
   already has `.sdlc/active` naming a retired item (the retiring pull request itself gets a note to move the
-  pointer), and notes one whose `Work-Item` differs from the pointer. Nothing
-  retires an item on merge: the merge script has no write-back, and the pointer stays as it was until a
-  human moves it. One tap for the act is a follow-up item.
+  pointer), and notes one whose `Work-Item` differs from the pointer. Nothing *retires* an item on merge
+  (`superseded` stays the owner's act; one tap for it is a follow-up item), but since `work/run-queue` the
+  merge does *move the pointer*: `delegated_merge.py` advances `.sdlc/active` to the next granted, unstarted
+  item (`scripts/next_item.py`: earliest `delegated-on`, ties by slug) and writes a ledger line on both items,
+  committed to `main` as `github-actions[bot]`. An owner's merge click runs no workflow, so it does not advance.
+- The queue's first item is whatever `.sdlc/active` names, and every grant tap repoints it — so **the last
+  tap runs first**, then the rest in date/slug order. Tap the item you want first, last.
+- No `gh` binary in the remote container: with `GH_TOKEN` set, the chain check's trailer verification raises
+  `FileNotFoundError` (`check_artifact_chain.py:192`, a follow-up). Locally, prefix `GH_TOKEN= GITHUB_TOKEN=`
+  on `scripts/verify.sh` and on the chain check; that takes the documented author-rule fallback. CI has `gh`.
 - `SDLC_CONTROL_PLANE_UNLOCK=1` (`.claude/settings.json`): writes to hooks, workflows, `.sdlc` pass with
   an audit line. The never-unlock files (`.sdlc/release-authorizations*`, `.sdlc/approvers.yaml`,
   `.sdlc/hook-decisions.log`) block any Bash command whose text names them, including `git rm --cached`;

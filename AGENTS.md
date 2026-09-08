@@ -69,9 +69,8 @@ previous one, or the agent has signed it under a delegation grant.
   handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
   `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.
 - Humans approve one of three ways; the tap is the cheapest. **Actions -> approve -> Run workflow**
-  (`.github/workflows/approve.yml`) with `slug`, `artifact` and `mode` runs the approval script as the run's
-  actor and commits the result with `Approved-Run`/`Approved-Actor` trailers that CI verifies against the run
-  record. An agent asks for the tap by naming those three inputs, and waits.
+  (`.github/workflows/approve.yml`) with `slug`, `artifact` and `mode` runs the approval script as the run's actor
+  and commits with `Approved-Run`/`Approved-Actor` trailers CI verifies against the run; an agent names the three inputs and waits.
 - Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone:
   `git config sdlc.approver <github-handle>`, or pass `--as <handle>`; it enforces intent → spec → plan order), or by
   editing the artifact plus `log.md` in the GitHub web editor; then commit as themselves. The script refuses to run
@@ -93,5 +92,6 @@ A mistake made twice becomes a file there and a pointer line here, in the same P
 - `git add` every new file before `verify.sh`: the front-matter check reads `git ls-files`, and a colon in an unquoted value is what it catches — knowledge/lessons/stage-new-files-before-verify.md
 - A workflow's permissions block names every API surface its scripts touch, not only the one in mind when it was written — knowledge/lessons/workflow-permissions-name-every-api.md
 - A fixture supplies its own identity and time; a test that reads the ambient environment passes here and fails on the runner — knowledge/lessons/tests-carry-their-own-environment.md
-- No blank line in an eval `check:` block (it truncates the block into a stub that always passes); break what a new oracle watches and watch it go red — knowledge/lessons/eval-checks-have-no-blank-lines.md
+- A rules-fragment line is paid for at the adopter's render, which sits at exactly the cap; measure with adopt.sh into scratch — knowledge/lessons/adopter-context-file-sits-at-the-cap.md
+- Commit before `check_artifact_chain.py --base origin/main`: staged work is invisible to it, and an empty diff passes as in-progress — knowledge/lessons/commit-before-the-chain-check.md
 <!-- END GENERATED -->
