@@ -38,6 +38,14 @@ checks 1-2 are exercised locally. CI passes `--base origin/<base_ref>` so the ch
 checks run against the PR's real diff.
 """
 import argparse, fnmatch, json, os, re, subprocess, sys
+
+# The one spelling of a work-item slug this check accepts from --slug and from .sdlc/active, before
+# either value reaches a path or a git argument (work/retire-active-pointer, security pass on pull
+# request 53). approve_dispatch.py and delegated_merge.py guard their boundaries with the same shape;
+# this one also allows a leading '_' because adopt.sh seeds `.sdlc/active` with `_example`. Rejected:
+# '..' and './x' (paths outside work/<slug>/, or a second spelling of an item that a guard comparing
+# one spelling would miss -- knowledge/lessons/one-path-spelling-in-guards.md), '/', NUL, a newline.
+SLUG_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*$")
 from datetime import datetime, timezone
 
 ROOT = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip() or "."
@@ -472,7 +480,18 @@ def main():
         help="skip the approvers.yaml + log.md ledger checks (for early adopters without them)",
     )
     a = ap.parse_args()
-    slug = a.slug or _active_slug()
+    pointer = _active_slug()
+    for source, value in (("--slug", a.slug or ""), (".sdlc/active", pointer)):
+        # Validate at the boundary (security-standards §3), before the value names a path or a ref.
+        # `!r` keeps a newline or a NUL inside the value on this one line, so the report stays one line
+        # and `CHAIN: FAIL` stays the last one, whatever the pointer holds.
+        if value and not SLUG_RE.match(value):
+            print(f"  FAIL: {source} holds {value!r}, which is not a work-item slug (letters, digits, '_' "
+                  f"and '-', with '.'-separated parts): it would name a path outside work/<slug>/ or a "
+                  f"second spelling of an item; fix it")
+            print("CHAIN: FAIL")
+            sys.exit(1)
+    slug = a.slug or pointer
     if not slug:
         # Before anything else, and in one line: with no slug there is no item to check, which is a
         # setup mistake rather than a broken chain (work/delegated-mode R-6).
@@ -508,8 +527,9 @@ def main():
         # work/retire-active-pointer R-4: a base ref git does not know used to give an empty diff, and
         # `all([])` below then read that as in-progress mode -- a silent pass on the wrong question.
         # One line, before anything else, the way an empty pointer is handled above.
-        print(f"  FAIL: base ref '{a.base}' is not known here (git diff failed); pass --base HEAD for a "
-              f"local self-check, or fetch the ref")
+        detail = (diff.stderr.strip().splitlines() or ["no detail from git"])[-1]
+        print(f"  FAIL: base ref '{a.base}' is not known here (git diff failed: {detail}); pass --base HEAD "
+              f"for a local self-check, or fetch the ref")
         print("CHAIN: FAIL")
         sys.exit(1)
     changed_all = [p for p in diff.stdout.split() if p]
@@ -517,8 +537,7 @@ def main():
     # .sdlc/active when the diff points it at this item -- activating an item is part of opening it.
     # A PR that touches another item's work/<other>/ while labelled with this slug is mislabelled,
     # and gets the strict check. An empty diff (`--base HEAD`, a local self-check) validates what exists.
-    active_path = os.path.join(ROOT, ".sdlc", "active")
-    active_now = open(active_path, encoding="utf-8").read().strip() if os.path.exists(active_path) else ""
+    active_now = pointer  # read once and validated above; never re-read from disk
 
     # work/retire-active-pointer R-2, R-3: the pointer is judged whatever --slug says, because it is
     # read by the plan gate and the merge script for every pull request, not only this one. A pointer
@@ -542,15 +561,33 @@ def main():
         base_status = front_matter_text(shown.stdout).get("status") if shown.returncode == 0 else None
         head_fm = front_matter(os.path.join(ROOT, rel))
         head_status = head_fm.get("status") if head_fm is not None else None
-        if base_status == "superseded":
+        # `--base HEAD` is the self-check scripts/verify.sh runs (VERIFY_CMDS): base and head are the
+        # same commit, so there is no "before" to judge against. Then the only honest output is the
+        # note; the failure is CI's, where the base is origin/main (security pass on pull request 53:
+        # without this, a retiring pull request passed the chain step and failed the Verify step of
+        # the same job, on the same tree).
+        rev = lambda ref: subprocess.run(["git", "rev-parse", ref], capture_output=True, text=True, cwd=ROOT).stdout.strip()
+        self_check = rev(a.base) == rev("HEAD")
+        if base_status == "superseded" and not self_check:
             errors.append(
                 f".sdlc/active names '{active_now}', which is retired (work/{active_now}/intent.md is "
                 f"superseded); clear .sdlc/active or point it at the item in progress"
+            )
+        elif head_status == "superseded" and self_check:
+            notes.append(
+                f".sdlc/active names '{active_now}', whose work/{active_now}/intent.md is superseded on "
+                f"this commit; against origin/main this fails unless the retirement is this pull "
+                f"request's own -- set .sdlc/active to the next item or to empty"
             )
         elif head_status == "superseded":
             notes.append(
                 f"this pull request retires '{active_now}': set .sdlc/active to the next item or to "
                 f"empty in the same pull request, or every later pull request fails on the pointer"
+            )
+        elif base_status is None and head_status is None and active_now != slug:
+            notes.append(
+                f".sdlc/active names '{active_now}', which has no work/{active_now}/intent.md on "
+                f"{a.base} or here; point it at the item in progress"
             )
 
     def own_artifact(p):

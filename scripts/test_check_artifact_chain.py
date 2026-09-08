@@ -1159,19 +1159,87 @@ class StalePointer(unittest.TestCase):
             self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
 
     def test_retired_active_item_is_one_clear_failure(self):
-        """R-2: .sdlc/active naming an item whose intent.md is superseded is one FAIL line that names
-        the item and the fix, whatever --slug says."""
+        """R-2: .sdlc/active naming an item that was already retired on the base is one FAIL line that
+        names the item and the fix, whatever --slug says. The retirement is on main; the pull request
+        under check is a later commit on a branch."""
         with tempfile.TemporaryDirectory() as root:
             wd = _make_repo(root)
             self._retire(wd)
-            _commit(root, "retire demo")
-            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            _commit(root, "retire demo on main, pointer left behind")
+            _git(root, "checkout", "-q", "-b", "work/later")
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-01-03T00:00:00Z | plan.md | superseded -> superseded | luissiviero | abc1234 | a later note\n")
+            _commit(root, "a later pull request, pointer still stale")
+            result = _run(root, "--slug", "demo", "--base", "main")
             self.assertEqual(result.returncode, 1, result.stdout)
             fail_lines = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
             self.assertEqual(len(fail_lines), 1, result.stdout)
             self.assertIn(".sdlc/active names 'demo', which is retired", fail_lines[0])
             self.assertIn("work/demo/intent.md is superseded", fail_lines[0])
             self.assertIn("clear .sdlc/active", fail_lines[0])
+
+    def test_self_check_on_a_retired_pointer_is_a_note(self):
+        """Security pass on pull request 53, finding 1: `--base HEAD` (what scripts/verify.sh runs) has no
+        "before", so a retired pointer is a note there and the failure is CI's. Same tree, one answer
+        per invocation, never a chain step that passes and a Verify step that fails."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            self._retire(wd)
+            _commit(root, "retire demo")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+            self.assertNotIn("  FAIL:", result.stdout)
+            notes = [l for l in result.stdout.splitlines() if "is superseded on this commit" in l]
+            self.assertEqual(len(notes), 1, result.stdout)
+            self.assertTrue(notes[0].startswith("  note:"), notes[0])
+            self.assertIn("set .sdlc/active to the next item or to empty", notes[0])
+
+    def test_malformed_active_pointer_is_one_clear_failure(self):
+        """Security pass on pull request 53, finding 2: the pointer is validated before it names a path
+        or a git argument. `./demo` is a second spelling of a retired item that bypassed R-2; `../x`
+        escapes work/; a newline could forge a `CHAIN: PASS` line; a NUL crashed subprocess with no
+        `CHAIN:` line at all. Each is one FAIL line, and `CHAIN: FAIL` stays the last line."""
+        for bad in ("./demo", "../other", "demo/", "demo\nCHAIN: PASS", "demo\x00"):
+            with self.subTest(pointer=bad):
+                with tempfile.TemporaryDirectory() as root:
+                    wd = _make_repo(root)
+                    self._retire(wd)
+                    _write(os.path.join(root, ".sdlc", "active"), bad + "\n")
+                    _commit(root, "retire demo, then a malformed pointer")
+                    result = _run(root, "--slug", "demo", "--base", "HEAD")
+                    self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    fail_lines = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
+                    self.assertEqual(len(fail_lines), 1, result.stdout)
+                    self.assertIn(".sdlc/active holds", fail_lines[0])
+                    self.assertIn("not a work-item slug", fail_lines[0])
+                    self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+                    # A forged line inside the value never reaches its own line of output: the repr
+                    # keeps it inside the FAIL line, so no line of stdout is a bare `CHAIN: PASS`.
+                    self.assertEqual([l for l in result.stdout.splitlines() if l == "CHAIN: PASS"], [], result.stdout)
+
+    def test_leading_underscore_slug_is_accepted(self):
+        """adopt.sh seeds `.sdlc/active` with `_example`; the boundary must not refuse it."""
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root, slug="_example")
+            result = _run(root, "--base", "HEAD")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+
+    def test_pointer_to_a_missing_item_is_a_note(self):
+        """Security pass nit: a pointer naming an item that exists on neither base nor head used to be
+        silent. It is a note when --slug names something else (when it names the pointer's item, the
+        chain loop already reports the missing intent)."""
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _write(os.path.join(root, ".sdlc", "active"), "gone\n")
+            _commit(root, "pointer at a deleted item")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            notes = [l for l in result.stdout.splitlines() if "has no work/gone/intent.md" in l]
+            self.assertEqual(len(notes), 1, result.stdout)
+            self.assertTrue(notes[0].startswith("  note:"), notes[0])
 
     def test_retiring_pull_request_is_a_note_not_a_failure(self):
         """R-2, the other side: the pull request that retires the active item is the act in progress,
@@ -1205,9 +1273,11 @@ class StalePointer(unittest.TestCase):
             result = _run(root, "--slug", "other", "--base", "HEAD")
             self.assertEqual(result.returncode, 0, result.stdout)
             self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
-            notes = [l for l in result.stdout.splitlines() if ".sdlc/active names" in l]
+            # Every note counts (plan-conformance nit on pull request 53), less the in-progress banner
+            # that `--base HEAD` always prints: exactly one line is this finding's.
+            notes = [l for l in result.stdout.splitlines()
+                     if l.startswith("  note:") and "mode: in-progress" not in l]
             self.assertEqual(len(notes), 1, result.stdout)
-            self.assertTrue(notes[0].startswith("  note:"), notes[0])
             self.assertIn(".sdlc/active names 'demo', not 'other'", notes[0])
             self.assertIn("merges only the active item", notes[0])
 
