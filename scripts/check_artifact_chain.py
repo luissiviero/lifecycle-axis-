@@ -264,6 +264,24 @@ def _repo_slug():
     return m.group(1) if m else ""
 
 
+def _porcelain_sample(lines, limit=3):
+    """The first `limit` paths from `git status --porcelain` output, with a count for the rest.
+
+    A rename or copy is rendered `R  old -> new`, so column 4 onward is a descriptor rather than a
+    path; the destination is what a reader would `git add`. Every value is repr'd: a filename is
+    untrusted input on its way to an operator's terminal, and a newline or quote inside one must not
+    break the single line the caller prints (security-standards 3)."""
+    paths = []
+    for line in lines[:limit]:
+        path = line[3:] if len(line) > 3 else line
+        if line[:1] in ("R", "C") and " -> " in path:
+            path = path.rsplit(" -> ", 1)[1]
+        paths.append(repr(path))
+    if len(lines) > limit:
+        paths.append("+%d more" % (len(lines) - limit))
+    return ", ".join(paths)
+
+
 def _active_slug():
     """The slug in .sdlc/active, or "" when the file is missing or empty."""
     try:
@@ -534,6 +552,39 @@ def main():
         print("CHAIN: FAIL")
         sys.exit(1)
     changed_all = [p for p in diff.stdout.split() if p]
+    # work/run-queue-followups R-1..R-5: `git diff <base>...HEAD` sees commits only, so staged and
+    # untracked work is invisible to it. An empty diff then selects in-progress mode below, because
+    # `all([])` is True, and the check reports PASS under a note describing a diff that does not
+    # exist -- it audited the wrong work twice in one session
+    # (knowledge/lessons/commit-before-the-chain-check.md). Refuse instead, in the shape the
+    # unknown-base-ref case above uses.
+    #
+    # The predicate is the caller's spelling of --base, not the commit it resolves to, and it is
+    # deliberately NOT `self_check` below. The two answer different questions: there, "is there a
+    # `before` to judge a retirement against" (commit identity); here, "did the caller ask to
+    # validate the working tree as it stands" (call-site identity, which is what scripts/verify.sh
+    # requests by passing literally `--base HEAD`). In the recorded scenario the base and HEAD are
+    # the *same* commit, so a revision comparison is inert exactly where this guard is needed
+    # (work/run-queue-followups/revisions/1.md). Do not unify them.
+    if not changed_all and a.base != "HEAD":
+        st = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, cwd=ROOT)
+        if st.returncode != 0:
+            # Fail closed: unable to tell whether the tree is clean is not the same as clean, and
+            # assuming clean would reopen the very defect this guard exists to close.
+            detail = (st.stderr.strip().splitlines() or ["no detail from git"])[-1]
+            print(f"  FAIL: cannot tell whether the working tree is clean (git status failed: {detail}); "
+                  f"the chain check will not report on a tree it could not examine -- fix the checkout, "
+                  f"or pass --base HEAD for a local self-check")
+            print("CHAIN: FAIL")
+            sys.exit(1)
+        dirty = [l for l in st.stdout.splitlines() if l.strip()]
+        if dirty:
+            print(f"  FAIL: the diff against '{a.base}' is empty but the working tree is not: "
+                  f"{len(dirty)} uncommitted path(s) ({_porcelain_sample(dirty)}); the chain check reads "
+                  f"commits only, so it would report on nothing -- commit them first, or pass "
+                  f"--base HEAD for a local self-check")
+            print("CHAIN: FAIL")
+            sys.exit(1)
     # Artifact-only means *this* item's artifacts (plus the generated top-level index), and
     # .sdlc/active when the diff points it at this item -- activating an item is part of opening it.
     # A PR that touches another item's work/<other>/ while labelled with this slug is mislabelled,
