@@ -2,7 +2,7 @@
 type: sdlc/index
 title: Work items
 description: Generated index of every work/<slug> item; run scripts/gen_index.py to refresh.
-timestamp: 2026-09-08T18:40:00Z
+timestamp: 2026-09-08T21:50:00Z
 ---
 # Work items
 
@@ -13,6 +13,7 @@ timestamp: 2026-09-08T18:40:00Z
 | [agent-evals](agent-evals/index.md) | Evals test the agent, and can go red | plan | approved | approved | approved | PR #34 -> in-review by claude |
 | [approval-gate](approval-gate/index.md) | Only a human can flip an artifact to approved | plan | approved | approved | approved | PR #25 -> in-review by claude |
 | [approve-by-dispatch](approve-by-dispatch/index.md) | Give permission for the AI to change from one mode to the other when I request, without doing everything manually | plan | approved | approved | delegated | plan.md -> delegated by claude |
+| [approve-tap-regenerates-index](approve-tap-regenerates-index/index.md) | The approval tap commits an approval whose indexes are stale; make the tap regenerate what it changes | intent | in-review | — | — | — |
 | [band-detector](band-detector/index.md) | The band detector cannot see the breach it exists for | plan | approved | approved | approved | PR #31 -> in-review by claude |
 | [bash-guard-hardening](bash-guard-hardening/index.md) | The Bash write guard silently allows deletes, glued commands, stderr redirects and two-step cd into the control plane | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [batch-b-followups](batch-b-followups/index.md) | Close the three leftovers Batch B surfaced | plan | approved | approved | approved | PR #39 -> in-review by claude |
@@ -25,5 +26,5 @@ timestamp: 2026-09-08T18:40:00Z
 | [loop-protection](loop-protection/index.md) | The agent must not be able to weaken the check on its own work | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [retire-active-pointer](retire-active-pointer/index.md) | Retire `.sdlc/active` when a work item completes, so the plan gate stops opening on finished work | plan | approved | delegated | delegated | PR #53 -> in-review by claude |
 | [run-queue](run-queue/index.md) | Grant several items up front and let one delegated run work through them, so I can be away for hours | plan | approved | delegated | delegated | plan.md -> delegated by claude |
-| [run-queue-followups](run-queue-followups/index.md) | The chain check reports PASS on work it never saw; make it say so instead | intent | in-review | — | — | intent.md -> in-review by claude |
+| [run-queue-followups](run-queue-followups/index.md) | The chain check reports PASS on work it never saw; make it say so instead | intent | approved | — | — | intent.md -> approved by luissiviero |
 | [sdlc-kit-phase-1](sdlc-kit-phase-1/index.md) | Make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
