@@ -4,14 +4,14 @@ id: retire-active-pointer
 title: Retire `.sdlc/active` when a work item completes, so the plan gate stops opening on finished work
 description: "Nothing clears `.sdlc/active` when an item finishes, so it still names a merged item; require-plan.sh judges only that item's plan status and opens the code gate against a plan that has already landed."
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), drafted by Claude from the follow-up recorded three times in the repo and the gate state measured in this session
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-08
 risk-class: low
-mode: supervised
-delegated-by:
-delegated-on:
+mode: delegated
+delegated-by: luissiviero
+delegated-on: 2026-09-08
 supersedes:
 record:
 resource: https://github.com/luissiviero/lifecycle-axis-/pull/51
