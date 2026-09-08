@@ -1,8 +1,8 @@
 ---
 type: sdlc/plan
 id: run-queue-followups
-title: One early refusal in check_artifact_chain.py, its six cases, an eval oracle, and the lesson's enforcement section
-description: "A guard after changed_all refuses when the diff is empty, the caller did not ask for the self-check, and the working tree is dirty or unreadable; six regression cases, one mutation-tested eval, and the lesson stops saying the guard is nowhere."
+title: One early refusal in check_artifact_chain.py, its seven cases, an eval oracle, and the lesson's enforcement section
+description: "A guard after changed_all refuses when the diff is empty, the caller did not ask for the self-check, and the working tree is dirty or unreadable; seven regression cases, one mutation-tested eval, and the lesson stops saying the guard is nowhere."
 stage: build
 status: delegated
 kind: feature
@@ -28,7 +28,7 @@ cannot be read.
 
 ## Files that change
 - scripts/check_artifact_chain.py — the early refusal after `changed_all`, with the comment recording why its predicate differs from `self_check` at `:571` (R-1, R-2, R-3, R-4, R-5)
-- scripts/test_check_artifact_chain.py — new class `DirtyTree` with six cases and a stage-without-commit fixture helper (R-1, R-2, R-3, R-4, R-5, R-6)
+- scripts/test_check_artifact_chain.py — new class `DirtyTree` with seven cases and a stage-without-commit fixture helper (seventh: deviation 1) (R-1, R-2, R-3, R-4, R-5, R-6)
 - evals/cases/chain-refuses-empty-diff-on-a-dirty-tree.yaml — new; the oracle, both halves, no blank line in its check block (R-8)
 - knowledge/lessons/commit-before-the-chain-check.md — the "Where it is enforced" section names the guard, and keeps the rule for the case it cannot reach (R-7)
 - work/run-queue-followups/spec.md — signed under the grant, re-signed under revision 1
@@ -56,7 +56,7 @@ cannot be read.
    line (R-1). One `  FAIL:` line in the Interfaces shape, then `CHAIN: FAIL`, then `sys.exit(1)`. Paths
    taken from column 4, rename entries split on the last ` -> `, each `repr`'d, first three then
    `, +<k> more`. A comment records why this predicate is deliberately not `self_check` (G-8). Verify:
-   step 1's six cases green; the full file green; `:570-571` untouched in the diff.
+   step 1's seven cases green; the full file green; `:570-571` untouched in the diff.
 3. **The eval.** Add `evals/cases/chain-refuses-empty-diff-on-a-dirty-tree.yaml` in the shape of
    `chain-allows-intent-only-pr.yaml`: temp repo, own identity, assert exit 1 on the dirty tree and exit 0
    on the same tree once committed. Verify: `scripts/run_evals.sh --only chain-refuses-empty-diff-on-a-dirty-tree`
@@ -118,4 +118,8 @@ other file depends on the new behaviour. `check_artifact_chain.py` is on the pol
 the merge is the owner's click and the revert would be too.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- 2026-09-08 — `DirtyTree` carries seven cases, not the six the file list names. The seventh,
+  `test_a_rename_is_sampled_as_a_path_not_a_descriptor`, pins the rename handling the Interfaces
+  section specifies (`R  old -> new` must sample as a path, not a descriptor), which revision 1
+  added as the security pass's nit. An unproven line in a signed Interfaces section is what the
+  plan-conformance pass exists to catch, so the case was written rather than the line dropped.
