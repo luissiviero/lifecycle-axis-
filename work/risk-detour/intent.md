@@ -126,16 +126,16 @@ the fact rather than a stop they are called back for, and that is the trade the 
   templates, rules, the locked scripts), park the work or finish it? Proposed: finish to a ready pull
   request and park with `parked: ready PR #<n>; click needed (<path>)`, so the pointer moves on and the
   owner's click merges by the human path later.
-  A:
+  A: agreed (owner, 2026-09-08): finish to a ready pull request and park with `parked: ready PR #<n>; click needed (<path>)`, so the pointer moves on.
 - Q: how many rounds before a park? Proposed: two records per gate, a skill convention now; a
   `max-detours` policy key comes with `work/standing-grant`, whose policy parser change it needs.
-  A:
+  A: agreed (owner, 2026-09-08): two records per gate, a skill convention; `max-detours` arrives with work/standing-grant.
 - Q: when a second model is not on the machine (a remote session, no `agy`), is a second Claude model
   an acceptable second reviewer? Proposed: yes, named in the heading as today.
-  A:
+  A: agreed (owner, 2026-09-08): a second Claude model is acceptable, named in the heading as today.
 - Q: should `work/index.md` mark a parked item, or is the park pull request's title enough? Proposed:
   a `parked` marker in the generated index, with a golden test; it is where the owner looks first.
-  A:
+  A: agreed (owner, 2026-09-08): a `parked` marker in the generated index, with a golden test.
 - Q: `scripts/next_item.py` is read by the advance but is not on `locked-paths`. Add it? Proposed: yes,
   in `.sdlc/delegation.yaml`, the owner's file, after this item merges.
-  A:
+  A: agreed (owner, 2026-09-08): add `scripts/next_item.py` to `locked-paths` after this item merges, as the owner's own edit.
