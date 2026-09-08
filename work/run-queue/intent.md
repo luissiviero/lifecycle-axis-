@@ -4,14 +4,14 @@ id: run-queue
 title: Grant several items up front and let one delegated run work through them, so I can be away for hours
 description: "A delegated run ends at one ready pull request and nothing starts the next item; every grant tap repoints .sdlc/active at one item; so one tap buys one item and the project idles until the owner is back. Let the owner grant a queue of intents at the start and have the run advance from one merged item to the next granted one without a human."
 stage: plan
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), in the session that shipped work/retire-active-pointer; drafted by Claude from the owner's statement of the objective and the lifecycle facts measured in that session
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-08
 risk-class: low
-mode: supervised
-delegated-by:
-delegated-on:
+mode: delegated
+delegated-by: luissiviero
+delegated-on: 2026-09-08
 supersedes:
 record:
 resource: https://github.com/luissiviero/lifecycle-axis-/pull/53
