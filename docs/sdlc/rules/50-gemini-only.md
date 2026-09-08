@@ -21,7 +21,8 @@ timestamp: 2026-09-05T20:00:00Z
   `/sdlc-*` procedures are the SKILL.md files under `.claude/skills/`: read and follow them.
   Keep one writer per work item: subagents read and return evidence, the session holding the plan
   makes every edit (`knowledge/decisions/one-writer-until-ledger.md`, provisional, with an expiry).
-- `/sdlc-run` drives a delegated item end to end (grant to ready pull request), the same way: read and
-  follow `.claude/skills/sdlc-run/SKILL.md`; a plan revision is the last resort and needs the consensus record.
+- `/sdlc-run` drives every granted item end to end (grant to merged pull request, then the next queued item on
+  each merge), the same way: read and follow `.claude/skills/sdlc-run/SKILL.md`; a plan revision is the last
+  resort and needs the consensus record.
 - Antigravity (IDE and `agy`) reads this file but ignores `.gemini/settings.json`, so there
   the rules above are advisory only and `sdlc-gate` plus the merge click are the gates.
