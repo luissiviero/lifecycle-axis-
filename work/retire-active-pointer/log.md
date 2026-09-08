@@ -1,0 +1,13 @@
+---
+type: sdlc/log
+id: retire-active-pointer-log
+title: Gate ledger for retire-active-pointer
+description: Chronological record of stage transitions and approvals for this work item.
+timestamp: 2026-09-07T12:00:00Z
+---
+# Log: retire-active-pointer
+
+Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
+(append-only; `<note>` is optional; parsed by `scripts/log_ledger.py`).
+
+- 2026-09-07T12:00:00Z | intent.md | (none) -> in-review | claude | e520f45 | drafted from the follow-up recorded in work/delegated-mode/spec.md:226, work/approve-by-dispatch/intent.md:104 and spec.md:251, plus the gate state measured in this session; three questions answered as proposals for the owner to edit or accept
