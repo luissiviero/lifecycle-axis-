@@ -38,6 +38,9 @@ cannot be read.
 - work/run-queue-followups/log.md — ledger lines at each gate
 - work/run-queue-followups/index.md — regenerated
 - work/index.md — regenerated
+- knowledge/lessons/index.md — the three entries #55 and #57 left out, including this item's own lesson (deviation 2)
+- docs/sdlc/README.md — the inventory line for the chain check gains the new refusal (deviation 2)
+- docs/sdlc/handoff/HANDOFF.md — a current task state; the token prefix a new session needs; commit-then-check (deviation 2)
 
 ## Release-gated
 (none) — no path under `RELEASE_GATED_PATHS` (`migrations infra terraform helm`) is touched.
@@ -123,3 +126,10 @@ the merge is the owner's click and the revert would be too.
   section specifies (`R  old -> new` must sample as a path, not a descriptor), which revision 1
   added as the security pass's nit. An unproven line in a signed Interfaces section is what the
   plan-conformance pass exists to catch, so the case was written rather than the line dropped.
+- 2026-09-08 — the owner asked for a documentation pass before the session ends, which widens the
+  file list by three: `knowledge/lessons/index.md` (three lessons filed by #55 and #57 were never indexed,
+  this item's own among them), `docs/sdlc/README.md` (its one-line description of the chain check did not
+  mention the new refusal) and `docs/sdlc/handoff/HANDOFF.md` (its task state was two items stale and
+  carried neither the token prefix a new session needs nor commit-then-check). The spec's `Not doing`
+  excluded the index on the grounds that it was not this item's file; the owner's request supersedes that
+  scoping choice, and the change is additive prose with no behaviour attached. 2 of 5.
