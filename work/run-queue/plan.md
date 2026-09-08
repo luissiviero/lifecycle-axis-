@@ -35,6 +35,8 @@ timestamp: 2026-09-08T17:20:00Z
 - knowledge/decisions/index.md — its entry for run-queue.md, written by hand (this index is not generated)
 - docs/sdlc/rules/30-conventions.md — one paragraph re-flowed to free a line for the new lesson pointer (deviation 2)
 - work/retire-active-pointer/revisions/index.md — new; the OKF warning this session left on main in pull request 53 (deviation 2)
+- work/run-queue/revisions/1.md — the consensus record for revision 1 (review round 1)
+- work/run-queue/revisions/index.md — its index; a revisions/ directory without one is an OKF warning, as pull request 53 proved (review round 1)
 - docs/sdlc/README.md — the inventory gains next_item.py
 - work/run-queue/plan.md — this plan; its deviations log
 - work/run-queue/log.md — ledger lines at each gate
