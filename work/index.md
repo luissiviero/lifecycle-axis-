@@ -13,7 +13,7 @@ timestamp: 2026-09-08T21:50:00Z
 | [agent-evals](agent-evals/index.md) | Evals test the agent, and can go red | plan | approved | approved | approved | PR #34 -> in-review by claude |
 | [approval-gate](approval-gate/index.md) | Only a human can flip an artifact to approved | plan | approved | approved | approved | PR #25 -> in-review by claude |
 | [approve-by-dispatch](approve-by-dispatch/index.md) | Give permission for the AI to change from one mode to the other when I request, without doing everything manually | plan | approved | approved | delegated | plan.md -> delegated by claude |
-| [approve-tap-regenerates-index](approve-tap-regenerates-index/index.md) | The approval tap commits an approval whose indexes are stale; make the tap regenerate what it changes | intent | in-review | — | — | — |
+| [approve-tap-regenerates-index](approve-tap-regenerates-index/index.md) | The approval tap commits an approval whose indexes are stale; make the tap regenerate what it changes | intent | in-review | — | — | intent.md -> in-review by claude |
 | [band-detector](band-detector/index.md) | The band detector cannot see the breach it exists for | plan | approved | approved | approved | PR #31 -> in-review by claude |
 | [bash-guard-hardening](bash-guard-hardening/index.md) | The Bash write guard silently allows deletes, glued commands, stderr redirects and two-step cd into the control plane | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [batch-b-followups](batch-b-followups/index.md) | Close the three leftovers Batch B surfaced | plan | approved | approved | approved | PR #39 -> in-review by claude |
