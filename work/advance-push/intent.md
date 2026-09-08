@@ -99,11 +99,11 @@ the owner's click regardless, because `scripts/delegated_merge.py` is a locked p
 - Q: fetch-and-fast-forward, or re-checkout? Proposed: `git fetch origin <default>` then
   `git merge --ff-only FETCH_HEAD` on the job's checkout; a non-fast-forward result is a note and no
   write, the same shape as the rejected push today.
-  A:
+  A: agreed (owner, 2026-09-08): fetch the default branch, then `git merge --ff-only FETCH_HEAD`; a non-fast-forward result is a note and no write.
 - Q: should the advance also check that the fetched tip is the merge commit the API returned before
   writing? Proposed: yes; it is one comparison, it makes the ledger's "merged as <sha>" exact, and a
   mismatch (someone pushed to `main` in the same second) is a note and no write.
-  A:
+  A: agreed (owner, 2026-09-08): compare the fetched tip with the merge commit the API returned before writing; a mismatch is a note and no write.
 - Q: this item must merge before `work/standing-grant` or `work/risk-detour` can be demonstrated live.
   Grant it first, or run it supervised? Proposed: supervised; it is one locked file and one test.
-  A:
+  A: agreed (owner, 2026-09-08): supervised, and first of the three items.
