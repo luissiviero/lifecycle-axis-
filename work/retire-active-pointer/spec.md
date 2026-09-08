@@ -22,11 +22,12 @@ timestamp: 2026-09-08T15:00:00Z
 | # | Requirement | Intent outcome | Acceptance test (machine-checkable) |
 |---|-------------|----------------|--------------------------------------|
 | R-1 | A retired item closes the plan gate: with `.sdlc/active` (or `SDLC_WORK_ITEM`) naming an item whose `plan.md` is `status: superseded`, an Edit under `PLAN_REQUIRED_PATHS` is refused. This is `require-plan.sh:35` as it stands; the requirement pins it so no later change reopens it. No hook is edited. | 1 (edit refused on a completed item) | `scripts/test_hooks_baseline.py::RequirePlanHook::test_blocks_when_plan_superseded` — exit 2, stderr names `superseded` |
-| R-2 | The chain check fails, in one line, when `.sdlc/active` names a retired item: `work/<active>/intent.md` is `status: superseded`. The line names the item and the fix. It fires whatever `--slug` says, because the pointer is wrong for every pull request until it moves. | 2 (stale pointer reported in one clear line) | `scripts/test_check_artifact_chain.py::StalePointer::test_retired_active_item_is_one_clear_failure` — exit 1, exactly one `  FAIL:` line, containing `.sdlc/active names '<slug>', which is retired` |
+| R-2 | The chain check fails, in one line, when `.sdlc/active` names an item **already retired on the base ref**: `work/<active>/intent.md` is `status: superseded` on `--base`. The line names the item and the fix. It fires whatever `--slug` says, because the pointer is wrong for every pull request until it moves. Two cases are notes, not failures: the pull request that retires the item (superseded on the head only — the act in progress), and a self-check (`--base HEAD`, what `scripts/verify.sh` runs), which has no base to judge against, so the failure there is CI's. (Revision 1.) | 2 (stale pointer reported in one clear line) | `scripts/test_check_artifact_chain.py::StalePointer::test_retired_active_item_is_one_clear_failure` — retired on `main`, checked from a later branch commit with `--base main`: exit 1, exactly one `  FAIL:` line, containing `.sdlc/active names '<slug>', which is retired`; `test_retiring_pull_request_is_a_note_not_a_failure` and `test_self_check_on_a_retired_pointer_is_a_note` — exit 0, one `  note:` each |
 | R-3 | The chain check notes, without failing, when `--slug` names one item and `.sdlc/active` names another: the merge script merges only the active item (`delegated_merge.py:329-330`), so the author should learn it here, not at merge. | 2 | `StalePointer::test_slug_differs_from_active_is_a_note` — exit 0, one `  note:` line containing `.sdlc/active names '<other>', not '<slug>'` |
 | R-4 | The chain check verifies the base ref it diffs against. `git diff <base>...HEAD` failing is one `  FAIL:` line naming the ref and `--base HEAD`, never a silent in-progress mode. Today a missing ref yields an empty diff, `all([])` is true, and the check prints a note claiming the diff touches only this item (`check_artifact_chain.py:506-525`; reproduced in this session, see G-3). | 2 (one clear line, not a silent wrong answer) | `StalePointer::test_unknown_base_ref_is_one_clear_failure` — `--base no-such-ref` exits 1 with exactly one `  FAIL:` line naming `no-such-ref`; every existing case in the file still passes |
 | R-5 | The act of retiring is written down where the tap routine is: `docs/sdlc/rules/00-chain.md` states that a human retires a completed item by setting `superseded` on its chain artifacts, logging the ledger lines, and clearing or moving `.sdlc/active`; `docs/sdlc/handoff/HANDOFF.md` carries the routine (web editor today, one tap as a follow-up). `CLAUDE.md`/`GEMINI.md`/`AGENTS.md` are regenerated. No skill is edited (`.claude/skills` is control-plane; G-9). | 3 (clearing available without a shell; the prose in the same pull request) | `scripts/checks/context-drift.sh` passes; `wc -l CLAUDE.md` ≤ 120; `grep -c superseded docs/sdlc/rules/00-chain.md` ≥ 1; `grep -c 'sdlc/active' docs/sdlc/handoff/HANDOFF.md` ≥ 2 |
 | R-6 | The whole loop is green and nothing else moves: `scripts/verify.sh` ends `VERIFY: PASS`, the chain check ends `CHAIN: PASS`, `scripts/run_evals.sh` ends `0 fail`, `check_okf.py` ends `0 warnings`; every pre-existing case in `test_check_artifact_chain.py` and `test_hooks_baseline.py` passes unchanged. | 4 | the four last lines, pasted in the pull request; test counts before/after in the pull request |
+| R-7 | `--slug` and the value of `.sdlc/active` are validated against `SLUG_RE` before either names a path or a git argument (security-standards §3). `SLUG_RE` is the shape `approve_dispatch.py` and `delegated_merge.py` guard with, plus a leading `_` because `adopt.sh` seeds `_example`, and anchored with `\Z` so a trailing newline is refused. A value outside it is one `  FAIL:` line with the value repr'd (a newline or NUL inside it stays on that line) and `CHAIN: FAIL` last. (Revision 1, from the security pass on pull request 53: `../x` read a file outside the repository, `./demo` bypassed R-2, a NUL crashed with no `CHAIN:` line, a newline could forge one.) | 2 (one clear line; the lesson `one-path-spelling-in-guards.md`) | `StalePointer::test_malformed_active_pointer_is_one_clear_failure` — both sources, `./demo`, `../other`, `demo/`, `demo\nCHAIN: PASS`, `demo\0`, `demo\n`: exit 1, one `  FAIL:` line containing `<source> holds` and `not a work-item slug`, no `Traceback`, no bare `CHAIN: PASS` line; `test_leading_underscore_slug_is_accepted` — `_example` active, exit 0 |
 
 ## Design
 ### Architecture / data flow
@@ -45,8 +46,13 @@ Nothing new flows. Three readers of existing state change what they say:
 
 ### Interfaces (APIs, events, schemas) — exact shapes
 - R-2 line: `  FAIL: .sdlc/active names '<active>', which is retired (work/<active>/intent.md is superseded); clear .sdlc/active or point it at the item in progress`
+- R-2, the retiring pull request (superseded on the head, not on the base): `  note: this pull request retires '<active>': set .sdlc/active to the next item or to empty in the same pull request, or every later pull request fails on the pointer`
+- R-2, the self-check (`--base` resolves to `HEAD`): `  note: .sdlc/active names '<active>', whose work/<active>/intent.md is superseded on this commit; against origin/main this fails unless the retirement is this pull request's own -- set .sdlc/active to the next item or to empty`
 - R-3 line: `  note: .sdlc/active names '<active>', not '<slug>': the merge script merges only the active item; point .sdlc/active at <slug> in this pull request, or expect the merge to be refused`
-- R-4 line: `  FAIL: base ref '<base>' is not known here (git diff failed); pass --base HEAD for a local self-check, or fetch the ref` followed by `CHAIN: FAIL`, exit 1.
+- R-3, the pointer names an item on neither base nor head (and `--slug` names another): `  note: .sdlc/active names '<active>', which has no work/<active>/intent.md on <base> or here; point it at the item in progress`
+- R-4 line: `  FAIL: base ref '<base>' is not known here (git diff failed: <last line of git's stderr>); pass --base HEAD for a local self-check, or fetch the ref` followed by `CHAIN: FAIL`, exit 1.
+- R-7 line: `  FAIL: <--slug | .sdlc/active> holds <value!r>, which is not a work-item slug (letters, digits, '_' and '-', with '.'-separated parts): it would name a path outside work/<slug>/ or a second spelling of an item; fix it` followed by `CHAIN: FAIL`, exit 1, before any other output.
+- Every line above is the whole of what the check prints for these cases; the Interfaces list is the record the plan-conformance pass compares character for character (revision 1).
 - The retirement act, as prose (R-5): set `status: superseded` on `intent.md`, `spec.md` and `plan.md`
   (and `incident.md` if present); append one ledger line per artifact, `approved -> superseded` (or
   `delegated -> superseded`), with the actor's handle; set `.sdlc/active` to the next item or to empty.
@@ -58,13 +64,22 @@ None. `.sdlc/active` keeps its shape (one slug, one line, blank allowed). No fie
 artifact. No personal or regulated data (security-standards §4: n/a).
 
 ### Failure modes and how they surface
-- Pointer names a retired item → every pull request's chain check fails with the R-2 line until the
-  pointer moves; the fix is a one-line edit of `.sdlc/active`, which an agent may make under the
-  unlock with an audit line (G-5).
+- Pointer names an item already retired on the base → every pull request's chain check in CI (base
+  `origin/main`) fails with the R-2 line until the pointer moves; the fix is a one-line edit of
+  `.sdlc/active`, which an agent may make under the unlock with an audit line (G-5). The self-check
+  `scripts/verify.sh` runs (`--base HEAD`) has no base, so there the same tree is the self-check
+  note: one answer per invocation, never a chain step that passes and a Verify step that fails in the
+  same job (revision 1, security pass finding 1).
+- The retiring pull request itself → the retiring note; nothing fails; the pointer is expected to
+  move in that pull request.
 - Pointer names another item than the pull request's → R-3 note; nothing fails; the merge script's
-  refusal is now foretold rather than discovered.
+  refusal is now foretold rather than discovered. An item on neither base nor head → the missing-item
+  note.
+- `--slug` or the pointer outside `SLUG_RE` → the R-7 line, exit 1, before any path or git argument is
+  built from it; a newline or NUL never reaches its own line of output (revision 1, security pass
+  finding 2).
 - Base ref absent → R-4 failure instead of a false "in-progress" pass. Locally, `VERIFY_CMDS` already
-  passes `--base HEAD`, so `scripts/verify.sh` is unaffected; CI fetches with depth 0, so it is too.
+  passes `--base HEAD`, so `scripts/verify.sh` is unaffected by R-4; CI fetches with depth 0, so it is too.
 - Item finished but never retired → unchanged from today and out of this item's reach (G-1): no local
   signal says "shipped". What this item does is make retirement a defined, documented act with a
   gate that provably closes on it, and a follow-up makes it one tap (D-4).
@@ -155,9 +170,10 @@ artifact. No personal or regulated data (security-standards §4: n/a).
   with the Write tool, not a shell redirect.
 
 ## Security standards, applied
-§1 secrets: n/a, none touched. §2 auth: n/a, no endpoint. §3 input: the slug read from `.sdlc/active`
-is used only for a path under `work/` and a message; `SLUG_RE` (`approve_dispatch.py`) is the existing
-boundary and is not widened. §4 data: none. §5 dependencies: none. §6 infra: no release-gated path.
+§1 secrets: n/a, none touched. §2 auth: n/a, no endpoint. §3 input: `--slug` and the slug read from `.sdlc/active`
+are validated at the boundary with `SLUG_RE` (R-7) before either names a path or a git argument; this
+script's `SLUG_RE` is one character wider than `approve_dispatch.py`'s and `delegated_merge.py`'s (a
+leading `_`, for `adopt.sh`'s `_example`) and says so where it is defined, and is anchored with `\Z`. §4 data: none. §5 dependencies: none. §6 infra: no release-gated path.
 §7 logging: the chain check's lines carry no personal data. §8 hygiene: the writer of this spec does
 not approve it; it is signed under the grant, and the review runs on a different model.
 

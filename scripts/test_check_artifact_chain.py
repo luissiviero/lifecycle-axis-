@@ -1200,24 +1200,36 @@ class StalePointer(unittest.TestCase):
         or a git argument. `./demo` is a second spelling of a retired item that bypassed R-2; `../x`
         escapes work/; a newline could forge a `CHAIN: PASS` line; a NUL crashed subprocess with no
         `CHAIN:` line at all. Each is one FAIL line, and `CHAIN: FAIL` stays the last line."""
-        for bad in ("./demo", "../other", "demo/", "demo\nCHAIN: PASS", "demo\x00"):
-            with self.subTest(pointer=bad):
-                with tempfile.TemporaryDirectory() as root:
-                    wd = _make_repo(root)
-                    self._retire(wd)
-                    _write(os.path.join(root, ".sdlc", "active"), bad + "\n")
-                    _commit(root, "retire demo, then a malformed pointer")
-                    result = _run(root, "--slug", "demo", "--base", "HEAD")
-                    self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-                    self.assertNotIn("Traceback", result.stderr)
-                    fail_lines = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
-                    self.assertEqual(len(fail_lines), 1, result.stdout)
-                    self.assertIn(".sdlc/active holds", fail_lines[0])
-                    self.assertIn("not a work-item slug", fail_lines[0])
-                    self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
-                    # A forged line inside the value never reaches its own line of output: the repr
-                    # keeps it inside the FAIL line, so no line of stdout is a bare `CHAIN: PASS`.
-                    self.assertEqual([l for l in result.stdout.splitlines() if l == "CHAIN: PASS"], [], result.stdout)
+        bad_values = ("./demo", "../other", "demo/", "demo\nCHAIN: PASS", "demo\x00", "demo\n")
+        for source in (".sdlc/active", "--slug"):
+            for bad in bad_values:
+                if source == "--slug" and "\x00" in bad:
+                    continue  # the OS refuses a NUL in an argv entry before the script ever sees it
+                if source == ".sdlc/active" and bad == "demo\n":
+                    continue  # a trailing newline in the file is its line ending, stripped by design
+                with self.subTest(source=source, value=bad):
+                    with tempfile.TemporaryDirectory() as root:
+                        wd = _make_repo(root)
+                        self._retire(wd)
+                        if source == ".sdlc/active":
+                            _write(os.path.join(root, ".sdlc", "active"), bad + "\n")
+                            _commit(root, "retire demo, then a malformed pointer")
+                            args = ("--slug", "demo", "--base", "HEAD")
+                        else:
+                            _commit(root, "retire demo")
+                            args = ("--slug", bad, "--base", "HEAD")
+                        result = _run(root, *args)
+                        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        fail_lines = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
+                        self.assertEqual(len(fail_lines), 1, result.stdout)
+                        self.assertIn(f"{source} holds", fail_lines[0])
+                        self.assertIn("not a work-item slug", fail_lines[0])
+                        self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+                        # A forged line inside the value never reaches its own line of output: the
+                        # repr keeps it inside the FAIL line, so no line of stdout is a bare
+                        # `CHAIN: PASS`. `demo\n` covers `$` vs `\Z` (security review residual).
+                        self.assertEqual([l for l in result.stdout.splitlines() if l == "CHAIN: PASS"], [], result.stdout)
 
     def test_leading_underscore_slug_is_accepted(self):
         """adopt.sh seeds `.sdlc/active` with `_example`; the boundary must not refuse it."""

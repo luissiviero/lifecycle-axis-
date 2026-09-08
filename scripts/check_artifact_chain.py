@@ -45,7 +45,8 @@ import argparse, fnmatch, json, os, re, subprocess, sys
 # this one also allows a leading '_' because adopt.sh seeds `.sdlc/active` with `_example`. Rejected:
 # '..' and './x' (paths outside work/<slug>/, or a second spelling of an item that a guard comparing
 # one spelling would miss -- knowledge/lessons/one-path-spelling-in-guards.md), '/', NUL, a newline.
-SLUG_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*$")
+# `\Z`, not `$`: `$` matches before a trailing newline, so `demo\n` would pass (review residual).
+SLUG_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*\Z")
 from datetime import datetime, timezone
 
 ROOT = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip() or "."
