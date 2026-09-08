@@ -23,5 +23,5 @@ timestamp: 2026-09-08T15:20:00Z
 | [docs-reconcile](docs-reconcile/index.md) | The docs say what the code does | plan | approved | approved | approved | PR #37 -> in-review by claude |
 | [front-matter](front-matter/index.md) | Templates and artifact parsers must agree; approve.py must not misfire | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [loop-protection](loop-protection/index.md) | The agent must not be able to weaken the check on its own work | plan | approved | approved | approved | plan.md -> in-review by claude |
-| [retire-active-pointer](retire-active-pointer/index.md) | Retire `.sdlc/active` when a work item completes, so the plan gate stops opening on finished work | plan | approved | delegated | delegated | plan.md -> delegated by claude |
+| [retire-active-pointer](retire-active-pointer/index.md) | Retire `.sdlc/active` when a work item completes, so the plan gate stops opening on finished work | plan | approved | delegated | delegated | PR #53 -> in-review by claude |
 | [sdlc-kit-phase-1](sdlc-kit-phase-1/index.md) | Make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
