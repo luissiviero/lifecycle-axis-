@@ -133,28 +133,28 @@ merges without a human, and nobody reads the intent before the merge. The blast 
 the path lists (the floor, `locked-paths`, the new diff-versus-class check), not by the agent's honesty,
 and the property changes from "a human read this intent" to "a human pre-authorised this class".
 Either value keeps this item supervised: the policy delegates `low` only, and the diff is locked five
-ways.
+ways. Accepted as `medium` by the owner on 2026-09-08.
 
 ## Open questions (agent asks; originator answers; carried into spec.md if unresolved)
 - Q: one intent-only pull request that opens the item, then one code pull request (two merges per
   item), or a single pull request per item? Proposed: two; the intent gets its own review and stays
   locked in the code pull request, as the merge script already requires.
-  A:
+  A: agreed (owner, 2026-09-08): two pull requests per item; the intent gets its own review and stays locked in the code pull request.
 - Q: does the standing grant also cover items that start from an `incident.md` (a band breach filed by
   `bands.yml`)? Proposed: yes when the class is low, with the same signature rule.
-  A:
+  A: agreed (owner, 2026-09-08): yes, when the class is low, with the same signature rule.
 - Q: after pull request 58 merges by click, the pointer still names `run-queue-followups`. Who clears
   it so the lane can open? Proposed: this item's own pull request, under the control-plane label;
   otherwise the owner, one line in the web editor.
-  A:
+  A: agreed (owner, 2026-09-08): this item's own pull request clears the pointer, under the control-plane label, after pull request 58 merges.
 - Q: a nested `standing-grant:` map in the policy, or three flat keys? Proposed: nested, matching
   `merge:`; one small reader added to the hooks' library.
-  A:
+  A: agreed (owner, 2026-09-08): nested, matching `merge:`; one small reader added to the hooks' library.
 - Q: a started standing item whose pointer a supervised tap stole mid-run is invisible to the queue.
   Should the queue also return started-but-unmerged standing items? Proposed: not now; recorded as a
   residual, the same one per-item grants already have.
-  A:
+  A: agreed (owner, 2026-09-08): not now; recorded as a residual.
 - Q: does the owner want a cap on standing items per day, or a `max-detours` key, in the policy?
   Proposed: `max-detours` yes (it is what `work/risk-detour` defers here); a daily cap no, the queue is
   serial by construction.
-  A:
+  A: agreed (owner, 2026-09-08): `max-detours` yes; a daily cap no.
