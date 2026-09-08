@@ -15,3 +15,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 - 2026-09-08T18:55:42Z | intent.md | in-review -> approved | luissiviero | 336470c | mode: delegated
 - 2026-09-08T19:00:29Z | spec.md | in-review -> delegated | claude | c0aa58c
 - 2026-09-08T19:01:45Z | plan.md | in-review -> delegated | claude | c0aa58c
+- 2026-09-08T19:12:29Z | spec.md | delegated -> delegated | claude | ffcf177 | revision 1: the guard identifies the self-check by the caller passing literally --base HEAD, not by resolving refs to commits -- in the recorded scenario the base and HEAD are the same commit, so the signed condition was inert in its only motivating case (reproduced three times); and a failed git status refuses instead of assuming a clean tree, the security pass's Important finding. Two reviewers on sonnet against an Opus 5 writer, verdict revise each
