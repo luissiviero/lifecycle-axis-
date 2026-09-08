@@ -19,11 +19,10 @@ previous one, or the agent has signed it under a delegation grant.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
 - A review runs on a **different model from the one that wrote the work**, whenever a second one is available:
-  a writer re-reading its own diff shares its own blind spots, and this repo has the scars to prove it (three
-  review rounds on pull request 51, each finding real defects in the previous round's fixes, two of them
-  introduced by the fix before). The item's ledger records which model wrote it and which reviewed it — the
-  owner writes those names, as `revisions/<n>.md`'s `## Reviewer: <role> (<model>)` heading already expects —
-  so a later reader can tell whether the second pair of eyes was genuinely a second pair.
+  a writer re-reading its own diff shares its own blind spots, and pull request 51 has the scars — three rounds,
+  each finding real defects in the last round's fixes, two of them introduced by the fix before. The item's
+  ledger records which model wrote and which reviewed (the owner writes the names, as `revisions/<n>.md`'s
+  `## Reviewer: <role> (<model>)` heading expects), so a later reader can tell a second pair of eyes from one.
 - `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
   handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
   `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.

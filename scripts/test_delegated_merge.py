@@ -30,6 +30,7 @@ sys.path.insert(0, HERE)
 import approvers  # noqa: E402
 import delegated_merge as dm  # noqa: E402
 import delegation  # noqa: E402
+import log_ledger  # noqa: E402  (the Advance class parses the two ledger lines back)
 
 SCRIPT = os.path.join(HERE, "delegated_merge.py")
 
@@ -1213,6 +1214,150 @@ class Plumbing(unittest.TestCase):
             self.assertEqual(dm.read_active_slug(d), "")
             _write(os.path.join(d, ".sdlc", "active"), "%s\n" % SLUG)
             self.assertEqual(dm.read_active_slug(d), SLUG)
+
+
+ADVANCE_INTENT = """\
+---
+type: sdlc/intent
+status: approved
+mode: delegated
+delegated-by: luissiviero
+delegated-on: %s
+risk-class: low
+---
+# intent
+"""
+
+ADVANCE_LOG = """\
+---
+type: sdlc/log
+id: %s-log
+---
+# Log
+
+- 2026-01-01T00:00:00Z | intent.md | in-review -> approved | luissiviero | abc1234 | granted
+"""
+
+
+class Advance(unittest.TestCase):
+    """work/run-queue R-2, R-3, R-5: after a merge the pointer moves to the next queued item, both
+    ledgers record it, and nothing outside the allowlist is ever committed.
+
+    The fixture is a real git repository with a real bare remote, so the commit, the staged-path
+    guard and the push are exercised rather than mocked. Identity and time are the fixture's own
+    (knowledge/lessons/tests-carry-their-own-environment.md): the runner has no git identity, and
+    the advance must supply its own.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = os.path.join(self.tmp.name, "checkout")
+        self.remote = os.path.join(self.tmp.name, "remote.git")
+        subprocess.run(["git", "init", "-q", "--bare", self.remote], check=True)
+        _write(os.path.join(self.root, ".sdlc", "delegation.yaml"), FIXTURE_POLICY)
+        _write(os.path.join(self.root, ".sdlc", "active"), "merged-item\n")
+        for slug, on in (("merged-item", "2026-09-01"), ("next-item", "2026-09-02"),
+                         ("later-item", "2026-09-03")):
+            _write(os.path.join(self.root, "work", slug, "intent.md"), ADVANCE_INTENT % on)
+            _write(os.path.join(self.root, "work", slug, "log.md"), ADVANCE_LOG % slug)
+        # merged-item is already worked; the other two are unstarted and so form the queue.
+        _write(os.path.join(self.root, "work", "merged-item", "spec.md"),
+               "---\ntype: sdlc/spec\nstatus: delegated\n---\n# spec\n")
+        self._git("init", "-q", "-b", "main")
+        self._git("remote", "add", "origin", self.remote)
+        self._git("add", "-A")
+        self._commit("fixture")
+        self._git("push", "-q", "origin", "main")
+        self.policy = delegation.load(path=os.path.join(self.root, ".sdlc", "delegation.yaml"))
+        self.out = dm.Run(dry_run=False, stream=io.StringIO())
+
+    def _git(self, *args):
+        return subprocess.run(["git", "-C", self.root, *args], capture_output=True, text=True,
+                              check=True).stdout.strip()
+
+    def _commit(self, message):
+        # The runner has no git identity; the fixture carries its own.
+        self._git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.com",
+                  "commit", "-q", "-m", message)
+
+    def _pointer(self):
+        return dm.read_active_slug(self.root)
+
+    def _log(self, slug):
+        with open(os.path.join(self.root, "work", slug, "log.md"), encoding="utf-8") as f:
+            return f.read()
+
+    def test_advances_to_the_next_queued_item(self):
+        result = dm.advance(self.root, self.out, "merged-item", 12, self.policy)
+        self.assertEqual(result, "next-item")
+        self.assertEqual(self._pointer(), "next-item")
+        self.assertIn("ADVANCE: .sdlc/active -> next-item", self.out.stream.getvalue())
+
+    def test_the_commit_is_pushed_and_carries_the_bot_identity(self):
+        dm.advance(self.root, self.out, "merged-item", 12, self.policy)
+        self.assertEqual(self._git("status", "--porcelain"), "")
+        self.assertEqual(self._git("log", "-1", "--format=%an"), dm.ADVANCE_IDENTITY[0])
+        self.assertIn("Advance .sdlc/active after #12 merged", self._git("log", "-1", "--format=%s"))
+        remote_head = subprocess.run(["git", "-C", self.remote, "log", "-1", "--format=%s", "main"],
+                                     capture_output=True, text=True).stdout
+        self.assertIn("Advance .sdlc/active after #12 merged", remote_head)
+
+    def test_ledger_lines_parse_and_name_both_items(self):
+        dm.advance(self.root, self.out, "merged-item", 12, self.policy)
+        for slug, expected in (("merged-item", "advanced to next-item"),
+                               ("next-item", "advanced here after PR #12 merged")):
+            path = os.path.join(self.root, "work", slug, "log.md")
+            entries, malformed = log_ledger.parse(path)
+            self.assertEqual(malformed, [], "%s: %s" % (slug, malformed))
+            self.assertIn(expected, entries[-1].note)
+            self.assertEqual(entries[-1].actor, dm.ADVANCE_IDENTITY[0])
+        # The from/to slot holds status values only (knowledge/lessons/ledger-slot-holds-status-only.md).
+        merged_last = log_ledger.parse(os.path.join(self.root, "work", "merged-item", "log.md"))[0][-1]
+        self.assertEqual((merged_last.from_status, merged_last.to_status), ("in-review", "in-review"))
+        self.assertIn("under the grant by luissiviero on 2026-09-02", self._log("next-item"))
+
+    def test_a_stale_pointer_is_a_lost_update_and_writes_nothing(self):
+        """Another run advanced first: the pointer no longer names the merged item, so this one
+        stands down rather than overwriting a newer decision."""
+        _write(os.path.join(self.root, ".sdlc", "active"), "someone-else\n")
+        self._git("add", "-A")
+        self._commit("another run advanced first")
+        before = self._git("rev-parse", "HEAD")
+        self.assertIsNone(dm.advance(self.root, self.out, "merged-item", 12, self.policy))
+        self.assertEqual(self._pointer(), "someone-else")
+        self.assertEqual(self._git("rev-parse", "HEAD"), before)
+        self.assertIn("not advancing", self.out.stream.getvalue())
+
+    def test_an_empty_queue_clears_the_pointer_and_says_so(self):
+        for slug in ("next-item", "later-item"):
+            _write(os.path.join(self.root, "work", slug, "spec.md"),
+                   "---\ntype: sdlc/spec\nstatus: delegated\n---\n# spec\n")
+        self._git("add", "-A")
+        self._commit("both remaining items already started")
+        self.assertIsNone(dm.advance(self.root, self.out, "merged-item", 12, self.policy))
+        self.assertEqual(self._pointer(), "")
+        self.assertIn("the queue is empty", self._log("merged-item"))
+        self.assertIn("(empty queue)", self.out.stream.getvalue())
+
+    def test_refuses_any_path_outside_the_allowlist(self):
+        """A stray modification in the tree must not ride along in the advance commit."""
+        _write(os.path.join(self.root, "scripts", "smuggled.py"), "print('x')\n")
+        self._git("add", "-A")
+        with self.assertRaises(dm.MergeError) as caught:
+            dm.advance(self.root, self.out, "merged-item", 12, self.policy)
+        self.assertIn("outside the advance allowlist", str(caught.exception))
+        self.assertIn("scripts/smuggled.py", str(caught.exception))
+
+    def test_a_failed_push_leaves_the_run_reporting_the_merge(self):
+        """A rejected push is a note, never an exception: the merge already happened."""
+        self._git("remote", "set-url", "origin", os.path.join(self.tmp.name, "no-such-remote.git"))
+        self.assertIsNone(dm.advance(self.root, self.out, "merged-item", 12, self.policy))
+        self.assertIn("not pushed", self.out.stream.getvalue())
+
+    def test_run_without_a_root_never_advances(self):
+        """Every existing caller passes no root (the 111 cases below), and must keep working."""
+        self.assertEqual(dm.run.__defaults__[-1], "")
 
 
 if __name__ == "__main__":

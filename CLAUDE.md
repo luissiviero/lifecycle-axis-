@@ -61,11 +61,10 @@ previous one, or the agent has signed it under a delegation grant.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
 - A review runs on a **different model from the one that wrote the work**, whenever a second one is available:
-  a writer re-reading its own diff shares its own blind spots, and this repo has the scars to prove it (three
-  review rounds on pull request 51, each finding real defects in the previous round's fixes, two of them
-  introduced by the fix before). The item's ledger records which model wrote it and which reviewed it — the
-  owner writes those names, as `revisions/<n>.md`'s `## Reviewer: <role> (<model>)` heading already expects —
-  so a later reader can tell whether the second pair of eyes was genuinely a second pair.
+  a writer re-reading its own diff shares its own blind spots, and pull request 51 has the scars — three rounds,
+  each finding real defects in the last round's fixes, two of them introduced by the fix before. The item's
+  ledger records which model wrote and which reviewed (the owner writes the names, as `revisions/<n>.md`'s
+  `## Reviewer: <role> (<model>)` heading expects), so a later reader can tell a second pair of eyes from one.
 - `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
   handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
   `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.
@@ -105,4 +104,5 @@ A mistake made twice becomes a file there and a pointer line here, in the same P
 - `git add` every new file before `verify.sh`: the front-matter check reads `git ls-files`, and a colon in an unquoted value is what it catches — knowledge/lessons/stage-new-files-before-verify.md
 - A workflow's permissions block names every API surface its scripts touch, not only the one in mind when it was written — knowledge/lessons/workflow-permissions-name-every-api.md
 - A fixture supplies its own identity and time; a test that reads the ambient environment passes here and fails on the runner — knowledge/lessons/tests-carry-their-own-environment.md
+- No blank line in an eval `check:` block (it truncates the block into a stub that always passes); break what a new oracle watches and watch it go red — knowledge/lessons/eval-checks-have-no-blank-lines.md
 <!-- END GENERATED -->

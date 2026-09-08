@@ -22,6 +22,14 @@ timestamp: 2026-09-05T12:05:00Z
 > to all: the signature is replaced by the run record, which names the actor server-side and
 > cannot be set from inside the run. A trailer that fails to resolve is refused outright, never
 > retried on the signed route.
+>
+> **Amended on 2026-09-08 by [`run-queue.md`](run-queue.md).** Decision 6 said the workflow merges,
+> deletes the branch and comments, and does nothing further. It now also advances `.sdlc/active` to
+> the next granted, unstarted item and writes a ledger line on both items, committed to the default
+> branch under a staged-path allowlist and a lost-update guard. That is the only place the pointer
+> may move on a merge: an item's own pull request may never contain `.sdlc/active`, because `.sdlc`
+> is on this script's `ALWAYS_LOCKED` floor. Decisions 2 and 7 are untouched — a queue of N items is
+> N human grants, and the advance never writes `approved` or `superseded`.
 
 ## Context
 

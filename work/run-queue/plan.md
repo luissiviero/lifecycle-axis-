@@ -20,6 +20,12 @@ timestamp: 2026-09-08T17:20:00Z
 ## Files that change
 - scripts/next_item.py — new; the queue rule as a function and a CLI (R-1)
 - scripts/test_next_item.py — new; the six R-1 cases (R-1)
+- scripts/test_run_evals.py — `CaseBlocksAreWhole`, so a blank line can never truncate an eval check again (deviation 1, rule 7)
+- knowledge/lessons/eval-checks-have-no-blank-lines.md — new; the lesson (deviation 1, rule 7)
+- docs/sdlc/rules/60-lessons.md — its pointer line (deviation 1, rule 7)
+- CLAUDE.md — regenerated from the rules fragments
+- GEMINI.md — regenerated from the rules fragments
+- AGENTS.md — regenerated from the rules fragments
 - scripts/delegated_merge.py — the advance after the merge call, its allowlist and lost-update guard; `run()` gains `root` (R-2, R-3, R-5)
 - scripts/test_delegated_merge.py — new class `Advance` (R-2, R-3, R-5)
 - .claude/skills/sdlc-run/SKILL.md — the loop, the printed queue, the two new stop conditions (R-4)
@@ -63,4 +69,5 @@ timestamp: 2026-09-08T17:20:00Z
 - Revert the pull request. The advance is additive and runs after the merge call, so reverting restores today's behaviour exactly: the merge happens, nothing is written back, the pointer stays. Any pointer already advanced is a one-line edit.
 
 ## Deviations log (append during implementation; same commit as the deviation)
+- 2026-09-08, step 4: the file list gains `scripts/test_run_evals.py`, `knowledge/lessons/eval-checks-have-no-blank-lines.md` and `docs/sdlc/rules/60-lessons.md`, under rule 7. The eval written in this step reported `✔ pass` while testing nothing: `run_evals.sh`'s `field()` ends a `key: |` block at the first unindented line and a blank line is unindented, so every assertion below the first blank was dead text. Found by mutating `next_item.py` on purpose and noticing the eval stayed green. That is the second oracle in this repository written so it could not fail — the first is `work/approve-by-dispatch` R-10's grep, which passes and which nothing runs — so rule 7 applies: the lesson file, its pointer line in the rules fragment, and `CaseBlocksAreWhole` in `test_run_evals.py` so the trap cannot come back silently. The eval now starts `set -e` and is mutation-tested three ways (a signed spec counted as unstarted, an empty queue exiting 0, the order reversed); the first two turn it red, and the third is caught by `test_next_item.Order` instead.
 - 

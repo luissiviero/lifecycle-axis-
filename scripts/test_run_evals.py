@@ -4,7 +4,7 @@ Runs the real script (a copy of it) against a temp git repo containing
 synthetic evals/cases/*.yaml, so the tests exercise the actual bash
 implementation rather than a re-description of it.
 """
-import os, subprocess, tempfile, unittest
+import os, re, subprocess, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUN_EVALS_SH = os.path.join(HERE, "run_evals.sh")
@@ -325,6 +325,62 @@ class AgentEvalsWorkflow(unittest.TestCase):
 
     def test_nightly_trusts_the_checkout(self):
         self.assertIn("hasTrustDialogAccepted", self.text)
+
+
+class CaseBlocksAreWhole(unittest.TestCase):
+    """work/run-queue, review round 0: an oracle that cannot fail is worse than no oracle.
+
+    `field()` in run_evals.sh ends a `key: |` block at the first line that is not indented, and a
+    BLANK line is not indented -- so a blank line inside a `check:` silently truncates it, and every
+    assertion below the blank is never run. The case still reports a pass, because whatever command
+    happened to land last exited 0. This scans the real cases so the trap cannot come back; it is the
+    second time in this repository an oracle was written that could not fail (the first was a grep in
+    work/approve-by-dispatch R-10 that nothing ran), which is why it is pinned in code rather than
+    left to a lesson (rule 7).
+    """
+
+    CASES = os.path.join(os.path.dirname(HERE), "evals", "cases")
+
+    def _blocks(self, text):
+        """Yield (key, [lines]) for every `key: |` block, reading exactly as field() does."""
+        key, lines = None, []
+        for line in text.splitlines():
+            if key is not None:
+                if line.strip() == "" or not line[:1].isspace():
+                    yield key, lines
+                    key, lines = None, []
+                    # fall through so this same line can open a new block
+                else:
+                    lines.append(line)
+                    continue
+            m = re.match(r"^(check|setup):\s*\|\s*$", line)
+            if m:
+                key, lines = m.group(1), []
+        if key is not None:
+            yield key, lines
+
+    def test_no_case_has_a_blank_line_inside_a_check_or_setup_block(self):
+        offenders = []
+        for name in sorted(os.listdir(self.CASES)):
+            if not name.endswith(".yaml"):
+                continue
+            path = os.path.join(self.CASES, name)
+            text = _read(path)
+            for key in ("check", "setup"):
+                m = re.search(r"^%s:\s*\|\s*$" % key, text, re.M)
+                if not m:
+                    continue
+                body = text[m.end():].split("\n")[1:]
+                for line in body:
+                    if line.strip() == "":
+                        # A blank line ends the block. Anything indented after it is dead text.
+                        rest = body[body.index(line) + 1:]
+                        if any(l[:1].isspace() and l.strip() for l in rest):
+                            offenders.append("%s: %s block is truncated at a blank line" % (name, key))
+                        break
+                    if not line[:1].isspace():
+                        break
+        self.assertEqual(offenders, [], "\n".join(offenders))
 
 
 if __name__ == "__main__":
