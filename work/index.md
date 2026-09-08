@@ -2,7 +2,7 @@
 type: sdlc/index
 title: Work items
 description: Generated index of every work/<slug> item; run scripts/gen_index.py to refresh.
-timestamp: 2026-09-08T21:50:00Z
+timestamp: 2026-09-08T22:35:00Z
 ---
 # Work items
 

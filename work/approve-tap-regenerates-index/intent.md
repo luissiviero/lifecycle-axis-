@@ -2,7 +2,7 @@
 type: sdlc/intent
 id: approve-tap-regenerates-index
 title: The approval tap commits an approval whose indexes are stale; make the tap regenerate what it changes
-description: "The approve workflow runs the approval script and commits, but nothing in it runs gen_index.py, so every tap so far has left work/<slug>/index.md and work/index.md drifted on the ref it wrote to, and the committer's allowlist documents a regeneration that does not happen. This item makes the tap regenerate both indexes and commit them, and nothing else."
+description: "The approve workflow runs the approval script and commits, but nothing in it runs gen_index.py, so every tap so far has left work/<slug>/index.md and work/index.md drifted on the ref it wrote to, and the committer's allowlist documents a regeneration that does not happen. This item makes the tap regenerate the indexes and commit them, and nothing else."
 stage: plan
 status: in-review
 author: Luis Siviero (repo owner), who reported the defect with the evidence below; drafted by Claude from the three tap commits on main and the committer's own allowlist
@@ -16,7 +16,7 @@ supersedes:
 record:
 resource: https://github.com/luissiviero/lifecycle-axis-/commit/c0aa58c
 tags: [approvals, workflow-dispatch, gen-index, index-drift, control-plane, verify]
-timestamp: 2026-09-08T21:50:00Z
+timestamp: 2026-09-08T22:35:00Z
 ---
 # Intent: the approval tap commits an approval whose indexes are stale
 
@@ -48,14 +48,19 @@ edited, and anyone running `scripts/verify.sh` on main sees `VERIFY: FAIL`. Toda
 `run-queue-followups` was approved by c0aa58c and no later commit has regenerated its index.
 
 ## Proposed outcome
-- A tap commits the approval and the two regenerated indexes, and nothing else. Observable: the next tap
+- A tap commits the approval and the regenerated indexes, and nothing else. Observable: the next tap
   commit on main touches `work/<slug>/index.md` and `work/index.md` beside the artifact, `log.md` and, for
   a grant, `.sdlc/active`; `python3 scripts/gen_index.py --check` on that commit prints `INDEX: up to date`.
-- The committer's allowlist says what is true: it names both generated files, and its comment names the
-  step that regenerates them. Observable: `scripts/test_approve_dispatch.py` gains a case that writes an
-  approval, regenerates the indexes with `scripts/gen_index.py` the way the workflow will, commits, and
-  asserts the committed set is exactly the artifact, `log.md`, `work/<slug>/index.md` and `work/index.md`.
-  The case fails on today's code, where `work/index.md` is a stray path.
+- A tap heals drift it finds. When main already carries a stale index of another item (its state today,
+  from c0aa58c), the tap commits that regenerated file too, so the ref it writes to is `INDEX: up to date`
+  whatever it was before. Observable: a case in `scripts/test_approve_dispatch.py` with a second item
+  whose index is stale asserts the commit carries it.
+- The committer's allowlist says what is true: it names every generated index, and its comment names the
+  regeneration that happens inside `--commit`. Observable: `scripts/test_approve_dispatch.py` gains a case
+  that writes an approval, runs `--commit`, and asserts the committed set is exactly the artifact,
+  `log.md`, `work/<slug>/index.md` and `work/index.md`, with both indexes byte-identical to what
+  `scripts/gen_index.py` renders. The case fails on today's code, where nothing regenerates and
+  `work/index.md` is a stray path.
 - The stray-path guard keeps its strength: a path outside the allowlist still aborts the commit and is
   named in the refusal. Observable: the existing cases in `scripts/test_approve_dispatch.py` pass
   unmodified.
@@ -65,43 +70,44 @@ edited, and anyone running `scripts/verify.sh` on main sees `VERIFY: FAIL`. Toda
 ## Affected users and systems
 - Users: the owner, whose every tap today leaves main red on verify until the next agent commit; every
   session and every human who runs `scripts/verify.sh` on a checkout cut from main in that window.
-- Services / repos / data: `.github/workflows/approve.yml` (one step between Approve and Commit and push);
-  `scripts/approve_dispatch.py` (the allowlist and its comment); `scripts/test_approve_dispatch.py` (the
-  regression case). The workflow is in `PROTECTED_PATHS`, so the pull request needs the owner's
-  `control-plane-approved` label and the owner's merge click; `scripts/` is in `PLAN_REQUIRED_PATHS`, so
-  the edits need an approved or signed plan first.
+- Services / repos / data: `scripts/approve_dispatch.py` (`--commit` regenerates before staging; the
+  allowlist and its comment); `scripts/test_approve_dispatch.py` (the regression cases).
+  `.github/workflows/approve.yml` is not touched: the owner chose the in-script route so the item has no
+  protected or locked path and can run grant to merge. `scripts/` is in `PLAN_REQUIRED_PATHS`, so the
+  edits need a signed plan first.
 
 ## Constraints
-- Must: regenerate with `scripts/gen_index.py` itself, never a second renderer, so the tap's index is
-  byte-identical to what a session or `scripts/checks/index-drift.sh` would produce.
+- Must: regenerate with `scripts/gen_index.py`'s own renderer, imported, never a second one, so the tap's
+  index is byte-identical to what a session or `scripts/checks/index-drift.sh` would produce.
 - Must: keep the workflow's stated properties: one checkout of the dispatch ref, no pull-request head code
   executed, no dependency installed (`gen_index.py` and the two modules it imports are stdlib only), and a
-  committer that refuses any path outside the item's chain files, the two indexes and `.sdlc/active`.
+  committer that refuses any path outside the item's chain files, the generated indexes and `.sdlc/active`.
 - Must: leave `scripts/approve.py` untouched. It is on the policy's `locked-paths`, and decision 3 of
   `knowledge/decisions/approve-by-dispatch.md` keeps the tap's run of it byte-identical to a plain run;
   the regeneration goes around the script, not inside it.
 - Must: carry a regression test that fails without the change, in the file that already tests the committer.
-- Must not: widen the allowlist beyond the two generated files; touch `.sdlc/`, `.claude/hooks/`,
-  `scripts/verify.sh`, `scripts/checks/` or any other workflow; change what the tap writes to the artifact
-  or the ledger.
+- Must not: widen the allowlist beyond the generated indexes (`work/*/index.md` and `work/index.md`, the
+  paths `GENERATED_PATHS` already names), and every widening carries its own test; touch `.sdlc/`,
+  `.claude/hooks/`, `.github/workflows/`, `scripts/verify.sh` or `scripts/checks/`; change what the tap
+  writes to the artifact or the ledger.
 - Out of scope: the drift already on main from c0aa58c (this item's own pull request cannot carry
   `work/run-queue-followups/index.md` without leaving in-progress mode, so it is left to that item's next
   commit or to the owner, and reported); running `sdlc-gate` on pushes to main; guarding a human's
   hand-made approval commit against the same omission.
 
 ## Risk class
-low — one workflow step that runs a generator every session already runs, one allowlist entry, one test.
-If the step fails, the run fails before Commit and push, and the runner's tree is discarded: nothing is
-pushed. If the generator writes something unexpected, the committer refuses the stray path as it does
-today. Blast radius: the tap's commit gains two generated files; reversal is deleting the step and the
-entry. The permissions block does not change, so `scripts/checks/workflow-permissions.sh` sees the same
-workflow. The same value is in the `risk-class` key above, and the policy delegates `low`.
+low — the committer gains a call to a generator every session already runs, the allowlist gains the
+generated index paths, and the suite gains the cases that pin both. If the generator fails, `--commit`
+fails before anything is staged, the run fails before its push, and the runner's tree is discarded:
+nothing lands. If anything else in the tree changed, the committer refuses the stray path as it does
+today. Blast radius: the tap's commit gains generated files whose content is a function of the checked-out
+tree's front matter and ledgers, and carries no code and no policy; reversal is removing the call and the
+entries. The workflow and its permissions block do not change. The same value is in the `risk-class` key
+above, and the policy delegates `low`.
 
-One thing the owner should weigh before choosing the mode, because it decides where this item goes:
-`.github/workflows/approve.yml` is in `PROTECTED_PATHS`, so the merge script refuses this item's pull
-request and the `sdlc-run` skill ends the queue at it. Under a grant the agent signs spec and plan and
-opens the pull request; the label and the merge click are the owner's either way, so grant it last, or run
-it supervised.
+The owner chose the in-script route on 2026-09-08 so that the item has no protected path and no locked
+path: under a grant the agent signs spec and plan, opens the pull request, and the merge workflow merges
+it once review and checks are green, with no label and no click.
 
 ## Open questions (agent asks; originator answers; carried into spec.md if unresolved)
 - Q: regenerate in the workflow, as a step between Approve and Commit and push, or inside
@@ -111,10 +117,21 @@ it supervised.
   what it finds and refuses what it should not, and puts the command in the run log. The cost is one line
   in a protected file, which is what makes the pull request the owner's click; the in-script route would
   avoid the protected path at the price of a committer that also writes.
-  A:
+  A: (owner, 2026-09-08) inside `--commit`. The goal is a delegated run that goes as long as possible
+  without the owner's input, and the workflow file is in `PROTECTED_PATHS`: touching it forces the label,
+  the click, and the end of the queue. The in-script route touches only `scripts/`, which a signed plan
+  covers, and changes nothing about what the run trusts: it already executes this script from the
+  dispatch ref, the generator is stdlib and deterministic, and the committer keeps refusing any path
+  outside its allowlist.
 - Q: when regeneration changes an index the tap may not commit (another item's, drifted on main before the
   tap, exactly main's state today), should the tap refuse, or stage only its two files and push a tree it
   knows is stale elsewhere? Proposed: refuse, which is what the existing guard already does, with the path
   in the message so the owner learns main was already drifted and the fix is one regenerate-and-commit.
   Staging around it would mean widening a guard's input, and that guard was tuned by its own tests.
-  A:
+  A: (owner, 2026-09-08) neither: commit every regenerated index, and keep refusing anything else.
+  Refusing would fail the owner's tap whenever main is already drifted; staging around would leave the
+  drift there, where it turns every gate red and stalls the delegated merge anyway. Widening the
+  allowlist to `work/*/index.md` and `work/index.md` lets a tap heal main wherever the drift sits. Those
+  files are generated from front matter and ledgers, carry no code and no policy, and are already listed
+  in `GENERATED_PATHS`, so nothing becomes committable that a person could smuggle content through. The
+  widening carries its own test, as `knowledge/lessons/one-path-spelling-in-guards.md` requires.
