@@ -1,0 +1,33 @@
+name: run-queue-stops-on-empty
+kind: hook
+source: work/run-queue spec R-4 (the queue ends cleanly, and never hands out a started item twice)
+# The queue is what lets one tap buy more than one item, so its two ends matter more than its middle:
+# it must stop when nothing is left, and it must never offer an item some session is already working
+# (two writers on one plan is what knowledge/decisions/one-writer-until-ledger.md forbids).
+# Exit 3 is the empty-queue answer; a started item -- one whose spec.md is signed or approved -- is
+# not in the queue at all. Both are asserted on a throwaway fixture so the case says the same thing
+# whatever this repository's own queue happens to hold on the day it runs.
+# NO BLANK LINE may appear below: run_evals.sh's `field` ends the block at the first unindented line
+# and a blank line is unindented, so a blank would silently truncate this check into a passing stub
+# (knowledge/lessons/eval-checks-have-no-blank-lines.md). `set -e` makes every assertion count, not
+# just the last one.
+check: |
+  set -e
+  root="$(mktemp -d)"
+  trap 'rm -rf "$root"' EXIT
+  mkdir -p "$root/.sdlc" "$root/work/started" "$root/work/queued"
+  printf 'enabled: true\nagents: [claude]\nsignable: [spec.md, plan.md]\nrisk-classes: [low]\n' > "$root/.sdlc/delegation.yaml"
+  granted='---\ntype: sdlc/intent\nstatus: approved\nmode: delegated\ndelegated-by: luissiviero\ndelegated-on: 2026-01-01\nrisk-class: low\n---\n'
+  printf -- "$granted" > "$root/work/started/intent.md"
+  printf -- "$granted" > "$root/work/queued/intent.md"
+  printf -- '---\ntype: sdlc/spec\nstatus: delegated\n---\n' > "$root/work/started/spec.md"
+  # One item is unstarted, so the queue names it and only it -- the started one is never offered.
+  [ "$(python3 scripts/next_item.py --root "$root")" = "queued" ]
+  [ "$(python3 scripts/next_item.py --root "$root" --list)" = "queued" ]
+  # Start it too, and the queue is empty: exit 3 and nothing on stdout, so the run ends rather than
+  # looping on an item it cannot open.
+  printf -- '---\ntype: sdlc/spec\nstatus: delegated\n---\n' > "$root/work/queued/spec.md"
+  out="$(python3 scripts/next_item.py --root "$root")" && code=0 || code=$?
+  [ "$code" -eq 3 ]
+  [ -z "$out" ]
+  [ -z "$(python3 scripts/next_item.py --root "$root" --list)" ]

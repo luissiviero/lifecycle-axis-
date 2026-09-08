@@ -20,3 +20,4 @@ A mistake made twice becomes a file there and a pointer line here, in the same P
 - `git add` every new file before `verify.sh`: the front-matter check reads `git ls-files`, and a colon in an unquoted value is what it catches — knowledge/lessons/stage-new-files-before-verify.md
 - A workflow's permissions block names every API surface its scripts touch, not only the one in mind when it was written — knowledge/lessons/workflow-permissions-name-every-api.md
 - A fixture supplies its own identity and time; a test that reads the ambient environment passes here and fails on the runner — knowledge/lessons/tests-carry-their-own-environment.md
+- No blank line in an eval `check:` block (it truncates the block into a stub that always passes); break what a new oracle watches and watch it go red — knowledge/lessons/eval-checks-have-no-blank-lines.md

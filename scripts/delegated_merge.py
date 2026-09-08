@@ -47,6 +47,8 @@ if HERE not in sys.path:
 import approvers  # noqa: E402  (path set up above)
 import check_artifact_chain as chain  # noqa: E402  (front_matter_text and config())
 import delegation  # noqa: E402  (the one policy parser)
+import log_ledger  # noqa: E402  (the one ledger renderer, for the advance's two lines)
+import next_item  # noqa: E402  (the queue rule, shared with the sdlc-run skill)
 
 # This workflow's own check run, excluded from "every other check run must be green": it is in
 # progress while it runs, so including it would make the condition unsatisfiable. GitHub names a
@@ -756,7 +758,7 @@ def _grant_commit(repo, slug, base_ref):
 
 
 def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=None,
-        active_slug=""):
+        active_slug="", root=""):
     """Evaluate every condition in order and, unless --dry-run, merge. Returns the exit code."""
     out = Run(dry_run, stream)
     now = now or datetime.now(timezone.utc)
@@ -867,7 +869,138 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
         out.stream.write("note: could not delete %s: %s\n" % (head_ref, exc))
     gh_api("POST", "repos/%s/issues/%s/comments" % (repo, number),
            {"body": merge_comment_body(grant_handle, grant_sha)})
+    # work/run-queue R-2: the merge is the moment the item finishes, and this checkout is main's
+    # (the workflow takes the default branch, never the head), so this is the only place that may
+    # move the pointer -- an item's own pull request never can, because `.sdlc` is ALWAYS_LOCKED.
+    # A failure here never un-merges anything: it is logged and the run still reports the merge.
+    if root:
+        try:
+            advance(root, out, slug, number, policy, now=now)
+        except (OSError, ValueError, MergeError) as exc:
+            # ValueError covers UnicodeDecodeError from a non-UTF-8 intent.md in the queue: the
+            # merge already succeeded, so a crash here would report a failed job for work that
+            # landed (security pass on pull request 55, nit 3). A git failure is a note too.
+            out.stream.write("note: could not advance .sdlc/active: %s\n" % exc)
     return out.finish(merged="#%s %s" % (number, head_sha))
+
+
+# The only paths the advance may write. Anything else staged means something other than this
+# function touched the tree, and the commit is abandoned rather than made -- the same shape of
+# guard as scripts/approve_dispatch.py's allowlist (work/run-queue R-5).
+ADVANCE_IDENTITY = ("github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com")
+
+
+def _git(root, *args, **kw):
+    r = subprocess.run(["git", "-C", root, *args], capture_output=True, text=True)
+    if kw.get("check", True) and r.returncode != 0:
+        raise MergeError("git %s failed: %s" % (" ".join(args), r.stderr.strip()))
+    return r.stdout.strip()
+
+
+def _ledger_safe(value):
+    """A front-matter value fit for a pipe-separated ledger field.
+
+    `delegated-by` and `delegated-on` are hand-typed by a human at grant time and are interpolated
+    into a `|`-delimited line that `log_ledger.parse` reads back; a `|` or a line break in either
+    would push the line past six fields and make it MALFORMED, which silently drops it from
+    `approvals()` and `signatures()` (security pass on pull request 55, nit 4). `scripts/sign.py`
+    refuses such a note outright; here the line is written by CI with no one to ask, so the
+    character is replaced and the value still reads.
+    """
+    text = (value or "?").strip()
+    for bad, good in (("|", "/"), ("\r", " "), ("\n", " ")):
+        text = text.replace(bad, good)
+    return text or "?"
+
+
+def _append_ledger(root, slug, entry):
+    """Append one rendered ledger line to work/<slug>/log.md. Returns the relative path."""
+    rel = "work/%s/log.md" % slug
+    path = os.path.join(root, rel)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(log_ledger.render(entry) + "\n")
+    return rel
+
+
+def advance(root, out, merged_slug, number, policy, now=None):
+    """Move `.sdlc/active` to the next queued item and record it on both ledgers.
+
+    Refuses, writing nothing, on a dirty tree, when the pointer does not name the item just merged,
+    and when the computed next item is the merged one. An empty queue clears the pointer, which is a
+    valid state every reader already handles.
+
+    What actually protects a concurrent run is the push at the end: it is not forced, so any commit
+    that landed on the remote in between rejects it and this run stands down (security pass on pull
+    request 55, nit 1). The pointer check below is a cheap precondition, not that protection --
+    `check_pull_request` has already refused any pull request whose `Work-Item` is not the active
+    slug, so in production it compares the file to itself. It is kept because `advance()` is also
+    reachable directly, where it is the only thing standing between a wrong argument and a wrong
+    write.
+    """
+    now = now or datetime.now(timezone.utc)
+    ts = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # The allowlist below bounds which *files* are committed, not what is inside them: `git add` on
+    # an already-dirty file would stage that file's other changes too (security pass, nit 2). The
+    # workflow's checkout is always fresh, so a dirty tree here means something unexpected touched
+    # it, and the honest answer is to write nothing at all.
+    dirty = _git(root, "status", "--porcelain")
+    if dirty:
+        out.stream.write("note: the checkout is not clean, so nothing was advanced:\n%s\n" % dirty)
+        return None
+    pointer = read_active_slug(root)
+    if pointer != merged_slug:
+        out.stream.write("note: .sdlc/active names '%s', not the merged '%s'; not advancing\n"
+                         % (pointer, merged_slug))
+        return None
+    nxt = next_item.next_item(root, policy, exclude=merged_slug)
+    if nxt == merged_slug:  # defensive: exclude should already have removed it
+        out.stream.write("note: the queue named the merged item; not advancing\n")
+        return None
+
+    sha = _git(root, "rev-parse", "--short", "HEAD") or "0000000"
+    written = []
+    with open(os.path.join(root, ".sdlc", "active"), "w", encoding="utf-8") as f:
+        f.write((nxt + "\n") if nxt else "")
+    written.append(".sdlc/active")
+
+    note = ("merged as %s; .sdlc/active advanced to %s" % (sha, nxt) if nxt
+            else "merged as %s; the queue is empty, .sdlc/active cleared" % sha)
+    written.append(_append_ledger(root, merged_slug, log_ledger.Entry(
+        ts=ts, artifact="PR #%s" % number, from_status="in-review", to_status="in-review",
+        actor=ADVANCE_IDENTITY[0], sha=sha, note=note, lineno=0)))
+
+    if nxt:
+        fm = chain.front_matter(os.path.join(root, "work", nxt, "intent.md")) or {}
+        written.append(_append_ledger(root, nxt, log_ledger.Entry(
+            ts=ts, artifact="intent.md", from_status="approved", to_status="approved",
+            actor=ADVANCE_IDENTITY[0], sha=sha,
+            note=(".sdlc/active advanced here after PR #%s merged, under the grant by %s on %s"
+                  % (number, _ledger_safe(fm.get("delegated-by")),
+                     _ledger_safe(fm.get("delegated-on")))),
+            lineno=0)))
+
+    _git(root, "add", "--", *written)
+    staged = [p for p in _git(root, "diff", "--cached", "--name-only").split("\n") if p]
+    unexpected = sorted(set(staged) - set(written))
+    if unexpected:
+        _git(root, "reset", "-q", "HEAD", check=False)
+        raise MergeError("refusing to commit paths outside the advance allowlist: %s"
+                         % ", ".join(unexpected))
+    _git(root, "-c", "user.name=%s" % ADVANCE_IDENTITY[0],
+         "-c", "user.email=%s" % ADVANCE_IDENTITY[1],
+         "commit", "-q", "-m",
+         "[%s] Advance .sdlc/active after #%s merged" % (nxt or "queue-empty", number))
+    branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
+    push = subprocess.run(["git", "-C", root, "push", "origin", "HEAD:%s" % branch],
+                          capture_output=True, text=True)
+    if push.returncode != 0:
+        # Someone else pushed between the checkout and now. The pointer is unchanged on the remote,
+        # and the next merge advances it; retrying here would race the same way.
+        out.stream.write("note: advance commit not pushed (%s); the next merge will advance\n"
+                         % (push.stderr.strip().splitlines() or ["push rejected"])[-1])
+        return None
+    out.stream.write("ADVANCE: .sdlc/active -> %s\n" % (nxt or "(empty queue)"))
+    return nxt
 
 
 def main(argv=None):
@@ -936,7 +1069,7 @@ def main(argv=None):
         return 2
     try:
         return run(event, policy, config, approvers_file, dry_run=args.dry_run,
-                   active_slug=read_active_slug(root))
+                   active_slug=read_active_slug(root), root=root)
     except MergeError as exc:
         print("GitHub call failed: %s" % exc, file=sys.stderr)
         return 1

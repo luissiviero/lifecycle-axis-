@@ -1,6 +1,6 @@
 ---
 name: sdlc-run
-description: Drive a delegated work item from an approved, delegated intent to a ready pull request without stopping. Use when the intent has a delegation grant.
+description: Drive every granted work item from an approved, delegated intent to a merged pull request without stopping, advancing to the next queued item on each merge. Use when at least one intent has a delegation grant.
 ---
 # /sdlc-run — the delegated loop
 
@@ -12,6 +12,11 @@ Missing the grant is the common failure, and it is one tap to fix: ask the owner
 **Actions -> approve -> Run workflow** (`.github/workflows/approve.yml`) with `slug` = the item, `artifact` = `intent.md`, `mode` = `delegated`,
 from the default branch (the workflow refuses a grant on any other ref). Then wait. Naming the inputs is not
 approving; the run records who pressed Run, and that record is what the chain check and the merge script verify.
+
+**The queue.** The owner grants N intents up front, one tap each, and this runs them in order without
+coming back for anything. Before starting, print the queue so the owner knows what will happen before
+they leave: `python3 scripts/next_item.py --list` — earliest `delegated-on` first, ties by slug. Steps
+1-6 are one item; step 7 is what makes it a queue.
 
 1. `/sdlc-spec`, then `python3 scripts/sign.py <slug> spec.md`.
 2. `/sdlc-plan`, then `python3 scripts/sign.py <slug> plan.md` (the plan gate opens on a signed plan under the grant).
@@ -25,6 +30,14 @@ approving; the run records who pressed Run, and that record is what the chain ch
    `gh pr ready` and logs `PR #<n> | draft -> in-review`; do not repeat those here.
 6. The ready pull request is the callback when the policy has `merge.enabled: false`; otherwise the
    delegated-merge workflow merges when its printed conditions hold.
+7. **Advance.** Subscribe to the pull request you opened (`subscribe_pr_activity`) and stay on it: answer its
+   review findings and CI until it merges. On the merge, the workflow has already moved `.sdlc/active` to the
+   next queued item and written a ledger line on both items — you do not move the pointer, and an item's own
+   pull request may never contain `.sdlc/active` (`ALWAYS_LOCKED`). Re-read `.sdlc/active` from `main`: when it
+   names a different granted, unstarted item, reset your branch onto `main` and go to step 1 for that item,
+   without asking the owner for anything. When it is empty, the queue is done — say so once and stop.
+   If the session ends mid-queue, nothing is lost: the pointer on `main` is already correct, so the next
+   session resumes at the right item with no repair.
 
 ## The revision rule
 A plan revision is the last resort. A file-list or order deviation is logged as today plus a ledger line, capped
@@ -38,10 +51,15 @@ Any `keep`, too few reviewers, or a blocked plan with no consensus means stop an
 record.
 
 ## Stop and call the owner back
-The deviation cap is reached; a `keep` verdict, or a blocking error with no consensus; a path under
+Each of these stops the **whole queue**, not just the item: say which item and why, once, and do not start the
+next one. The deviation cap is reached; a `keep` verdict, or a blocking error with no consensus; a path under
 `PROTECTED_PATHS`, `RELEASE_GATED_PATHS` or the policy's `locked-paths` is needed; a red check the item cannot
-fix inside its plan; a hook refusal you do not understand.
+fix inside its plan; a hook refusal you do not understand. Two more end the queue quietly rather than badly:
+the queue is empty (`next_item.py` exits 3), and a pull request that needs the owner's merge click — a
+locked-path item never merges on its own, so no advance follows it and the queue ends there. Tell the owner to
+grant such items last.
 
 ## Never
 Write `approved`; touch the grant keys (`mode`, `delegated-by`, `delegated-on`, `risk-class`); sign `intent.md`;
-run `scripts/approve.py`; merge with `gh pr merge`; squash.
+run `scripts/approve.py`; merge with `gh pr merge`; squash; write `.sdlc/active` yourself — the merge workflow
+moves it, and a queue of N items is N human grants, never one grant for N.
