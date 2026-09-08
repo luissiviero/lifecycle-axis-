@@ -45,7 +45,22 @@ timestamp: 2026-09-06T01:20:00Z
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-06 ~01:20 UTC)
+## Task state (2026-09-08 ~19:40 UTC)
+- **Delegated mode has run a full item end to end.** `work/approve-by-dispatch` (#51), `work/retire-active-pointer`
+  (#53), `work/run-queue` (#55, #57) and `work/run-queue-followups` (#56 intent, #58 implementation) are the
+  record. The queue machinery works: `scripts/next_item.py` orders it, `delegated_merge.py` advances
+  `.sdlc/active` after a merge, and `/sdlc-run` loops on its own pull request.
+- **Local runs need the token unset**, in a container with no `gh` binary: `GH_TOKEN= GITHUB_TOKEN= scripts/verify.sh`
+  and the same prefix on `check_artifact_chain.py`. Without it the dispatch-trailer check crashes. This bit two
+  sessions before it was written down.
+- **Run the chain check after committing, never before.** Since `work/run-queue-followups` the check refuses an
+  empty diff on a dirty tree rather than reporting `CHAIN: PASS` on work it never saw; `verify.sh`'s `--base HEAD`
+  self-check is deliberately exempt, so a green verify still says nothing about whether your commit is complete.
+- Known follow-ups, not yet items: `work/run-queue/log.md:21` cites the wrong sha (the base it was written
+  against, not the commit carrying the change); the `gh`-absent crash in `check_artifact_chain.py` is still
+  unfixed and is why the token prefix is needed.
+
+## Task state (2026-09-06 ~01:20 UTC) — HISTORY, superseded by the section above
 - **`work/delegated-mode` is merged, in four pull requests**: #42 (1a, the vocabulary — `delegation.py`, the
   chain check's `delegated` branch, the decision record; fce28c0), #43 (1b, the act — the hooks,
   `scripts/sign.py`, `approve.py --delegate`; 2e01c12), #44 (1c, the prose — skills, rule fragments, this doc

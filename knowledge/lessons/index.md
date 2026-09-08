@@ -30,3 +30,6 @@ single incident that yields more than one distinct lesson gets `<incident-slug>-
 - [workflow-permissions-name-every-api.md](workflow-permissions-name-every-api.md) — a workflow's `permissions:` block names every API surface its scripts touch
 - [stage-new-files-before-verify.md](stage-new-files-before-verify.md) — `git add` new files before `verify.sh`: the front-matter check reads `git ls-files`, and an unquoted colon is what it catches
 - [tests-carry-their-own-environment.md](tests-carry-their-own-environment.md) — a test that reads the ambient environment (git identity, the clock) passes here and fails on the runner
+- [eval-checks-have-no-blank-lines.md](eval-checks-have-no-blank-lines.md) — a blank line truncates an eval `check:` block into a stub that always passes
+- [adopter-context-file-sits-at-the-cap.md](adopter-context-file-sits-at-the-cap.md) — a rules-fragment line is paid for at the adopter's render, which sits at exactly the cap
+- [commit-before-the-chain-check.md](commit-before-the-chain-check.md) — staged work is invisible to the chain check; commit first, and since work/run-queue-followups it refuses rather than passing
