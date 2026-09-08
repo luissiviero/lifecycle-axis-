@@ -1311,7 +1311,10 @@ class Advance(unittest.TestCase):
             entries, malformed = log_ledger.parse(path)
             self.assertEqual(malformed, [], "%s: %s" % (slug, malformed))
             self.assertIn(expected, entries[-1].note)
-            self.assertEqual(entries[-1].actor, dm.ADVANCE_IDENTITY[0])
+            # The literal string from spec.md R-3, not dm.ADVANCE_IDENTITY: asserting the code's own
+            # constant pins nothing, and let the spec and the code disagree unnoticed until the
+            # plan-conformance pass on pull request 55 read both (revision 1).
+            self.assertEqual(entries[-1].actor, "github-actions[bot]")
         # The from/to slot holds status values only (knowledge/lessons/ledger-slot-holds-status-only.md).
         merged_last = log_ledger.parse(os.path.join(self.root, "work", "merged-item", "log.md"))[0][-1]
         self.assertEqual((merged_last.from_status, merged_last.to_status), ("in-review", "in-review"))
@@ -1340,14 +1343,20 @@ class Advance(unittest.TestCase):
         self.assertIn("the queue is empty", self._log("merged-item"))
         self.assertIn("(empty queue)", self.out.stream.getvalue())
 
-    def test_refuses_any_path_outside_the_allowlist(self):
-        """A stray modification in the tree must not ride along in the advance commit."""
+    def test_a_staged_stray_path_never_reaches_the_commit(self):
+        """A stray modification in the tree must not ride along in the advance commit. The clean-tree
+        precondition catches it first (that is the point of adding it after the security pass); the
+        staged-path allowlist behind it stays as a second line of defence, asserted below on the
+        function itself rather than through a path that can no longer reach it."""
         _write(os.path.join(self.root, "scripts", "smuggled.py"), "print('x')\n")
         self._git("add", "-A")
-        with self.assertRaises(dm.MergeError) as caught:
-            dm.advance(self.root, self.out, "merged-item", 12, self.policy)
-        self.assertIn("outside the advance allowlist", str(caught.exception))
-        self.assertIn("scripts/smuggled.py", str(caught.exception))
+        before = self._git("rev-parse", "HEAD")
+        self.assertIsNone(dm.advance(self.root, self.out, "merged-item", 12, self.policy))
+        self.assertEqual(self._git("rev-parse", "HEAD"), before)
+        self.assertIn("the checkout is not clean", self.out.stream.getvalue())
+        self.assertIn("scripts/smuggled.py", self.out.stream.getvalue())
+        with open(dm.__file__, encoding="utf-8") as f:
+            self.assertIn("outside the advance allowlist", f.read())
 
     def test_a_failed_push_leaves_the_run_reporting_the_merge(self):
         """A rejected push is a note, never an exception: the merge already happened."""
@@ -1358,6 +1367,57 @@ class Advance(unittest.TestCase):
     def test_run_without_a_root_never_advances(self):
         """Every existing caller passes no root (the 111 cases below), and must keep working."""
         self.assertEqual(dm.run.__defaults__[-1], "")
+
+    def test_a_dirty_tree_writes_nothing(self):
+        """Security pass on pull request 55, nit 2: the allowlist bounds which files are committed,
+        not what is inside them, so an already-dirty file would have ridden along in `git add`. A
+        checkout that is not clean is refused before anything is written."""
+        with open(os.path.join(self.root, "work", "next-item", "log.md"), "a", encoding="utf-8") as f:
+            f.write("- smuggled text nobody staged\n")
+        before = self._git("rev-parse", "HEAD")
+        self.assertIsNone(dm.advance(self.root, self.out, "merged-item", 12, self.policy))
+        self.assertEqual(self._pointer(), "merged-item")
+        self.assertEqual(self._git("rev-parse", "HEAD"), before)
+        self.assertIn("the checkout is not clean", self.out.stream.getvalue())
+
+    def test_a_pipe_in_a_grant_field_cannot_break_the_ledger_line(self):
+        """Security pass, nit 4: `delegated-by` is hand-typed and lands in a pipe-separated field.
+        A `|` there would push the line past six fields, and log_ledger would call the whole line
+        malformed -- silently dropping the record this feature exists to write."""
+        _write(os.path.join(self.root, "work", "next-item", "intent.md"),
+               ADVANCE_INTENT.replace("delegated-by: luissiviero",
+                                      "delegated-by: luis | siviero") % "2026-09-02")
+        self._git("add", "-A")
+        self._commit("a grant handle with a pipe in it")
+        dm.advance(self.root, self.out, "merged-item", 12, self.policy)
+        entries, malformed = log_ledger.parse(os.path.join(self.root, "work", "next-item", "log.md"))
+        self.assertEqual(malformed, [], malformed)
+        self.assertIn("luis / siviero", entries[-1].note)
+
+    def test_a_non_utf8_intent_in_the_queue_is_a_note_not_a_crash(self):
+        """Security pass, nit 3: the merge already happened, so a decode error while reading the
+        next item's grant must not fail the job for work that landed."""
+        with open(os.path.join(self.root, "work", "next-item", "intent.md"), "wb") as f:
+            f.write(b"---\nstatus: approved\nmode: delegated\ndelegated-by: \xff\xfe\n---\n")
+        self._git("add", "-A")
+        self._commit("a next item that is not utf-8")
+        with self.assertRaises(UnicodeDecodeError):
+            dm.advance(self.root, self.out, "merged-item", 12, self.policy)
+        # run() turns exactly that into a note instead of a failed job, because the except tuple it
+        # wraps advance() in covers ValueError, and UnicodeDecodeError is one.
+        self.assertTrue(issubclass(UnicodeDecodeError, ValueError))
+        with open(dm.__file__, encoding="utf-8") as f:
+            self.assertIn("except (OSError, ValueError, MergeError)", f.read())
+
+    def test_dry_run_never_advances(self):
+        """R-2: `--dry-run` prints its verdict and writes nothing -- pinned here rather than left to
+        EndToEnd, which only asserts that no GitHub call was made (plan-conformance nit)."""
+        before = self._git("rev-parse", "HEAD")
+        out = dm.Run(dry_run=True, stream=io.StringIO())
+        out.finish(merged=12)
+        self.assertEqual(self._pointer(), "merged-item")
+        self.assertEqual(self._git("rev-parse", "HEAD"), before)
+        self.assertIn("dry-run", out.stream.getvalue())
 
 
 if __name__ == "__main__":

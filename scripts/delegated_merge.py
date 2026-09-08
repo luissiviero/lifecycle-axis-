@@ -876,7 +876,10 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
     if root:
         try:
             advance(root, out, slug, number, policy, now=now)
-        except (OSError, MergeError) as exc:  # a git failure is a note, not a failed merge
+        except (OSError, ValueError, MergeError) as exc:
+            # ValueError covers UnicodeDecodeError from a non-UTF-8 intent.md in the queue: the
+            # merge already succeeded, so a crash here would report a failed job for work that
+            # landed (security pass on pull request 55, nit 3). A git failure is a note too.
             out.stream.write("note: could not advance .sdlc/active: %s\n" % exc)
     return out.finish(merged="#%s %s" % (number, head_sha))
 
@@ -894,6 +897,22 @@ def _git(root, *args, **kw):
     return r.stdout.strip()
 
 
+def _ledger_safe(value):
+    """A front-matter value fit for a pipe-separated ledger field.
+
+    `delegated-by` and `delegated-on` are hand-typed by a human at grant time and are interpolated
+    into a `|`-delimited line that `log_ledger.parse` reads back; a `|` or a line break in either
+    would push the line past six fields and make it MALFORMED, which silently drops it from
+    `approvals()` and `signatures()` (security pass on pull request 55, nit 4). `scripts/sign.py`
+    refuses such a note outright; here the line is written by CI with no one to ask, so the
+    character is replaced and the value still reads.
+    """
+    text = (value or "?").strip()
+    for bad, good in (("|", "/"), ("\r", " "), ("\n", " ")):
+        text = text.replace(bad, good)
+    return text or "?"
+
+
 def _append_ledger(root, slug, entry):
     """Append one rendered ledger line to work/<slug>/log.md. Returns the relative path."""
     rel = "work/%s/log.md" % slug
@@ -906,12 +925,28 @@ def _append_ledger(root, slug, entry):
 def advance(root, out, merged_slug, number, policy, now=None):
     """Move `.sdlc/active` to the next queued item and record it on both ledgers.
 
-    Refuses, writing nothing, when the pointer no longer names the item just merged (another run
-    advanced first -- a lost update), and when the computed next item is the merged one. An empty
-    queue clears the pointer, which is a valid state every reader already handles.
+    Refuses, writing nothing, on a dirty tree, when the pointer does not name the item just merged,
+    and when the computed next item is the merged one. An empty queue clears the pointer, which is a
+    valid state every reader already handles.
+
+    What actually protects a concurrent run is the push at the end: it is not forced, so any commit
+    that landed on the remote in between rejects it and this run stands down (security pass on pull
+    request 55, nit 1). The pointer check below is a cheap precondition, not that protection --
+    `check_pull_request` has already refused any pull request whose `Work-Item` is not the active
+    slug, so in production it compares the file to itself. It is kept because `advance()` is also
+    reachable directly, where it is the only thing standing between a wrong argument and a wrong
+    write.
     """
     now = now or datetime.now(timezone.utc)
     ts = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # The allowlist below bounds which *files* are committed, not what is inside them: `git add` on
+    # an already-dirty file would stage that file's other changes too (security pass, nit 2). The
+    # workflow's checkout is always fresh, so a dirty tree here means something unexpected touched
+    # it, and the honest answer is to write nothing at all.
+    dirty = _git(root, "status", "--porcelain")
+    if dirty:
+        out.stream.write("note: the checkout is not clean, so nothing was advanced:\n%s\n" % dirty)
+        return None
     pointer = read_active_slug(root)
     if pointer != merged_slug:
         out.stream.write("note: .sdlc/active names '%s', not the merged '%s'; not advancing\n"
@@ -940,7 +975,8 @@ def advance(root, out, merged_slug, number, policy, now=None):
             ts=ts, artifact="intent.md", from_status="approved", to_status="approved",
             actor=ADVANCE_IDENTITY[0], sha=sha,
             note=(".sdlc/active advanced here after PR #%s merged, under the grant by %s on %s"
-                  % (number, fm.get("delegated-by") or "?", fm.get("delegated-on") or "?")),
+                  % (number, _ledger_safe(fm.get("delegated-by")),
+                     _ledger_safe(fm.get("delegated-on")))),
             lineno=0)))
 
     _git(root, "add", "--", *written)
