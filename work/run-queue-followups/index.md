@@ -1,12 +1,12 @@
 ---
 type: sdlc/work-item
 id: run-queue-followups
-title: Close the three leftovers the first delegated queue surfaced, so the next queue starts on a true printout and two repeated mistakes stop repeating
-description: "The queue the sdlc-run skill prints before a run is not the order it works (the pointer item goes first, the print says otherwise); the adopter's context-file cap and the chain check's empty diff on staged-but-uncommitted work each bit twice in one day with no lesson filed. One small item: one skill line, two lesson files, their pointer lines."
-timestamp: 2026-09-08T18:00:00Z
+title: The chain check reports PASS on work it never saw; make it say so instead
+description: "check_artifact_chain.py diffs <base>...HEAD, so staged and uncommitted work is invisible to it; an empty diff is in-progress mode, and the check prints CHAIN: PASS under a note describing a diff that does not exist. It audited the wrong work twice in one session. The lesson written for it says the guard is nowhere yet; this item writes the guard."
+timestamp: 2026-09-08T18:40:00Z
 ---
-# Close the three leftovers the first delegated queue surfaced, so the next queue starts on a true printout and two repeated mistakes stop repeating
+# The chain check reports PASS on work it never saw; make it say so instead
 
-- [intent.md](intent.md) — status: in-review; approved-by: ; The queue the sdlc-run skill prints before a run is not the order it works (the pointer item goes first, the print says otherwise); the adopter's context-file cap and the chain check's empty diff on staged-but-uncommitted work each bit twice in one day with no lesson filed. One small item: one skill line, two lesson files, their pointer lines.
+- [intent.md](intent.md) — status: in-review; approved-by: ; check_artifact_chain.py diffs <base>...HEAD, so staged and uncommitted work is invisible to it; an empty diff is in-progress mode, and the check prints CHAIN: PASS under a note describing a diff that does not exist. It audited the wrong work twice in one session. The lesson written for it says the guard is nowhere yet; this item writes the guard.
 
-Last gate: - 2026-09-08T18:00:00Z | intent.md | (none) -> in-review | claude | 44cac9d | drafted from the handoff that opened this session (three leftovers from work/run-queue: the printed queue puts the pointer item in the wrong place; the adopter's context-file cap and the chain check's empty diff on staged-but-uncommitted work each bit twice on 2026-09-08 with no lesson filed) and the ledger lines in work/retire-active-pointer and work/run-queue that record both occurrences; three questions answered as proposals for the owner to edit or accept; the queue was empty when this session started (next_item.py exit 3), so this is the item to grant
+Last gate: - 2026-09-08T18:40:00Z | intent.md | in-review -> in-review | claude | a83c8e4 | narrowed by the owner after pull request 57 merged, which shipped two of the three leftovers: the sdlc-run skill now prints the active slug then the rest excluding it, and both lessons are filed with their rule pointers. What is left is the only piece needing code, and the lesson written for it says so itself -- knowledge/lessons/commit-before-the-chain-check.md ends "Where it is enforced: Nowhere yet". Rebased onto a83c8e4; three open questions replaced with the ones the guard raises; the intent now flags that scripts/check_artifact_chain.py is on the policy's locked-paths, so this item's merge is the owner's click and it is granted last
