@@ -77,7 +77,7 @@ docs/sdlc/templates/claude-settings.json   the hook wiring adopters get as .clau
 scripts/verify.sh                the single pass/fail signal; also runs every scripts/checks/*.sh
 scripts/checks/                  self-registering verify.sh checks: okf, index-drift, context-drift, workflow-permissions, plugin-manifest
 scripts/run_tests.py             the unit suite (scripts/test_*.py), one subprocess per module, modules run concurrently; -j 1 for serial
-scripts/check_artifact_chain.py  artifacts approved by a valid approver with a log.md entry; diff ⊆ "Files that change"; release-gated paths have an owner; a diff touching only work/ is checked as far as the chain exists (one stage per PR)
+scripts/check_artifact_chain.py  artifacts approved by a valid approver with a log.md entry; diff ⊆ "Files that change"; release-gated paths have an owner; a diff touching only work/ is checked as far as the chain exists (one stage per PR); before any of it, one line each for a --base git does not know, a malformed .sdlc/active, and a pointer already retired on the base (a note when the retirement is this PR's own, or --slug and the pointer disagree)
 scripts/check_okf.py             OKF conformance over knowledge/ and docs/sdlc/ (warning by default, OKF_STRICT=1 to fail)
 scripts/run_evals.sh + evals/    hook cases run anywhere; prompt cases run with `claude -p` when a key exists; --kind/--only/--list select cases
 scripts/detect_bands.py          deterministic Western Electric detector (trailing baseline, four rules, full-series scan), unit-tested; monitoring/bands.yaml tiers and `window:`, read into the workflow matrix by scripts/bands_config.py

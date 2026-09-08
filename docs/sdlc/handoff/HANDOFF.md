@@ -151,6 +151,14 @@ Batch A is merged; open Batch B starting with WI-7 band-detector.")
   next branch (the owner cannot run the approval script from a phone) and lists it in the plan's file list
   with a deviation. `require-plan.sh` blocks every write under `scripts/` (including Bash text that mentions
   `scripts`) until the active plan is approved by a `tech-lead`.
+- Retiring an item is a human act, from the web editor today (`work/retire-active-pointer`): set
+  `status: superseded` on `intent.md`, `spec.md` and `plan.md`, append one `approved -> superseded` (or
+  `delegated -> superseded`) ledger line per artifact, and set `.sdlc/active` to the next item or to empty.
+  `require-plan.sh` refuses a `superseded` plan; `check_artifact_chain.py` fails every pull request whose base
+  already has `.sdlc/active` naming a retired item (the retiring pull request itself gets a note to move the
+  pointer), and notes one whose `Work-Item` differs from the pointer. Nothing
+  retires an item on merge: the merge script has no write-back, and the pointer stays as it was until a
+  human moves it. One tap for the act is a follow-up item.
 - `SDLC_CONTROL_PLANE_UNLOCK=1` (`.claude/settings.json`): writes to hooks, workflows, `.sdlc` pass with
   an audit line. The never-unlock files (`.sdlc/release-authorizations*`, `.sdlc/approvers.yaml`,
   `.sdlc/hook-decisions.log`) block any Bash command whose text names them, including `git rm --cached`;
