@@ -178,6 +178,16 @@ class RequirePlanHook(unittest.TestCase):
             self.assertEqual(result.returncode, 2, result.stderr)
             self.assertIn("in-review", result.stderr)
 
+    # work/retire-active-pointer R-1: a retired item's plan is `superseded`, and the gate stays closed
+    # on it. The hook already does this (it refuses every status but `approved`, or a signed plan under
+    # a grant); the case names the property so no later edit reopens the gate on finished work.
+    def test_blocks_when_plan_superseded(self):
+        with fake_repo(**{"work/foo/plan.md": "---\nstatus: superseded\napproved-by: luissiviero\n---\n"}) as root:
+            payload = load_fixture("edit", file_path="src/a.ts")
+            result = run_hook(self.HOOK, payload, root, env={"SDLC_WORK_ITEM": "foo"})
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("superseded", result.stderr)
+
     def test_allows_when_plan_approved(self):
         with fake_repo(**{"work/foo/plan.md": "---\nstatus: approved\napproved-by: luissiviero\n---\n"}) as root:
             payload = load_fixture("edit", file_path="src/a.ts")

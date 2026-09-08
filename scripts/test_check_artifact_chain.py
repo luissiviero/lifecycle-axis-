@@ -1128,5 +1128,89 @@ class ActiveSlugRequired(unittest.TestCase):
             )
 
 
+class StalePointer(unittest.TestCase):
+    """work/retire-active-pointer R-2, R-3, R-4: the pointer and the base ref are checked before the
+    chain is, each in one line, instead of the check silently auditing the wrong item."""
+
+    @staticmethod
+    def _retire(wd, approved_by="luissiviero"):
+        """Retire an item the way a human does: superseded on the three artifacts, ledger lines to match."""
+        _write(os.path.join(wd, "intent.md"), _artifact(approved_by, status="superseded"))
+        _write(os.path.join(wd, "spec.md"), _artifact(approved_by, status="superseded"))
+        _write(os.path.join(wd, "plan.md"), _plan(approved_by, status="superseded"))
+        _write(os.path.join(wd, "log.md"), _default_log(approved_by) + (
+            f"- 2026-01-02T00:00:00Z | intent.md | approved -> superseded | {approved_by} | abc1234 | retired\n"
+            f"- 2026-01-02T00:00:00Z | spec.md | approved -> superseded | {approved_by} | abc1234 | retired\n"
+            f"- 2026-01-02T00:00:00Z | plan.md | approved -> superseded | {approved_by} | abc1234 | retired\n"
+        ))
+
+    def test_unknown_base_ref_is_one_clear_failure(self):
+        """R-4: a base ref git does not know is one FAIL line naming it and --base HEAD, never a
+        silent in-progress pass on an empty diff."""
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            result = _run(root, "--slug", "demo", "--base", "no-such-ref")
+            self.assertEqual(result.returncode, 1, result.stdout)
+            fail_lines = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
+            self.assertEqual(len(fail_lines), 1, result.stdout)
+            self.assertIn("base ref 'no-such-ref'", fail_lines[0])
+            self.assertIn("--base HEAD", fail_lines[0])
+            self.assertNotIn("in-progress", result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+
+    def test_retired_active_item_is_one_clear_failure(self):
+        """R-2: .sdlc/active naming an item whose intent.md is superseded is one FAIL line that names
+        the item and the fix, whatever --slug says."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            self._retire(wd)
+            _commit(root, "retire demo")
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 1, result.stdout)
+            fail_lines = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
+            self.assertEqual(len(fail_lines), 1, result.stdout)
+            self.assertIn(".sdlc/active names 'demo', which is retired", fail_lines[0])
+            self.assertIn("work/demo/intent.md is superseded", fail_lines[0])
+            self.assertIn("clear .sdlc/active", fail_lines[0])
+
+    def test_retiring_pull_request_is_a_note_not_a_failure(self):
+        """R-2, the other side: the pull request that retires the active item is the act in progress,
+        not a stale pointer. Retired is judged on the base ref; the head's superseded intent earns a
+        note telling the human to move the pointer in the same pull request."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)  # 'demo' fully approved on main, and active
+            _git(root, "checkout", "-q", "-b", "work/demo")
+            self._retire(wd)
+            _commit(root, "retire demo, pointer not yet moved")
+            result = _run(root, "--slug", "demo", "--base", "main")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+            self.assertNotIn("which is retired", result.stdout)
+            notes = [l for l in result.stdout.splitlines() if "retires 'demo'" in l]
+            self.assertEqual(len(notes), 1, result.stdout)
+            self.assertTrue(notes[0].startswith("  note:"), notes[0])
+            self.assertIn("set .sdlc/active to the next item or to empty", notes[0])
+
+    def test_slug_differs_from_active_is_a_note(self):
+        """R-3: --slug naming one item while .sdlc/active names another is a note, not a failure:
+        the merge script would refuse, and the author learns it here."""
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            other = os.path.join(root, "work", "other")
+            _write(os.path.join(other, "intent.md"), _artifact("luissiviero"))
+            _write(os.path.join(other, "spec.md"), _artifact("luissiviero"))
+            _write(os.path.join(other, "plan.md"), _plan("luissiviero"))
+            _write(os.path.join(other, "log.md"), _default_log())
+            _commit(root, "open other while demo is still active")
+            result = _run(root, "--slug", "other", "--base", "HEAD")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+            notes = [l for l in result.stdout.splitlines() if ".sdlc/active names" in l]
+            self.assertEqual(len(notes), 1, result.stdout)
+            self.assertTrue(notes[0].startswith("  note:"), notes[0])
+            self.assertIn(".sdlc/active names 'demo', not 'other'", notes[0])
+            self.assertIn("merges only the active item", notes[0])
+
+
 if __name__ == "__main__":
     unittest.main()

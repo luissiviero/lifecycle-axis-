@@ -504,6 +504,14 @@ def main():
     any_approved = False
 
     diff = subprocess.run(["git", "diff", "--name-only", f"{a.base}...HEAD"], capture_output=True, text=True, cwd=ROOT)
+    if diff.returncode != 0:
+        # work/retire-active-pointer R-4: a base ref git does not know used to give an empty diff, and
+        # `all([])` below then read that as in-progress mode -- a silent pass on the wrong question.
+        # One line, before anything else, the way an empty pointer is handled above.
+        print(f"  FAIL: base ref '{a.base}' is not known here (git diff failed); pass --base HEAD for a "
+              f"local self-check, or fetch the ref")
+        print("CHAIN: FAIL")
+        sys.exit(1)
     changed_all = [p for p in diff.stdout.split() if p]
     # Artifact-only means *this* item's artifacts (plus the generated top-level index), and
     # .sdlc/active when the diff points it at this item -- activating an item is part of opening it.
@@ -511,6 +519,39 @@ def main():
     # and gets the strict check. An empty diff (`--base HEAD`, a local self-check) validates what exists.
     active_path = os.path.join(ROOT, ".sdlc", "active")
     active_now = open(active_path, encoding="utf-8").read().strip() if os.path.exists(active_path) else ""
+
+    # work/retire-active-pointer R-2, R-3: the pointer is judged whatever --slug says, because it is
+    # read by the plan gate and the merge script for every pull request, not only this one. A pointer
+    # naming a retired item (its intent.md is `superseded`, the status a human writes when an item is
+    # done) is wrong for everyone until it moves: an error with a one-line fix. A pointer naming
+    # another item than this pull request's has a legitimate transient -- the pull request that opens
+    # an item before the pointer moves -- so it is a note, foretelling the merge script's refusal.
+    if active_now and active_now != slug:
+        notes.append(
+            f".sdlc/active names '{active_now}', not '{slug}': the merge script merges only the active "
+            f"item; point .sdlc/active at {slug} in this pull request, or expect the merge to be refused"
+        )
+    if active_now:
+        # "Retired" is judged on the base ref, not the head: the pull request that retires an item
+        # sets `superseded` while the pointer still names it (test_fully_superseded_chain_passes,
+        # work/batch-b-followups R-3), and that is the act in progress, not a stale pointer. A pointer
+        # that already named a retired item before this pull request is the defect. R-4 above has
+        # already proven the base ref exists, so a failed `git show` means the file is new here.
+        rel = f"work/{active_now}/intent.md"
+        shown = subprocess.run(["git", "show", f"{a.base}:{rel}"], capture_output=True, text=True, cwd=ROOT)
+        base_status = front_matter_text(shown.stdout).get("status") if shown.returncode == 0 else None
+        head_fm = front_matter(os.path.join(ROOT, rel))
+        head_status = head_fm.get("status") if head_fm is not None else None
+        if base_status == "superseded":
+            errors.append(
+                f".sdlc/active names '{active_now}', which is retired (work/{active_now}/intent.md is "
+                f"superseded); clear .sdlc/active or point it at the item in progress"
+            )
+        elif head_status == "superseded":
+            notes.append(
+                f"this pull request retires '{active_now}': set .sdlc/active to the next item or to "
+                f"empty in the same pull request, or every later pull request fails on the pointer"
+            )
 
     def own_artifact(p):
         if p == "work/index.md" or p.startswith(f"work/{slug}/"):

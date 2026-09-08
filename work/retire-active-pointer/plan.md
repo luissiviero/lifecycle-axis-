@@ -61,4 +61,5 @@ timestamp: 2026-09-08T15:20:00Z
 - Revert the pull request. Nothing is persisted outside the repository; no data, no workflow, no hook changes.
 
 ## Deviations log (append during implementation; same commit as the deviation)
+- 2026-09-08, step 3: "retired" is judged on the **base ref**, not the head. The pre-existing case `InProgressChain.test_fully_superseded_chain_passes` (work/batch-b-followups R-3) models the pull request that retires an item while the pointer still names it; that is the act in progress and must pass. So the R-2 error fires when `work/<active>/intent.md` is already `superseded` on `--base`, and the head's `superseded` intent earns a note telling the human to move the pointer in the same pull request. R-2's oracle is unchanged (`--base HEAD` still fails); a fourth case, `test_retiring_pull_request_is_a_note_not_a_failure`, pins the other side. No file is added to the list.
 - 
