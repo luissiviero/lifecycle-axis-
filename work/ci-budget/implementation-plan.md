@@ -112,8 +112,17 @@ none, a human's `edited` still runs.
       `evals/cases/hook-refuses-planted-key.yaml`).
     - The fork-PR checklist (end of this file) stands; A2b, the one gap, is the first item of PR-A since
       the flip preceded it.
-0.3 Owner taps `slug: ci-budget`, `artifact: intent.md`, `mode: supervised` at
-    https://github.com/luissiviero/lifecycle-axis-/actions/workflows/approve.yml → Run workflow.
+0.3 **Merge this pull request first, then tap.** `approve.yml` checks out the ref chosen in "Use workflow
+    from branch" and writes there (`approve.yml:14-18`), and `work/ci-budget/` exists only on PR #63's
+    branch — so a tap run from `main` fails with "no work/ci-budget/intent.md". Every previous approval in
+    this repository followed the same order: the intent pull request merged, then the tap on `main` (runs 6,
+    7 and 9 of `approve.yml`, each on a merge commit of the intent's own pull request). So: `gh pr ready` on
+    #63, the owner merges it, then Actions → approve → Run workflow with branch `main`, `artifact:
+    intent.md`, `mode: supervised`, **`slug` blank** (`.sdlc/active` on `main` already reads `ci-budget`,
+    and a blank slug resolves to it; the slug is a free-text box, not a list of items) —
+    https://github.com/luissiviero/lifecycle-axis-/actions/workflows/approve.yml. Running the tap from the
+    pull request's own branch also works for a supervised approval, but it costs a second gate and review
+    round on the approval commit and has no precedent here.
 0.4 `/sdlc-spec` then `/sdlc-plan` (Opus session) from this document; Sonnet reviewers over both; Fable M1;
     taps (same link as 0.3, `artifact: spec.md`, then `plan.md`). `scripts/` is in `PLAN_REQUIRED_PATHS`, so
     no code before the plan tap.
@@ -243,10 +252,16 @@ three workflows verbatim — no template copy to edit.
    `PR #<n> | draft -> in-review | claude | <sha> | writer opus, reviewers sonnet, revision fable`.
 2. Owner creates the `triage` label (https://github.com/luissiviero/lifecycle-axis-/labels), reads the
    workflow diff on the pull request, applies `control-plane-approved` there.
-3. **Owner: branch protection before the merge** at https://github.com/luissiviero/lifecycle-axis-/settings/branches
-   — remove `agent-evals` from required checks (PR-A's own head produces no `agent-evals` PR run any more, so
-   with it still required PR-A cannot merge); up-to-date **off**; keep `sdlc-gate / artifact-chain`, add
-   `pr-review` when ready.
+3. **Owner: branch protection** at https://github.com/luissiviero/lifecycle-axis-/settings/branches — as of
+   2026-09-09 `main` carries **no protection rule at all** (the branches API reports `protected: false`;
+   protection rules on a private repository need a paid plan, which is why the checklist in
+   `github-setup.md` was never applied, and the flip to public has just made them free). So this step is
+   "create the rule", not "edit it": required checks `sdlc-gate / artifact-chain` (add `pr-review` once it
+   reports), **never** `agent-evals` (a `paths:` filter means it does not run on every pull request, and a
+   required check that never reports blocks the merge forever — the same rule `delegated_merge.py:341-352`
+   states), require branches to be up to date **off**, conversation resolution on. Creating it is optional
+   for this item and changes no acceptance number; skipping it leaves the merge script's `require-checks`
+   and the owner's click as the only controls, which is the state everything has run under so far.
 4. Owner clicks merge (locked path → no delegated merge). Open PRs #59–#62 pick the workflows up on their
    next push; no close/reopen. Fable M3 after the Phase 3 dry run.
 
@@ -372,7 +387,7 @@ bash scripts/adopt.sh "$SCRATCH/adopt" >/dev/null 2>&1 && python3 scripts/gen_co
 ## Risks and rollbacks
 | Change | Risk | Bound / detection | Rollback |
 |---|---|---|---|
-| Skipped-run rule | Widens an acceptance path in the script that performs the click | Only `skipped`, which a `pull_request` run reaches only through a false job `if:`; `cancelled` and `failure` are never dropped; the no-run refusal still catches a sha with only a skipped run; branch protection's required check is the independent second control | Delete the one clause in `_pr_runs` |
+| Skipped-run rule | Widens an acceptance path in the script that performs the click | Only `skipped`, which a `pull_request` run reaches only through a false job `if:`; `cancelled` and `failure` are never dropped; the no-run refusal still catches a sha with only a skipped run. **Correction (2026-09-09): `main` has no branch protection, so the required-status-check second control the earlier draft cited does not exist today** — the merge script's own `require-checks` and the owner's click are the controls, which is why the tests below are the bound that matters | Delete the one clause in `_pr_runs` |
 | Not-delegated verdict | A real refusal hides behind exit 0 | One reason only (the base intent's mode is not `delegated`), decided before any grant check; every other refusal keeps exit 1, each with a test | Map the verdict to `REFUSED` in `_code()` |
 | Bot-edited guard | A Bot body edit that mattered gets no gate run | The gate reads only `Work-Item:` from the body, which no Bot writes; the next push runs it | Drop the clause |
 | Draft guard | A Linux-only failure surfaces one round later, at ready | The ready gate run | Delete the job `if:` |
@@ -390,12 +405,14 @@ bash scripts/adopt.sh "$SCRATCH/adopt" >/dev/null 2>&1 && python3 scripts/gen_co
 |---|---|---|---|
 | 1 | Workflow permissions → "Read repository contents and packages permissions"; optional: require SHA-pinned actions | https://github.com/luissiviero/lifecycle-axis-/settings/actions | Now |
 | 2 | Secret Protection → Enable, then Push protection → Enable | https://github.com/luissiviero/lifecycle-axis-/settings/security_analysis | Now |
-| 3 | Retire `run-queue-followups`, set `.sdlc/active` to `ci-budget` | your shell, one commit on `main`; pointer alone: https://github.com/luissiviero/lifecycle-axis-/edit/main/.sdlc/active | Before PR-A |
-| 4 | Approve `intent.md` (`slug` ci-budget, `mode` supervised) | https://github.com/luissiviero/lifecycle-axis-/actions/workflows/approve.yml | After this push |
+| 3a | Set `.sdlc/active` to `ci-budget` — **done** 2026-09-09 (308f1a2) | https://github.com/luissiviero/lifecycle-axis-/edit/main/.sdlc/active | Done |
+| 3b | Retire `run-queue-followups`: `superseded` on its `intent.md` (now `approved`), `spec.md` and `plan.md` (now `delegated`), a ledger line each in its `log.md` | your shell, one commit on `main` | Before PR-A |
+| 4a | Mark PR #63 ready and merge it — the tap needs `work/ci-budget/` on `main` | the pull request's page | Before 4b |
+| 4b | Approve `intent.md`: branch `main`, `artifact` intent.md, `mode` supervised, **`slug` blank** | https://github.com/luissiviero/lifecycle-axis-/actions/workflows/approve.yml | After 4a |
 | 5 | Approve `spec.md`, then `plan.md` | same as 4 | After Fable M1 |
 | 6 | Create the `triage` label | https://github.com/luissiviero/lifecycle-axis-/labels | Before PR-A goes ready |
 | 7 | Apply `control-plane-approved` on PR-A | the pull request's page | After Fable M2 |
-| 8 | Branch protection: drop `agent-evals`, up-to-date off | https://github.com/luissiviero/lifecycle-axis-/settings/branches | Same sitting as 9 |
+| 8 | Branch protection (optional): `main` has none today — if you create one, require `sdlc-gate / artifact-chain`, never `agent-evals`, up-to-date off | https://github.com/luissiviero/lifecycle-axis-/settings/branches | Same sitting as 9 |
 | 9 | Merge PR-A | the pull request's page | After 8 |
 | 10 | Dry run of the merge conditions on a ready SHA | https://github.com/luissiviero/lifecycle-axis-/actions/workflows/delegated-merge.yml | Phase 3, then Fable M3 |
 | 11 | Merge PR-B | the pull request's page | After Fable M4 |
