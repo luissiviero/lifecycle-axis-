@@ -166,27 +166,51 @@ out of any delegated merge.
   nothing merges from a draft. The trade is a Linux signal that arrives one round later: pull request 61's
   body records seven suites red on the owner's Windows PC and green on the runner, and the ready gate
   would catch the reverse case on its first run.
-  A:
+  A: skip entirely (owner, 2026-09-09).
 - Q: the failure triage, removed or kept behind a `triage` label? Proposed: label; `labeled` is already a
   trigger type, so applying the label re-runs the gate with triage on, and the route costs nothing idle.
-  A:
+  A: label (owner, 2026-09-09).
 - Q: "Require branches to be up to date" in branch protection: off, with "one agent pull request open
   at a time" as the compensating control, or on, accepting a forced merge-of-`main` round on every other
   open pull request per merge (the `work/index.md` conflict on pull request 62)? Proposed: off; the
   `sdlc-run` queue is serial by construction and the merge script re-checks every condition on the head
   it merges.
-  A:
+  A: off, with "one agent code pull request open at a time; intent-only ones may run beside it" as the
+  compensating control (owner, 2026-09-09, accepting the proposal: under the queue a code pull request is
+  branched from the fresh `main` after each merge, so the rule was redundant for code and only bit the
+  parallel intent pull requests).
 - Q: the review's model. The convention wants the reviewer on a different model from the writer, not a
   larger one; pinning a smaller model on `pr-review` would cut tokens per review. Proposed: not in this
   item; measure first (the tracking-comment count and the Actions durations are the proxies) and decide
   in the spec with a number.
-  A:
+  A: unchanged; the review verdict gates delegated merges (`require-review: true`), so cut the count first,
+  measure a week, decide with a number (owner, 2026-09-09).
 - Q: cancelling a superseded `pr-review` leaves that run's `claude[bot]` tracking comment saying it is
   working. Acceptable as is, or should the spec make the merge script and the skills read only the latest
   comment? Proposed: the spec checks which comment `scripts/delegated_merge.py` reads for `require-review`
   and changes nothing if it is already the latest.
-  A:
+  A: checked on 2026-09-09: `check_review` takes the newest completed `pr-review` run's id and reads only
+  the comment linking that run (`scripts/delegated_merge.py:605-610`), so a cancelled run's comment is
+  never read. No change.
 - Q: the measure: a new series in `scripts/github_metrics.py` with a band (a `scripts/` change under this
   plan), or a number read by hand from the billing page each week? Proposed: the series; the Maintain
   play says a band, and the billing page has no history.
-  A:
+  A: the series, named `actions_minutes_per_pr` (owner, 2026-09-09).
+- Q: (added after exploration) `scripts/delegated_merge.py` refuses a merge when any completed run of a
+  required workflow on the head sha is not `success`, `skipped` and `cancelled` included
+  (`check_required_runs` :339-364, `check_review` :581-628). A draft's last push and its ready run share
+  a sha, so the draft-time `skipped` run would refuse every pull request that was ever a draft; a same-sha
+  re-trigger that cancels a run in flight does the same. Proposed: a superseded-run rule — a `skipped` or
+  `cancelled` run is ignored only when a later run (higher id) of the same workflow on the same sha
+  concluded `success`; everything else refuses as today. This touches a locked-path script and refines the
+  "no merge condition changes" constraint above; it ships in the control-plane pull request under the
+  owner's click, with regression tests.
+  A: approved (owner, 2026-09-09).
+- Q: (added after exploration) how does Actions get unblocked, how many pull requests, which models, who
+  writes the workflow diff? Proposed: the owner's call on the first; two pull requests (control plane
+  first); Sonnet session writes, Opus subagents review, Fable checks the result against this intent;
+  the agent writes under the unlock and the owner labels.
+  A: make the repository public, after a fork-pull-request pass over the workflows and a history scan for
+  secrets; two pull requests, control plane first; Sonnet writes, Opus reviews, Fable checks divergence
+  from the objective; the agent writes under the unlock, the owner labels (owner, 2026-09-09). The full
+  implementation guide is `work/ci-budget/implementation-plan.md`.
