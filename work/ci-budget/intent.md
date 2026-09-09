@@ -143,6 +143,8 @@ rounded up to the minute):
   and `workflow_run`, `schedule`, `issue_comment` and `workflow_dispatch` read `main` at once.
 - Must: the fix cannot pass CI while CI is blocked; the owner unblocks Actions first (spending limit,
   reset date, or visibility, their call and out of scope here) or admin-merges with a ledger line.
+  Done 2026-09-09: the owner made the repository public and changed nothing else; the gate ran green on
+  this pull request's head at 12:36 UTC, in 32 seconds.
 - Must not: skip, disable or quarantine a test or an eval to get green; touch approvals, grants,
   signatures, the merge method or the merge conditions; remove the nightly credential check; edit
   `.sdlc/`, `.claude/hooks/`, `scripts/verify.sh` or `scripts/checks/`.
@@ -214,3 +216,49 @@ out of any delegated merge.
   secrets; two pull requests, control plane first; Sonnet writes, Opus reviews, Fable checks divergence
   from the objective; the agent writes under the unlock, the owner labels (owner, 2026-09-09). The full
   implementation guide is `work/ci-budget/implementation-plan.md`.
+  Revised (owner, 2026-09-09, second session): the repository went public first, with no other change, so
+  the fork-pull-request pass is the first item of the control-plane pull request rather than a
+  precondition, and the settings the flip skipped are Phase 0 clicks; the session model is Opus, which
+  writes and calls Sonnet subagents to scout, verify and review; Fable does a full revision at each
+  milestone (spec and plan before the taps, each pull request's diff before it goes ready, the
+  control-plane pull request merged with branch protection edited, the acceptance numbers before
+  retirement), not only the divergence check. The history scan ran read-only in that session: nothing.
+- Q: (second session, 2026-09-09) the superseded-run rule as first written compared run ids and covered
+  `cancelled` too. A `skipped` run of a `pull_request` workflow can only come from a false job condition,
+  which after this item means "the head was a draft", so it is never evidence of anything; and with
+  cancel-in-progress bound to `synchronize`, a `cancelled` run never lands on the head sha. Proposed: drop
+  `skipped` runs inside `_pr_runs` (one clause fixes the checks, review and cool-off conditions together)
+  and keep refusing `cancelled` as today.
+  A: the simpler rule (owner, 2026-09-09).
+- Q: (second session) the gate's `edited` trigger. The last commit on this pull request got two full gate
+  runs on the same sha, one from the push and one from Sourcery editing the body to append its summary,
+  and each completion woke the merge script. Proposed: keep `edited` (a human fixing the `Work-Item:` line
+  still gets a run) and skip the job when the event is `edited` and the sender is a Bot.
+  A: keep with the Bot guard; Sourcery uninstalled as well (owner, 2026-09-09).
+- Q: (second session) `scripts/delegated_merge.py` exits 1 on every refusal, so every gate or review
+  completion on a supervised pull request is a red, billed `delegated-merge` run (run 34352116586:
+  `CONDITION pull-request: refused — pull request #63 is a draft`). The draft case disappears with the
+  draft guard; the supervised case stays. Proposed: a condition of its own, `delegation`, printed after
+  `event`: when the base checkout's `work/<slug>/intent.md` for the body's `Work-Item` exists and its mode
+  is not `delegated`, the verdict is `not-delegated` and the run exits 0; every other refusal stays red.
+  This refines the "no merge condition changes" constraint the same way the skipped-run rule does. The
+  owner has turned failure e-mails off, so the gain is the billed minute and a run list where red means
+  "a human is needed".
+  A: approved (owner, 2026-09-09).
+- Q: (second session) the measure's filter. `head_branch != main` drops every `delegated-merge` wake: the
+  live API shows `workflow_run` runs carrying `head_branch: main`. Proposed: sum the billed minutes of every
+  run whose `event` is neither `schedule` nor `workflow_dispatch`, and divide by the distinct non-default
+  head branches in the bucket.
+  A: approved (owner, 2026-09-09).
+- Q: (second session) `.sdlc/active` still names `run-queue-followups`, whose pull request merged but whose
+  artifacts are not `superseded`; the plan gate reads that pointer, so the control-plane pull request
+  cannot edit `scripts/` until it moves. Only a human writes `superseded` or the pointer. Proposed: the
+  owner retires the item and points the file at `ci-budget` on `main`, before the control-plane pull
+  request.
+  A: the owner's step 0.0 (owner, 2026-09-09).
+- Q: (second session) GitHub counts a `skipped` required check as passing. Nothing merges from a draft and
+  the merge script demands `success`, so the plan's controls hold; the decision record should say so.
+  A: say so in `knowledge/decisions/ci-budget-crucial-and-loosened.md` (owner, 2026-09-09).
+- Q: (second session) the `triage` label does not exist yet (`control-plane-approved` does). Proposed: the
+  owner creates it before the control-plane pull request goes ready.
+  A: yes (owner, 2026-09-09; https://github.com/luissiviero/lifecycle-axis-/labels).

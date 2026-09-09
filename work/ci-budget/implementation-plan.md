@@ -2,7 +2,7 @@
 type: sdlc/decision-record
 id: ci-budget-implementation-plan
 title: "Implementation guide for ci-budget: the two pull requests, the merge-script rule, and the measure"
-description: "The owner's answers to every open question, the exact workflow and script changes for the control-plane and agent-side pull requests, the fork-pull-request pass for going public, the verification commands and the acceptance numbers. Written in the session that traced the Actions quota block; the implementing session works from this file."
+description: "The owner's answers to every open question, the exact workflow and script changes for the control-plane and agent-side pull requests, the fork-pull-request pass for going public, the verification commands and the acceptance numbers. Written in the session that traced the Actions quota block and revised in the second session after the repository went public; the implementing session works from this file."
 status: draft
 resource: ../../work/ci-budget/intent.md
 tags: [ci, github-actions, minutes, tokens, latency, drafts, concurrency, delegated-merge, bands, public-repo]
@@ -24,6 +24,13 @@ procedures, loosen the rest. Intent filed: `work/ci-budget/intent.md`, PR #63 (d
 This document is the implementation guide; the repo's own `spec.md` and `plan.md` are written from it
 under the chain (intent tap → spec → tap → plan → tap → code). Design reviewed on Opus; exploration on Sonnet.
 
+**Status 2026-09-09, second session (on Fable):** Actions runs again. The owner made the repository public
+and changed nothing else; the gate ran green on this pull request's head at 12:36 UTC in 32 s. A public
+repository gets unlimited minutes on standard runners, so goal (a) is a waste problem now, not a quota one;
+(b) and (c) stand. Failure e-mails are off on the owner's side; Sourcery is uninstalled. Every row below
+marked *revised* or *new* was decided in that session and is recorded on the intent. Every click the owner
+still has to make is in the table at the end of this file, with its link.
+
 ## Everything decided (owner, 2026-09-09)
 | # | Question | Decision |
 |---|---|---|
@@ -33,12 +40,19 @@ under the chain (intent tap → spec → tap → plan → tap → code). Design 
 | Q4 | Failure triage | Kept behind a **`triage` label** (the `labeled` trigger re-runs the gate). |
 | Q5 | Stale tracking comment after a cancelled review | Verified: `check_review` keys on the newest successful run's id (`delegated_merge.py:605-610`); a cancelled run's comment is never read. **No change.** |
 | Q6 | The measure | New series `actions_minutes_per_pr` in `scripts/github_metrics.py` + a band in `monitoring/bands.yaml`. |
-| I1 | Unblocking Actions | **Make the repo public** — after the fork-PR pass and the history scan (Phase 0.2). |
+| I1 | Unblocking Actions | **Done: the repo is public** (2026-09-09, nothing else changed). *Revised:* the fork-PR pass came after the flip, so A2b is the first item of PR-A and the settings the flip skipped are Phase 0 clicks (0.2). The history scan ran in the second session: nothing. |
 | I2 | PR shape | **Two PRs**: PR-A control plane first, PR-B agent side second. |
-| I3 | Models | **Sonnet writes, Opus reviews, Fable checks divergence from the objective.** |
+| I3 | Models | *Revised:* **the session runs on Opus and writes; Sonnet subagents scout, verify and review; Fable does a full revision at each milestone** (M1 spec+plan before the taps; M2 the PR-A diff before ready; M3 PR-A merged and branch protection edited; M4 the PR-B diff before ready; M5 the acceptance numbers before retirement), not only the divergence check. |
 | I4 | Who edits workflows | **Agent writes under the unlock; owner labels `control-plane-approved`.** |
-| F1 | Superseded-run rule in `delegated_merge.py` | **Approved** — a `skipped`/`cancelled` run is ignored only when a later run of the same workflow on the same SHA succeeded. Without it every PR that was ever a draft is unmergeable at its ready SHA. |
-| F2 | Writer mechanism | **A Sonnet session is the single writer** (one-writer-until-ledger stands); Opus subagents review; Fable checkpoint. |
+| F1 | Skipped runs in `delegated_merge.py` | *Revised, simpler:* **`_pr_runs` drops runs whose conclusion is `skipped`**; `cancelled` still refuses. A skipped `pull_request` run only ever means "every job's `if:` was false", i.e. the head was a draft, so it is never evidence; with cancel-in-progress bound to `synchronize` a cancelled run never lands on the head sha. Without the rule every PR that was ever a draft is unmergeable at its ready SHA. |
+| F2 | Writer mechanism | **One session is the single writer** (one-writer-until-ledger stands), on Opus per I3; Sonnet subagents review; Fable milestone revisions. |
+| F3 | `edited` trigger on the gate | *New:* keep `edited`, **skip the job when the action is `edited` and the sender is a Bot**. PR #63's last commit got two gate runs on one sha, the second from Sourcery's body edit; each woke the merge script. |
+| F4 | Red merge-script runs on supervised PRs | *New:* a **`delegation` condition after `event`**: when the base checkout's `work/<slug>/intent.md` exists and its mode is not `delegated`, the verdict is **`not-delegated` and the run exits 0**; every other refusal stays red (exit 1). Today every gate/review completion on a supervised PR is a red, billed run (run 34352116586). |
+| F5 | The measure's filter | *New:* **sum minutes of every run whose `event` is neither `schedule` nor `workflow_dispatch`; divide by the distinct non-default head branches in the bucket.** `head_branch != main` would drop every `delegated-merge` wake: the live API shows `workflow_run` runs with `head_branch: main`. |
+| F6 | `.sdlc/active` | *New:* **the owner retires `run-queue-followups` and points the file at `ci-budget` on `main` before PR-A** (step 0.0). The plan gate reads the pointer; only a human writes `superseded` or the pointer. |
+| F7 | Sourcery | **Uninstalled** (owner, 2026-09-09). |
+| F8 | Skipped counts as green in branch protection | GitHub treats a skipped required check as passing. Nothing merges from a draft and the merge script demands `success`, so the controls hold; **the decision record (B4) says so**. |
+| F9 | `triage` label | Does not exist yet (`control-plane-approved` does). **Owner creates it** before PR-A goes ready. |
 
 **Crucial, kept byte-for-byte / name-for-name:** chain check + `verify.sh` + `check_control_plane.sh` on
 every ready head before merge; check-run names `artifact-chain`, `review`, `merge`; policy
@@ -49,43 +63,64 @@ approvals and the tap; nightly `agent-evals --require-claude` and nightly `bands
 **Loosened → compensating control:** gate on drafts off → nothing merges from a draft, local verify;
 review of every push → once per ready state, superseded pushes cancelled; model triage → `triage` label;
 `agent-evals` on PRs → `verify.sh` runs the same cases on the same commit; merge wake on `agent-evals` →
-it gated nothing since 15424e0; up-to-date rule → serial queue, one code PR at a time.
+it gated nothing since 15424e0; up-to-date rule → serial queue, one code PR at a time; a red merge run on
+a supervised PR → a green `not-delegated` one, every real refusal still red; a gate run per Bot body edit →
+none, a human's `edited` still runs.
 
-## Roles and models
-- **Writer:** one session on Sonnet (`/model claude-sonnet-5` before Phase 1; one writer per item,
+## Roles and models (revised 2026-09-09)
+- **Writer:** one session on Opus (`/model claude-opus-5` before Phase 0.4; one writer per item,
   `knowledge/decisions/one-writer-until-ledger.md`).
 - **Scouts / verifier:** `explorer`, `verifier` subagents on Sonnet (`model: sonnet` at launch).
-- **Reviewers:** `plan-reviewer` and `security-reviewer` on Opus (`model: opus`): once on spec+plan before
-  code (as PR #58's `revisions/1.md`), once on each PR diff before it goes ready.
-- **Checkpoint:** switch to Fable (`/model claude-fable-5-1`) once per PR: read the diff against the
-  intent's success criteria and the crucial list; "no divergence" or a list; then `gh pr ready`.
-- **Ledger** records writer and reviewer models on every gate line (`30-conventions.md:21-25`).
-- **Owner:** visibility flip + settings, taps, `control-plane-approved` label, branch-protection clicks,
-  merge clicks (PR-A carries a locked path; PR-B touches `.claude/skills/` — both wait on a click).
+- **Reviewers:** `plan-reviewer` and `security-reviewer` on Sonnet (`model: sonnet`): once on spec+plan before
+  code (as PR #58's `revisions/1.md`), once on each PR diff before it goes ready. A different model from the
+  writer, as `30-conventions.md:21-25` asks.
+- **Milestone revision:** switch to Fable (`/model claude-fable-5-1`) at each milestone and do a full pass, not
+  only the divergence check: the artifacts or the diff against the intent's success criteria, the crucial
+  list, the risks table and the verification output. M1 spec+plan before the taps; M2 the PR-A diff before
+  `gh pr ready`; M3 PR-A merged and branch protection edited (the Phase 3 dry run); M4 the PR-B diff before
+  ready; M5 the acceptance numbers before retirement. Each ends in a ledger line naming the model and the
+  verdict ("no divergence" or the list).
+- **Ledger** records writer, reviewer and revision models on every gate line (`30-conventions.md:21-25`).
+- **Owner:** the clicks in the table at the end of this file, each with its link: the pointer, the settings,
+  the taps, the `triage` and `control-plane-approved` labels, branch protection, merge clicks (PR-A carries a
+  locked path; PR-B touches `.claude/skills/` — both wait on a click).
 
 ## Phase 0 — bookkeeping and unblocking (any model; no code)
-0.1 Record the answers in `work/ci-budget/intent.md`: every `A:` for Q1–Q6, two added questions with
-    answers (F1, noting it refines the intent's "no merge condition changes" wording; I1), a ledger line
-    `intent.md | in-review -> in-review | claude | <sha> | open questions answered by the owner …`;
-    `gen_index.py`; one push to PR #63.
-0.2 **Go public** (owner), after the agent posts on #63:
-    - the fork-PR checklist (end of this file), including the one gap it closes (A2b);
-    - the history scan, run read-only:
+0.0 **Retire `run-queue-followups` and move the pointer** (owner, from their own shell, one commit on `main`):
+    `status: superseded` on `work/run-queue-followups/{intent,spec,plan}.md`, a ledger line each in its
+    `log.md`, `.sdlc/active` set to `ci-budget`. Web editor for the pointer alone (one file per commit
+    there): https://github.com/luissiviero/lifecycle-axis-/edit/main/.sdlc/active. Until this lands the
+    plan gate refuses every edit under `scripts/`, and the chain check notes the mismatch on every
+    ci-budget pull request.
+0.1 Record the answers in `work/ci-budget/intent.md` — done twice: 2c16dae (Q1–Q6, I1–I4, F1) and the
+    second session (the revisions, F3–F9); `gen_index.py`; a ledger line; one push to PR #63 each.
+0.2 **Public — done** (owner, 2026-09-09, nothing else changed). What the flip skipped, now as clicks:
+    - https://github.com/luissiviero/lifecycle-axis-/settings/actions — already right: fork workflow
+      approval is "Require approval for all external contributors", and "Allow GitHub Actions to create and
+      approve pull requests" is unchecked. **Still to change: Workflow permissions is "Read and write
+      permissions"; select "Read repository contents and packages permissions"** and Save (every kit
+      workflow declares its own `permissions:`, so no job loses a scope; `github-setup.md:78-80`). Optional:
+      tick "Require actions to be pinned to a full-length commit SHA" — every `uses:` in
+      `.github/workflows/` is pinned already.
+    - https://github.com/luissiviero/lifecycle-axis-/settings/security_analysis — the section is called
+      **Secret Protection** (GitHub's current name for secret scanning), at the bottom of the page: click
+      **Enable**; a **Push protection** row appears under it once enabled; enable that too.
+    - The history scan, run read-only in the second session — nothing found, as expected:
       `git grep -nIE 'sk-ant-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-|-----BEGIN [A-Z ]*PRIVATE KEY-----' $(git rev-list --all) -- . | grep -v block-secrets.sh`
-      and `git log --all --diff-filter=D --name-only -- '*.env' '*.pem' '*.key'` (expect nothing; the only
-      key-shaped strings are the pattern list in `.claude/hooks/block-secrets.sh:9` and the synthetic
-      `AKIA…` token in `evals/cases/hook-refuses-planted-key.yaml`).
-    Settings at the flip: Actions → fork PR workflows **require approval for all outside collaborators**;
-    workflow permissions read-only, "create and approve pull requests" unchecked (`github-setup.md:78-80`);
-    secret scanning + push protection on. The four open intent PRs need a push or a re-run to report.
-0.3 Owner taps `slug: ci-budget`, `artifact: intent.md`, `mode: supervised` (the tap is an Actions run, so
-    0.2 first — or approve from a shell / the web editor).
-0.4 `/sdlc-spec` then `/sdlc-plan` (Sonnet session) from this document; Opus reviewers over both; taps.
-    `scripts/` is in `PLAN_REQUIRED_PATHS`, so no code before the plan tap.
+      and `git log --all --diff-filter=D --name-only -- '*.env' '*.pem' '*.key'` (the only key-shaped
+      strings are the pattern list in `.claude/hooks/block-secrets.sh:9` and the synthetic `AKIA…` token in
+      `evals/cases/hook-refuses-planted-key.yaml`).
+    - The fork-PR checklist (end of this file) stands; A2b, the one gap, is the first item of PR-A since
+      the flip preceded it.
+0.3 Owner taps `slug: ci-budget`, `artifact: intent.md`, `mode: supervised` at
+    https://github.com/luissiviero/lifecycle-axis-/actions/workflows/approve.yml → Run workflow.
+0.4 `/sdlc-spec` then `/sdlc-plan` (Opus session) from this document; Sonnet reviewers over both; Fable M1;
+    taps (same link as 0.3, `artifact: spec.md`, then `plan.md`). `scripts/` is in `PLAN_REQUIRED_PATHS`, so
+    no code before the plan tap.
 
-## Phase 1 — PR-A: control plane (Sonnet writes under `SDLC_CONTROL_PLANE_UNLOCK`; owner labels + clicks)
+## Phase 1 — PR-A: control plane (Opus writes under `SDLC_CONTROL_PLANE_UNLOCK`; owner labels + clicks)
 Branch `claude/ci-budget-control-plane`; title `[ci-budget] Control plane: …`; body `Work-Item: ci-budget`;
-opened as a **draft**, ready after the Fable checkpoint.
+opened as a **draft**, ready after the Fable M2 revision. A2b first: it is the one open exposure now.
 
 ### A1 `.github/workflows/sdlc-gate.yml`
 ```yaml
@@ -104,8 +139,11 @@ jobs:
     runs-on: ubuntu-latest
     # A draft costs nothing: the agent verifies locally (sdlc-run step 4), GitHub refuses to merge a
     # draft, delegated_merge.py refuses one too. The run still exists, concluded `skipped` — hence
-    # the superseded-run rule in the merge script (work/ci-budget).
-    if: github.event.pull_request.draft == false
+    # the skipped-run rule in the merge script (work/ci-budget). A body edit by a Bot (Sourcery's
+    # summary, an app's tracking comment) changes nothing the gate reads; a human's `edited` still runs.
+    if: >-
+      github.event.pull_request.draft == false &&
+      !(github.event.action == 'edited' && github.event.sender.type == 'Bot')
 ```
 Both triage steps (`:58` "Trust the checkout…", `:72` "Triage failure…"):
 `if: failure() && env.HAS_CLAUDE_AUTH == 'true' && contains(github.event.pull_request.labels.*.name, 'triage')`;
@@ -118,7 +156,7 @@ concurrency:
   group: pr-review-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
 ```
-**A2b — fork guard for the `@claude` route (needed before going public).** On `issue_comment` the job
+**A2b — fork guard for the `@claude` route (first item of PR-A: the repo is public already).** On `issue_comment` the job
 checks out `refs/pull/N/head` (`:57`) with the key, and the action restores `.claude/`, `CLAUDE.md` from
 base only on `pull_request` events (`:60-63`), so an owner typing `@claude` on a fork PR runs the reviewer
 steered by the fork's config. Add a first step, before the checkout: `if: env.HAVE_CLAUDE_AUTH == 'true'
@@ -142,46 +180,58 @@ rewritten: nightly on `main` and by hand; per-commit cases run inside `sdlc-gate
 `agent-evals` left. The job `if` (`:73`, `conclusion == 'success'`) already means a draft's skipped gate
 run starts no job.
 
-### A5 `scripts/delegated_merge.py` — the superseded-run rule (locked path; owner's click)
-Rule: *a completed run with conclusion `skipped` or `cancelled` is ignored when a run of the same
-workflow on the same head sha and branch with a **higher run id** concluded `success`; otherwise it
-refuses exactly as today.* Ids increase with time and cancel-in-progress cancels the older run.
+### A5 `scripts/delegated_merge.py` — the skipped-run rule and the not-delegated verdict (locked path; owner's click)
+**Rule (F1, revised):** *a run whose conclusion is `skipped` is not a run of this pull request.* A
+`pull_request` run concludes `skipped` only when every job's `if:` was false, which after A1 and the existing
+`pr-review` guard means "the head was a draft"; it is never evidence for or against the head. `cancelled`,
+`failure`, `timed_out` and an in-progress run are all kept, so every condition stays fail-closed.
 ```python
-SUPERSEDABLE_CONCLUSIONS = ("skipped", "cancelled")   # beside OK_CHECK_CONCLUSIONS, :78
+SKIPPED = "skipped"                                    # beside OK_CHECK_CONCLUSIONS, :78
 
-def _live_runs(matching):                              # after _pr_runs, :243-253
-    """`matching` minus the runs a later successful run of the same workflow superseded. The caller
-    already narrowed to one workflow name, one head sha (?head_sha=) and one head branch (_pr_runs), so
-    only the id is compared. A failure, a timeout, an in-progress run and a skipped/cancelled run with
-    no later success are all kept, so the conditions stay fail-closed (work/ci-budget)."""
-    newest_success = max([int(r.get("id") or 0) for r in matching
-                          if r.get("status") == "completed" and r.get("conclusion") == "success"], default=0)
-    return [r for r in matching
-            if not (r.get("status") == "completed" and r.get("conclusion") in SUPERSEDABLE_CONCLUSIONS
-                    and int(r.get("id") or 0) < newest_success)]
+def _pr_runs(runs, head_ref):                          # :243-253, one clause added
+    """... A run concluded `skipped` is dropped too: a `pull_request` run skips only when every job's
+    `if:` was false, i.e. the head was a draft (sdlc-gate.yml, pr-review.yml), and a draft's run says
+    nothing about the head that later went ready on the same sha (work/ci-budget F1)."""
+    return [r for r in (runs or [])
+            if r.get("event") == "pull_request" and r.get("head_branch") == head_ref
+            and not (r.get("status") == "completed" and r.get("conclusion") == SKIPPED)]
 ```
-`check_required_runs`: `matching = _live_runs(matching)` after the `if not matching:` refusal (`:348-353`),
-before `failed` (`:354`) — the "no run at all" refusal stays on the unfiltered list. `check_review`: the same
-line after `matching = [...]` (`:604`), before `completed`. Docstrings get one sentence each. `check_cool_off`
-needs nothing (max `updated_at` is monotone).
+`check_required_runs`, `check_review` and `check_cool_off` all read `_pr_runs`, so nothing else changes; the
+"no run at all" refusal now also covers a sha with only a skipped run (a draft that never went ready), which
+`check_pull_request` refuses anyway. `check_check_runs` (`:366-380`) already accepts `skipped` check runs.
+
+**Verdict (F4):** a new condition, `delegation`, recorded in `run()` after `event` (`:774-776`) and before
+`pull-request`: `check_delegation(pulls, head_sha, root)` reads `work/<slug>/intent.md` from the checkout this
+job runs from (main: `delegated-merge.yml:75-79`), `<slug>` being the body's `Work-Item` line through
+`work_item_slug` (`SLUG_RE`, `:76`; no slug → `ok`, the pull-request condition refuses as today). When the
+file exists and its `mode` is not `delegated`, the verdict is `NOT_DELEGATED = "not-delegated"` with the
+detail `#<n>, Work-Item: <slug>, mode <mode>`; a missing file is `ok` here and refused later by the grant
+check as today. `Run._code()` (`:698-709`) returns 0 for it like `WAITING`; `finish()` prints
+`DELEGATED-MERGE: not-delegated (delegation)` through the existing line. Every other refusal keeps exit 1;
+`check_grant_front_matter`'s own mode test (`:401-403`) stays as the second reading, from the API on the
+base ref. The workflow's `pipefail` line (`delegated-merge.yml:89-91`) needs no change.
+
 **Tests** (`scripts/test_delegated_merge.py`) — fixtures to the live two-name policy: `FIXTURE_POLICY:49`,
 `RUN_IDS:85`, `make_runs:158`, `make_check_runs:169-173`, `required` at `:350` and `:842`,
-`test_required_workflow_missing_is_refused:360-363` (filter on `sdlc-gate`). New — `ChecksCondition`:
-skipped draft run superseded by a later success → OK; cancelled superseded → OK; skipped with no later
-success → REFUSED; cancelled with no later success → REFUSED; cancelled *newer* than the success → REFUSED;
-failed + later success → REFUSED (never superseded); a failed run of a workflow no longer required → OK;
-in-progress beside a superseded one → WAITING. `ReviewCondition`: skipped/cancelled review run superseded
-→ OK and `newest` is the successful run (its id in the detail); skipped with no later success → REFUSED;
-a comment linking only the superseded run → WAITING. `Plumbing`: `_live_runs` is identity when nothing
-succeeded. `EndToEnd`: a PR that was a draft merges on its ready run (`happy_path()` + a lower-id skipped
-run for both workflows → `DELEGATED-MERGE: merged #12`).
+`test_required_workflow_missing_is_refused:360-363` (filter on `sdlc-gate`). New — `Plumbing`: `_pr_runs`
+drops a completed skipped run and keeps an in-progress one with no conclusion. `ChecksCondition`: a skipped
+draft run beside a later success → OK; a sha with only a skipped run → REFUSED (no run); cancelled beside a
+success → REFUSED (never dropped); failed beside a success → REFUSED. `ReviewCondition`: skipped review run
+beside a success → OK and `newest` is the successful run; only a skipped run → WAITING (no completed run).
+`CoolOff`: the skipped run's `updated_at` is not a stamp. `DelegationCondition`: a supervised intent →
+`not-delegated` and `run()` returns 0 with the two summary lines; a delegated one → `ok`; no intent file →
+`ok`; a body with no slug → `ok`; the dry run prints it and keeps going. `Plumbing`: `_code()` maps
+`not-delegated` to 0 and `refused` to 1. `EndToEnd`: a PR that was a draft merges on its ready run
+(`happy_path()` + a lower-id skipped run for both workflows → `DELEGATED-MERGE: merged #12`); a supervised
+PR ends `DELEGATED-MERGE: not-delegated (delegation)` with exit 0 and no merge call.
 
 ### A6 Docs (replacement sentences in the same PR)
 `docs/sdlc/README.md:84` (gate row: "skips drafts; triage is label-gated"), `:86`, `:106`, `:153` ("require
 `sdlc-gate` and `pr-review`; never a workflow with a `paths:` filter or a draft guard"); `docs/sdlc/github-setup.md:72-73`
 (required checks `sdlc-gate / artifact-chain`, later `pr-review`; up-to-date **off** with the serial-queue
 rationale; conversation resolution on), `:88-89` (triage behind the label), `:132-135` (`agent-evals` no
-longer runs on PRs; the skipped-run rule), new bullet: the `triage` label exists; `docs/sdlc/handoff/HANDOFF.md:78-80`
+longer runs on PRs; the skipped-run rule; a supervised pull request's merge run is green `not-delegated`),
+new bullet: the `triage` label exists; `docs/sdlc/handoff/HANDOFF.md:78-80`
 (done); `knowledge/decisions/merge-click-is-the-gate.md:31` and `:55-56` ("revisit if the repo goes public" →
 superseded by the owner's flip, work/ci-budget); `knowledge/decisions/control-plane-label.md:46` ("keeps",
 plus the triage route); `docs/sdlc/spikes/pr-review-identity.md:82-83`; `docs/sdlc/spikes/prompt-surfaces.md:289-291`
@@ -189,16 +239,18 @@ plus the triage route); `docs/sdlc/spikes/pr-review-identity.md:82-83`; `docs/sd
 three workflows verbatim — no template copy to edit.
 
 ### A7 Land it (order matters)
-1. Verify (below); Opus reviewers on the diff; Fable checkpoint; `gh pr ready`; ledger
-   `PR #<n> | draft -> in-review | claude | <sha> | writer sonnet, reviewers opus, checkpoint fable`.
-2. Owner reads the workflow diff, applies `control-plane-approved`.
-3. **Owner: branch protection before the merge** — remove `agent-evals` from required checks (PR-A's own
-   head produces no `agent-evals` PR run any more, so with it still required PR-A cannot merge); up-to-date
-   **off**; keep `sdlc-gate / artifact-chain`, add `pr-review` when ready.
+1. Verify (below); Sonnet reviewers on the diff; Fable M2; `gh pr ready`; ledger
+   `PR #<n> | draft -> in-review | claude | <sha> | writer opus, reviewers sonnet, revision fable`.
+2. Owner creates the `triage` label (https://github.com/luissiviero/lifecycle-axis-/labels), reads the
+   workflow diff on the pull request, applies `control-plane-approved` there.
+3. **Owner: branch protection before the merge** at https://github.com/luissiviero/lifecycle-axis-/settings/branches
+   — remove `agent-evals` from required checks (PR-A's own head produces no `agent-evals` PR run any more, so
+   with it still required PR-A cannot merge); up-to-date **off**; keep `sdlc-gate / artifact-chain`, add
+   `pr-review` when ready.
 4. Owner clicks merge (locked path → no delegated merge). Open PRs #59–#62 pick the workflows up on their
-   next push; no close/reopen.
+   next push; no close/reopen. Fable M3 after the Phase 3 dry run.
 
-## Phase 2 — PR-B: agent side (Sonnet writes; Opus reviews; owner click)
+## Phase 2 — PR-B: agent side (Opus writes; Sonnet reviews; Fable M4; owner click)
 Branch `claude/ci-budget-agent-side`, draft first.
 
 ### B1 Skills
@@ -232,19 +284,23 @@ CLAUDE.md = 11-line seeded header + 108 + 1 (`adopt.sh:489-503` re-flows `00-cha
   negative; `import math`. Per run, not per job (a multi-job run undercounts, a queued one overcounts; the
   band detects a trend against its own baseline so a constant bias cancels; `/actions/runs/{id}/timing` is
   the exact route, one call per run — switch only if the two diverge by more than the band width).
-- `actions_minutes_series(runs, days, bucket="day", default_branch="main")`: count runs whose `head_branch`
-  ≠ default branch (that is every run a PR causes, `delegated-merge`'s `workflow_run` wake included) and
-  whose `conclusion` is not `None`; sum `_billed_minutes` per `_bucket_key(created_at)` and divide by the
-  number of distinct branches in the bucket (one branch = one PR by `AGENT_BRANCH_PREFIXES`); omit empty
-  buckets; keep the trailing `days` buckets from the newest present; one float per line oldest first.
+- `actions_minutes_series(runs, days, bucket="day", default_branch="main")` (F5): count runs whose `event`
+  is neither `schedule` nor `workflow_dispatch` (that is every run a PR causes: the gate, the review and
+  `delegated-merge`'s `workflow_run` wake, which the live API reports with `head_branch: main`, so a branch
+  filter would drop it) and whose `conclusion` is not `None`; sum `_billed_minutes` per
+  `_bucket_key(created_at)` and divide by the number of distinct head branches ≠ default branch in the
+  bucket (one branch = one PR by `AGENT_BRANCH_PREFIXES`; a bucket with minutes and no such branch is
+  omitted); omit empty buckets; keep the trailing `days` buckets from the newest present; one float per line
+  oldest first.
 - Fixture `scripts/fixtures/gh_runs_minutes.json` (same envelope as `gh_runs.json`, which has no timing
   fields): seven runs over three days → expected series `[5.0, 3.0]` (day 1: gate 48 s → 1 + review 3:00 →
-  3 + merge wake 30 s → 1, one branch; nightly on `main` excluded; day 2: skipped 1 + success 2; day 3 only
-  an in-progress run → omitted).
+  3 + merge wake 30 s on `main`, event `workflow_run` → 1, one branch; the nightly on `main`, event
+  `schedule`, excluded; day 2: skipped 1 + success 2; day 3 only an in-progress run → omitted).
 - Tests in `scripts/test_github_metrics.py`, class `ActionsMinutesSeries` mirroring `CiFailureSeries`:
-  ordering; the one-minute floor; rounding up (3:05 → 4); default-branch runs excluded; the workflow_run wake
-  counts; in-progress omits its bucket; two PRs on one day divide; empty input; `days=1` trims; `_api_path`
-  starts with `repos/o/r/actions/runs?per_page=100&created=>=`; end-to-end `--from-json` piped into
+  ordering; the one-minute floor; rounding up (3:05 → 4); `schedule` and `workflow_dispatch` runs excluded;
+  the `workflow_run` wake on `main` counts; a day with wakes and no PR branch is omitted; in-progress omits
+  its bucket; two PRs on one day divide; empty input; `days=1` trims; `_api_path` starts with
+  `repos/o/r/actions/runs?per_page=100&created=>=`; end-to-end `--from-json` piped into
   `detect_bands.py --window 2` (mirror `:134-141`).
 - `monitoring/bands.yaml` entry (flat / flow-map shape only; `source:` must start with
   `scripts/github_metrics.py`, `window` ≥ 2):
@@ -266,8 +322,10 @@ CLAUDE.md = 11-line seeded header + 108 + 1 (`adopt.sh:489-503` re-flows `00-cha
 `knowledge/decisions/ci-budget-crucial-and-loosened.md` (front matter as `merge-click-is-the-gate.md:1-7`):
 Context (the numbers) / Decision — crucial, untouched (one bullet each, naming the file that proves it) /
 Decision — loosened, with the compensating control for each / Consequences (Linux signal one round later;
-stale tracking comment harmless; the superseded-run rule is the one widened acceptance path and has its
-own tests; the band makes a regression a filed issue) / Alternatives considered (Pro ≈ +3 days; spending
+GitHub counts a skipped required check as passing, and nothing merges from a draft while the merge script
+demands `success` (F8); stale tracking comment harmless; the skipped-run rule and the not-delegated verdict
+are the two widened paths in the merge script and have their own tests; the band makes a regression a filed
+issue) / Alternatives considered (Pro ≈ +3 days; spending
 limit; public — taken separately by the owner; self-hosted runner) / Links. One line in
 `knowledge/decisions/index.md` (hand-maintained).
 
@@ -278,7 +336,7 @@ one non-obvious thing, branch protection's new required list, open follow-ups (t
 whether `edited` is still needed, the timing endpoint).
 
 ### B6 Land it
-Verify; Opus reviewers; Fable checkpoint; ready; ledger; owner click.
+Verify; Sonnet reviewers; Fable M4; ready; ledger; owner click.
 
 ## Phase 3 — acceptance (one week after PR-A merges), then retire
 1. A throwaway draft: `sdlc-gate` and `pr-review` runs conclude `skipped` in seconds; a second push, same.
@@ -292,7 +350,7 @@ Verify; Opus reviewers; Fable checkpoint; ready; ledger; owner click.
 6. After a week: the last seven values ≤ 10 (baseline 30); a PR of #61's shape ≤ 6 billed minutes; tracking
    comments per PR ≤ pushes-after-ready + 1; no `npm install -g @anthropic-ai/claude-code` in any gate log
    without the label; a red gate red in ≤ 1 min. Numbers into the closing ledger line.
-7. Owner retires the item (`superseded`, ledger lines, pointer).
+7. Fable M5 over the numbers; owner retires the item (`superseded`, ledger lines, pointer).
 
 ## Verification (per PR, this order; no `gh` in the container → chain check on the no-token path)
 ```
@@ -314,7 +372,9 @@ bash scripts/adopt.sh "$SCRATCH/adopt" >/dev/null 2>&1 && python3 scripts/gen_co
 ## Risks and rollbacks
 | Change | Risk | Bound / detection | Rollback |
 |---|---|---|---|
-| Superseded-run rule | Widens an acceptance path in the script that performs the click | Only `skipped`/`cancelled`, only with a later success of the same workflow on the same SHA; 13 tests incl. the directional and never-supersede-a-failure cases; branch protection's required check is the independent second control | Delete the two `_live_runs` lines |
+| Skipped-run rule | Widens an acceptance path in the script that performs the click | Only `skipped`, which a `pull_request` run reaches only through a false job `if:`; `cancelled` and `failure` are never dropped; the no-run refusal still catches a sha with only a skipped run; branch protection's required check is the independent second control | Delete the one clause in `_pr_runs` |
+| Not-delegated verdict | A real refusal hides behind exit 0 | One reason only (the base intent's mode is not `delegated`), decided before any grant check; every other refusal keeps exit 1, each with a test | Map the verdict to `REFUSED` in `_code()` |
+| Bot-edited guard | A Bot body edit that mattered gets no gate run | The gate reads only `Work-Item:` from the body, which no Bot writes; the next push runs it | Drop the clause |
 | Draft guard | A Linux-only failure surfaces one round later, at ready | The ready gate run | Delete the job `if:` |
 | Cancel-in-progress | A `cancelled` run on the head SHA | Only `synchronize` cancels; the rule absorbs the rest (a queued run evicted by a third event is the residual: re-apply the label) | `cancel-in-progress: false` |
 | Triage label | A red gate is unexplained by default | The failing step is still named in the log | Drop the `contains(...)` clause |
@@ -325,7 +385,23 @@ bash scripts/adopt.sh "$SCRATCH/adopt" >/dev/null 2>&1 && python3 scripts/gen_co
 | `actions_minutes_per_pr` | Run-level approximation ≠ billing page | Trend detector; compare once against Billing | Switch `_billed_minutes` to `/timing` |
 | Fork guard in `pr-review` | A wrong `--jq` path silently disables `@claude` | A green run whose summary says "refusing" on a repo-local PR | Remove the step and the four clauses — never before the flip |
 
-## Fork-PR checklist (posted on PR #63 before the flip)
+## Owner's clicks, with links (in order)
+| # | Click | Where | When |
+|---|---|---|---|
+| 1 | Workflow permissions → "Read repository contents and packages permissions"; optional: require SHA-pinned actions | https://github.com/luissiviero/lifecycle-axis-/settings/actions | Now |
+| 2 | Secret Protection → Enable, then Push protection → Enable | https://github.com/luissiviero/lifecycle-axis-/settings/security_analysis | Now |
+| 3 | Retire `run-queue-followups`, set `.sdlc/active` to `ci-budget` | your shell, one commit on `main`; pointer alone: https://github.com/luissiviero/lifecycle-axis-/edit/main/.sdlc/active | Before PR-A |
+| 4 | Approve `intent.md` (`slug` ci-budget, `mode` supervised) | https://github.com/luissiviero/lifecycle-axis-/actions/workflows/approve.yml | After this push |
+| 5 | Approve `spec.md`, then `plan.md` | same as 4 | After Fable M1 |
+| 6 | Create the `triage` label | https://github.com/luissiviero/lifecycle-axis-/labels | Before PR-A goes ready |
+| 7 | Apply `control-plane-approved` on PR-A | the pull request's page | After Fable M2 |
+| 8 | Branch protection: drop `agent-evals`, up-to-date off | https://github.com/luissiviero/lifecycle-axis-/settings/branches | Same sitting as 9 |
+| 9 | Merge PR-A | the pull request's page | After 8 |
+| 10 | Dry run of the merge conditions on a ready SHA | https://github.com/luissiviero/lifecycle-axis-/actions/workflows/delegated-merge.yml | Phase 3, then Fable M3 |
+| 11 | Merge PR-B | the pull request's page | After Fable M4 |
+| 12 | Retire `ci-budget` | your shell | After Fable M5 |
+
+## Fork-PR checklist (the flip came first; the table stands, A2b closes the one gap)
 No workflow uses `pull_request_target`; a fork `pull_request` run gets no secrets and a read-only token.
 | Workflow | Fork can reach | Guard |
 |---|---|---|
