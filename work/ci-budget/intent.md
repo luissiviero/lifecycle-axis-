@@ -51,7 +51,8 @@ rounded up to the minute):
 - **Where the minutes went** (the newest 100 runs of each workflow, billed with the one-minute floor,
   scaled to the totals): `sdlc-gate` 334 runs, about 770 minutes; `pr-review` 414 runs, about 650;
   `agent-evals` 166 runs, about 300; `delegated-merge` 185 runs, about 100; the two nightlies about 80.
-  About 1,900 in six days, against a 2,000 allowance; about 30 billed minutes per pull request over 62.
+  About 1,900 in six days, against a 2,000 allowance: about 30 billed minutes each, over the 62 pull
+  requests opened in that window.
 - **The failure path is four times the success path.** A green `sdlc-gate` run is 0.8 minutes median
   (60 runs, 46 minutes in all). A red one is 3.6 median and 10.6 at worst (36 runs, 148 minutes), because
   on `failure()` the job installs `@anthropic-ai/claude-code` and runs `claude -p` with `Read,Grep,Glob`
