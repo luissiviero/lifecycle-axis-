@@ -1,0 +1,12 @@
+---
+type: sdlc/work-item
+id: ci-budget
+title: Reduce GitHub minutes, waiting time and wasted tokens; keep the crucial procedures, loosen the rest
+description: "The repository ran 1,124 workflow runs in six days on a private repo, exhausted the account's 2,000 free Actions minutes on 2026-09-08 21:43 UTC, and has been unable to run a single job since, including the owner's approval tap; most of those minutes, and the tokens and waiting behind them, went to work nobody used: superseded runs, a duplicate eval job, and a six-minute model triage of failures that were not the pull request's own."
+timestamp: 2026-09-09T09:10:00Z
+---
+# Reduce GitHub minutes, waiting time and wasted tokens; keep the crucial procedures, loosen the rest
+
+- [intent.md](intent.md) — status: in-review; approved-by: ; The repository ran 1,124 workflow runs in six days on a private repo, exhausted the account's 2,000 free Actions minutes on 2026-09-08 21:43 UTC, and has been unable to run a single job since, including the owner's approval tap; most of those minutes, and the tokens and waiting behind them, went to work nobody used: superseded runs, a duplicate eval job, and a six-minute model triage of failures that were not the pull request's own.
+
+Last gate: - 2026-09-09T15:20:00Z | intent.md | in-review -> in-review | claude | 819c43b | two findings while checking the owner's manual steps. The approve tap cannot run from `main` yet: approve.yml writes to the ref chosen in "Use workflow from branch" and work/ci-budget/ exists only on this pull request's branch, so the order is merge #63, then tap on main with a blank slug (.sdlc/active already reads ci-budget); every earlier approval in this repository followed that order. And `main` carries no branch protection rule at all (branches API, protected: false), so Phase 1 step 3 is "create the rule" rather than "edit it", and the risk table's claim that a required status check is an independent second control for the skipped-run rule is corrected: today the merge script's require-checks and the owner's click are the controls. Verified as well: the pointer move landed (308f1a2, owner); Sourcery is uninstalled (no bot-triggered run since 12:37, and the doubled gate run stopped); the gate is green on this head in 36 s; run-queue-followups is not retired yet (intent approved, spec and plan delegated), which blocks nothing but leaves the item open in the index
