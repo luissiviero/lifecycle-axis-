@@ -4,12 +4,12 @@ id: run-queue-followups
 title: The chain check reports PASS on work it never saw; make it say so instead
 description: "check_artifact_chain.py diffs <base>...HEAD, so staged and uncommitted work is invisible to it; an empty diff is in-progress mode, and the check prints CHAIN: PASS under a note describing a diff that does not exist. It audited the wrong work twice in one session. The lesson written for it says the guard is nowhere yet; this item writes the guard."
 stage: plan
-status: superseded
+status: approved
 author: Luis Siviero (repo owner), who narrowed this item to its last piece after pull request 57 merged; drafted by Claude from knowledge/lessons/commit-before-the-chain-check.md and the source it cites
 approved-by: luissiviero
 approved-on: 2026-09-08
 risk-class: low
-mode: supervised
+mode: delegated
 delegated-by: luissiviero
 delegated-on: 2026-09-08
 supersedes:
