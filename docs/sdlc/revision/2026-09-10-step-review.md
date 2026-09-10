@@ -1,7 +1,7 @@
 ---
 type: doc
 title: "Step review, 2026-09-10: every step the kit prescribes, what the repo says about it today, and what to change"
-description: "First draft of the meta-revision: 164 existing steps assessed one by one against the current state of the repository, 26 proposed new steps, the thirty interview questions answered from evidence, and the contradictions the review found; the owner revises this draft."
+description: "First draft of the meta-revision: 164 existing steps assessed one by one against the current state of the repository, 25 proposed new steps, the thirty interview questions answered from evidence, and the contradictions the review found; the owner revises this draft."
 tags: [sdlc, revision, review, plan, steps]
 timestamp: 2026-09-10T15:00:00Z
 ---
