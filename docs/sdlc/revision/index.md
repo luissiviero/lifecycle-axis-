@@ -13,4 +13,6 @@ report; nothing in it changes the repository by being written. What the owner ac
 `knowledge/decisions/` records and `work/<slug>/` items.
 
 - [2026-09-10-step-review.md](2026-09-10-step-review.md) — every step the kit prescribes, assessed one by one; proposed new steps; the interview answered from evidence; contradictions; order of work
-- [evidence/](evidence/) — the four read-only reports the step review was built from
+- [2026-09-10-handoff.md](2026-09-10-handoff.md) — state, the owner's decisions, the three open choices with a recommendation on each, and the first prompt for a new session
+- [evidence/](evidence/) — the read-only reports the step review was built from and checked against
+- [page/](page/) — the generator that renders the review as a filterable page
