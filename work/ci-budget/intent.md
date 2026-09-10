@@ -5,11 +5,11 @@ title: Reduce GitHub minutes, waiting time and wasted tokens; keep the crucial p
 description: "The repository ran 1,124 workflow runs in six days on a private repo, exhausted the account's 2,000 free Actions minutes on 2026-09-08 21:43 UTC, and has been unable to run a single job since, including the owner's approval tap; most of those minutes, and the tokens and waiting behind them, went to work nobody used: superseded runs, a duplicate eval job, and a six-minute model triage of failures that were not the pull request's own."
 stage: plan
 # status: draft | in-review | approved | delegated | superseded
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), in the session of 2026-09-09 that traced the Actions quota block; drafted by Claude from the owner's three goals and the run history of 1,124 workflow runs
 # approved-by: product owner; set only by a human, with scripts/approve.py from their own shell
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-10
 # risk-class: low | medium | high; the grant below is valid only for classes the policy lists
 risk-class: low
 # mode: supervised | delegated; delegated-by and delegated-on are set only by a human, like approved-by
