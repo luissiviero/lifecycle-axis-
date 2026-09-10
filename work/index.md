@@ -2,7 +2,7 @@
 type: sdlc/index
 title: Work items
 description: Generated index of every work/<slug> item; run scripts/gen_index.py to refresh.
-timestamp: 2026-09-09T09:10:00Z
+timestamp: 2026-09-10T08:17:42Z
 ---
 # Work items
 
@@ -16,7 +16,7 @@ timestamp: 2026-09-09T09:10:00Z
 | [band-detector](band-detector/index.md) | The band detector cannot see the breach it exists for | plan | approved | approved | approved | PR #31 -> in-review by claude |
 | [bash-guard-hardening](bash-guard-hardening/index.md) | The Bash write guard silently allows deletes, glued commands, stderr redirects and two-step cd into the control plane | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [batch-b-followups](batch-b-followups/index.md) | Close the three leftovers Batch B surfaced | plan | approved | approved | approved | PR #39 -> in-review by claude |
-| [ci-budget](ci-budget/index.md) | Reduce GitHub minutes, waiting time and wasted tokens; keep the crucial procedures, loosen the rest | intent | approved | — | — | intent.md -> approved by luissiviero |
+| [ci-budget](ci-budget/index.md) | Reduce GitHub minutes, waiting time and wasted tokens; keep the crucial procedures, loosen the rest | spec | approved | in-review | — | intent.md -> approved by luissiviero |
 | [control-plane-visibility](control-plane-visibility/index.md) | Hook decisions must be logged; the control-plane unlock must be visible; CI must recognise the kit's own agent PRs | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [delegated-mode](delegated-mode/index.md) | A second way to run a work item, where I approve the start and the AI signs the rest under its own name | plan | approved | approved | approved | PR #45 -> in-review by claude |
 | [delegation-boundary](delegation-boundary/index.md) | Decide whether a subagent may ever write code in this kit | plan | approved | approved | approved | PR #36 -> in-review by claude |
