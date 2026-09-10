@@ -2,7 +2,7 @@
 type: sdlc/index
 title: Work items
 description: Generated index of every work/<slug> item; run scripts/gen_index.py to refresh.
-timestamp: 2026-09-09T09:10:00Z
+timestamp: 2026-09-10T10:48:42Z
 ---
 # Work items
 
@@ -24,6 +24,7 @@ timestamp: 2026-09-09T09:10:00Z
 | [docs-reconcile](docs-reconcile/index.md) | The docs say what the code does | plan | approved | approved | approved | PR #37 -> in-review by claude |
 | [front-matter](front-matter/index.md) | Templates and artifact parsers must agree; approve.py must not misfire | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [loop-protection](loop-protection/index.md) | The agent must not be able to weaken the check on its own work | plan | approved | approved | approved | plan.md -> in-review by claude |
+| [plan-adherence](plan-adherence/index.md) | A plan executed in a new session is forgotten mid-run, and the agent deviates from it | intent | in-review | — | — | — |
 | [retire-active-pointer](retire-active-pointer/index.md) | Retire `.sdlc/active` when a work item completes, so the plan gate stops opening on finished work | plan | approved | delegated | delegated | PR #53 -> in-review by claude |
 | [run-queue](run-queue/index.md) | Grant several items up front and let one delegated run work through them, so I can be away for hours | plan | approved | delegated | delegated | plan.md -> delegated by claude |
 | [run-queue-followups](run-queue-followups/index.md) | The chain check reports PASS on work it never saw; make it say so instead | plan | approved | delegated | delegated | PR #58 -> in-review by claude |
