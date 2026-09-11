@@ -36,9 +36,10 @@ permissions:
   id-token: write
 
 # One review per pull request. Only a new push supersedes a run in flight: a re-trigger on the same
-# sha queues behind it, so a cancelled run never lands on the head the merge script judges
-# (work/ci-budget R-3). Before this, 45 of 52 review runs were superseded by a later push and paid
-# for in full, at about three minutes of model time each.
+# sha queues behind it rather than cancelling it. A cancelled run can still land on the head sha
+# when a third event evicts a pending one, which scripts/delegated_merge.py handles (work/ci-budget
+# R-3, spec C5). Before this, 45 of 52 review runs were superseded by a later push and paid for in
+# full, at about three minutes of model time each.
 concurrency:
   group: pr-review-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
@@ -102,6 +103,11 @@ jobs:
       # could rewrite the very policy the reviewer is meant to follow. Pin it ourselves.
       # On issue_comment the base ref is not in the event payload; the default branch is used.
       #
+      # `--no-overlay` matters: a plain checkout writes the base's files over the head's but leaves
+      # anything the head ADDED in place, so a branch could add `.claude/skills/<x>/SKILL.md` or a
+      # nested `CLAUDE.md` and still put it in front of the reviewer. With it, those paths end the
+      # step byte-identical to base, additions included (PR-A M2 revision).
+      #
       # The action's own restore is scoped to pull_request events, so on the @claude route the
       # reviewer would read its instructions from the head branch under review -- the same problem
       # REVIEW.md was already pinned against, one file wider (work/ci-budget, spec C4). Restore the
@@ -121,7 +127,8 @@ jobs:
           set -euo pipefail
           git show "origin/$BASE_REF:REVIEW.md" > /tmp/REVIEW.base.md
           if [ "$EVENT_NAME" = "issue_comment" ]; then
-            git checkout "origin/$BASE_REF" -- CLAUDE.md GEMINI.md AGENTS.md .claude docs/sdlc
+            git restore --source="origin/$BASE_REF" --no-overlay --worktree --staged -- \
+              CLAUDE.md GEMINI.md AGENTS.md .claude docs/sdlc
           fi
 
       - name: Claude review

@@ -369,6 +369,11 @@ def check_delegation(pull, root):
     if (front.get("status") or "").strip() == "delegated":
         return OK, "work/%s/intent.md is signed 'delegated'; the grant condition decides" % slug
     mode = (front.get("mode") or "supervised").strip()
+    if mode.lower() == "delegated" and mode != "delegated":
+        # `Delegated` is not the grant word, and the grant condition says so in as many words. This
+        # condition must not answer a green `not-delegated` over that: a misspelling on an intent
+        # meant to be delegated is a red run with a reason, not a quiet pass (PR-A M2 revision).
+        return OK, "work/%s/intent.md mode is '%s'; the grant condition decides" % (slug, mode)
     if mode != "delegated":
         return NOT_DELEGATED, "#%s, Work-Item: %s, mode %s" % (
             (pull or {}).get("number"), slug, mode)

@@ -17,9 +17,11 @@ permissions:
   actions: read
 
 # One gate per pull request. Only a new push cancels a run in flight; a same-sha re-trigger
-# (labelled, edited, going ready) queues behind it, so the head sha never carries a cancelled run
-# for the merge script to refuse on. 89 of 96 gate runs used to be superseded by a later push and
-# paid for in full (work/ci-budget R-1).
+# (labelled, edited, going ready) queues behind it rather than cancelling it. That is not a promise
+# that a cancelled run never lands on the head sha: GitHub holds one running and one pending run per
+# group and evicts the pending one when a third event joins, whatever `cancel-in-progress` says,
+# which is why scripts/delegated_merge.py has a rule for exactly that row. 89 of 96 gate runs used
+# to be superseded by a later push and paid for in full (work/ci-budget R-1, spec C5).
 concurrency:
   group: sdlc-gate-${{ github.event.pull_request.number }}
   cancel-in-progress: ${{ github.event.action == 'synchronize' }}

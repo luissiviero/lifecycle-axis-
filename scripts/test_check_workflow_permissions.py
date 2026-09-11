@@ -431,11 +431,6 @@ class ApproveWorkflow(unittest.TestCase):
             self.assertEqual(match.group("artifact"), "spec.md")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
-
 class PrReviewWorkflow(unittest.TestCase):
     """work/ci-budget R-3: one review per ready push, and on the `@claude` comment route the
     reviewer takes both its policy and its configuration from the base branch.
@@ -528,3 +523,7 @@ class DelegatedMergeWorkflow(unittest.TestCase):
         triggers = doc[True] if True in doc else doc["on"]
         self.assertEqual(sorted(triggers["workflow_run"]["workflows"]),
                          sorted(policy.merge.get("require_checks") or []))
+
+
+if __name__ == "__main__":
+    unittest.main()

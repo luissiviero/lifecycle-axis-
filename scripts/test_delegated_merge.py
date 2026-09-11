@@ -936,9 +936,18 @@ class CoolOffCondition(unittest.TestCase):
     def test_skipped_run_is_not_a_stamp(self):
         # work/ci-budget R-6: a draft's run finishes in seconds, so counting it would let the
         # waiting window be satisfied by the very runs the draft guard made meaningless.
-        skipped = [_run(name, conclusion=dm.SKIPPED) for name in self.required]
-        verdict, _ = dm.check_cool_off(skipped, self.required, 4, NOW, HEAD_REF)
+        # The stamp is recent enough to CLEAR a one-hour window, so a passing verdict here would
+        # mean the skipped run was counted. The detail is asserted too, because "waiting" alone
+        # cannot tell "no stamp at all" from "a stamp too recent" (PR-A M2 revision).
+        skipped = [_run(name, conclusion=dm.SKIPPED, updated_at="2026-09-05T10:00:00Z")
+                   for name in self.required]
+        verdict, detail = dm.check_cool_off(skipped, self.required, 1, NOW, HEAD_REF)
         self.assertEqual(verdict, dm.WAITING)
+        self.assertIn("no", detail.lower())
+        # The same runs, not skipped, do clear that window: it is the conclusion that decides.
+        verdict, _ = dm.check_cool_off([_run(name) for name in self.required],
+                                       self.required, 1, NOW, HEAD_REF)
+        self.assertEqual(verdict, dm.OK)
 
     def test_a_dispatched_run_is_not_a_cool_off_stamp(self):
         # Finding 5: the same filter as the checks condition, or a hand-started run would restart
@@ -1038,6 +1047,36 @@ class EndToEnd(unittest.TestCase):
         finally:
             sys.stdout = saved
         return code, out.getvalue()
+
+    def test_pull_request_with_an_evicted_attempt_merges_on_the_later_success(self):
+        # work/ci-budget R-6, the case plan.md's step 4 and Proof row promise: an evicted attempt
+        # carried through the WHOLE pipeline, not through one condition. Going ready, a label and a
+        # human body edit are three events on one sha, and GitHub evicts the pending run of the
+        # group as `cancelled`. The later success of the same workflow is what clears it.
+        checkout = Checkout(self.tmp.name).happy_path()
+        runs = make_runs() + [_run("sdlc-gate", id=6001, conclusion=dm.CANCELLED)]
+        checkout.set_fixture("GET", "repos/%s/actions/runs?head_sha=%s&per_page=100" % (REPO, HEAD_SHA),
+                             {"workflow_runs": runs})
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 0, output)
+        self.assertIn("DELEGATED-MERGE: merged #12 %s" % HEAD_SHA, output)
+
+    def test_an_evicted_attempts_check_run_row_still_refuses(self):
+        # The residual this item deliberately does not widen (spec R6 confines the rule to
+        # _pr_runs; plan.md's Risks row names it). `check_check_runs` reads the commit's check-run
+        # rows, a different API list, and `cancelled` is not an accepted conclusion there. If that
+        # list ever carries the evicted attempt's row, the sha refuses at `checks` -- fail-closed,
+        # never a merge, and the live dry run at M3 is what settles whether GitHub's default
+        # `filter=latest` returns such a row at all.
+        checkout = Checkout(self.tmp.name).happy_path()
+        checkout.set_fixture("GET", "repos/%s/commits/%s/check-runs?per_page=100" % (REPO, HEAD_SHA),
+                             {"check_runs": make_check_runs() + [
+                                 {"name": "sdlc-gate", "status": "completed",
+                                  "conclusion": dm.CANCELLED}]})
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 1, output)
+        self.assertIn("CONDITION checks: refused", output)
+        self.assertEqual(checkout.calls(), [])
 
     def test_supervised_pull_request_ends_not_delegated(self):
         # work/ci-budget R-7, from the pipeline's end rather than the condition's: the run is green
@@ -1627,6 +1666,15 @@ class DelegationCondition(unittest.TestCase):
         verdict, detail = dm.check_delegation(make_pr(body="No work item line here.\n"), self.root)
         self.assertEqual(verdict, dm.OK)
         self.assertIn("pull-request condition", detail)
+
+    def test_a_misspelled_mode_defers_to_the_grant_condition(self):
+        # `Delegated` is not the grant word. The grant condition refuses it red and names the
+        # spelling; answering a green not-delegated here would swallow that reason, on an intent
+        # whose owner plainly meant to delegate it (PR-A M2 revision).
+        self._intent(INTENT_TEXT.replace("mode: delegated", "mode: Delegated"))
+        verdict, detail = dm.check_delegation(make_pr(), self.root)
+        self.assertEqual(verdict, dm.OK)
+        self.assertIn("grant condition", detail)
 
     def test_self_signed_intent_defers_to_the_grant_condition(self):
         # The dangerous shape: an agent signed the grant itself. `mode` is not `delegated`, so a
