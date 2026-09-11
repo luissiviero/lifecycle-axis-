@@ -83,6 +83,9 @@ NOW = datetime(2026, 9, 5, 12, 0, 0, tzinfo=timezone.utc)
 # The pr-review run whose id the review comment must link (findings 3/4).
 REVIEW_RUN_ID = 7003
 RUN_IDS = {"sdlc-gate": 7001, "pr-review": REVIEW_RUN_ID}
+# The workflow each run belongs to. `name:` is a string the head branch writes, so the superseded
+# rule joins on this instead (PR-A security pass).
+WORKFLOW_IDS = {"sdlc-gate": 11, "pr-review": 13}
 REVIEW_RUN_URL = "https://github.com/%s/actions/runs/%d" % (REPO, REVIEW_RUN_ID)
 
 INTENT_TEXT = """\
@@ -156,8 +159,9 @@ def make_runs(**over):
     `event` and `head_branch` the checks and review conditions filter on, and an `id` the review
     comment links."""
     names = ["sdlc-gate", "pr-review"]
-    runs = [{"name": n, "id": RUN_IDS[n], "event": "pull_request", "head_branch": HEAD_REF,
-             "status": "completed", "conclusion": "success", "updated_at": HEAD_TIME}
+    runs = [{"name": n, "id": RUN_IDS[n], "workflow_id": WORKFLOW_IDS[n], "event": "pull_request",
+             "head_branch": HEAD_REF, "status": "completed", "conclusion": "success",
+             "updated_at": HEAD_TIME}
             for n in names]
     for run in runs:
         if run["name"] in over:
@@ -172,9 +176,9 @@ def _run(name, **over):
     attempt, a run a concurrency group evicted, and the green one that followed -- which `make_runs`
     cannot express, since it builds one run per name.
     """
-    run = {"name": name, "id": RUN_IDS.get(name, 7000), "event": "pull_request",
-           "head_branch": HEAD_REF, "status": "completed", "conclusion": "success",
-           "updated_at": HEAD_TIME}
+    run = {"name": name, "id": RUN_IDS.get(name, 7000), "workflow_id": WORKFLOW_IDS.get(name, 99),
+           "event": "pull_request", "head_branch": HEAD_REF, "status": "completed",
+           "conclusion": "success", "updated_at": HEAD_TIME}
     run.update(over)
     return run
 
@@ -1272,6 +1276,28 @@ class Plumbing(unittest.TestCase):
         other = _run("pr-review", id=6003)
         self.assertEqual(sorted(r["id"] for r in dm._pr_runs([evicted, other], HEAD_REF)),
                          [6001, 6003])
+
+    def test_a_same_named_run_of_another_workflow_never_supersedes(self):
+        # PR-A security pass: `name:` is written by the head branch, so a diff could add
+        # .github/workflows/x.yml called `sdlc-gate` whose body always succeeds. On a same-repository
+        # pull request that file runs from the head. Keyed on the name it would launder the real
+        # gate's cancelled row and the required check would read green for a commit the real gate
+        # never judged. The join key is workflow_id.
+        evicted = _run("sdlc-gate", id=6001, conclusion=dm.CANCELLED)
+        forged = _run("sdlc-gate", id=6002, workflow_id=4242)
+        self.assertEqual(sorted(r["id"] for r in dm._pr_runs([evicted, forged], HEAD_REF)),
+                         [6001, 6002])
+        # And the condition still refuses on it, which is the point.
+        verdict, detail = dm.check_required_runs([evicted, forged], ["sdlc-gate"], HEAD_REF)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn(dm.CANCELLED, detail)
+
+    def test_a_run_with_no_workflow_id_supersedes_nothing(self):
+        evicted = _run("sdlc-gate", id=6001, conclusion=dm.CANCELLED)
+        del evicted["workflow_id"]
+        later = _run("sdlc-gate", id=6002)
+        self.assertEqual(sorted(r["id"] for r in dm._pr_runs([evicted, later], HEAD_REF)),
+                         [6001, 6002])
 
     def test_code_maps_not_delegated_to_0_refused_to_1(self):
         supervised = dm.Run(dry_run=False, stream=io.StringIO())

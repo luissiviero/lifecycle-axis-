@@ -257,10 +257,21 @@ def _superseded_by_a_later_success(run, matching):
     ready head with no push at all -- go ready, apply a label, edit the body -- and
     `check_required_runs` refuses on any completed non-success run, which no later green run clears.
     Only a new commit would. The later success is what makes the cancelled row not evidence; a
-    cancelled run with no later success still refuses, as it always did (work/ci-budget R-6)."""
+    cancelled run with no later success still refuses, as it always did (work/ci-budget R-6).
+
+    The join key is `workflow_id`, never `name`. A workflow's `name:` is a string the head branch
+    writes: a diff may add `.github/workflows/x.yml` with `name: sdlc-gate` and a body that always
+    succeeds, and on a same-repository pull request that file runs from the head. Keyed on the name,
+    such a run would supersede the real gate's cancelled row and `check_required_runs` would read
+    green for a commit the real gate never judged. Before this rule that forgery bought nothing,
+    because every matching run had to be green; it must not start buying something now. A run with
+    no `workflow_id` supersedes nothing, which is the closed answer (PR-A security pass)."""
     if run.get("status") != "completed" or run.get("conclusion") != CANCELLED:
         return False
-    return any(other.get("name") == run.get("name")
+    workflow = run.get("workflow_id")
+    if workflow is None:
+        return False
+    return any(other.get("workflow_id") == workflow
                and other.get("status") == "completed"
                and other.get("conclusion") == "success"
                and (other.get("id") or 0) > (run.get("id") or 0)

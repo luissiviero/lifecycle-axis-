@@ -106,6 +106,12 @@ jobs:
       # reviewer would read its instructions from the head branch under review -- the same problem
       # REVIEW.md was already pinned against, one file wider (work/ci-budget, spec C4). Restore the
       # agent configuration from base there too, by the same mechanism.
+      #
+      # `docs/sdlc` is in that list because CLAUDE.md, itself restored here, tells the agent to read
+      # `docs/sdlc/README.md`, and because the merge script's own ALWAYS_LOCKED floor already counts
+      # `docs/sdlc/rules` and `docs/sdlc/templates` as judging surface a delegated diff may never
+      # touch. The reviewer keeps Read, Grep and Glob, so anything it may read from the head is
+      # something the head can write (PR-A security pass).
       - name: Pin review policy and agent configuration from base branch
         if: env.HAVE_CLAUDE_AUTH == 'true' && (github.event_name == 'pull_request' || steps.local.outputs.ok == 'true')
         env:
@@ -115,7 +121,7 @@ jobs:
           set -euo pipefail
           git show "origin/$BASE_REF:REVIEW.md" > /tmp/REVIEW.base.md
           if [ "$EVENT_NAME" = "issue_comment" ]; then
-            git checkout "origin/$BASE_REF" -- CLAUDE.md GEMINI.md AGENTS.md .claude
+            git checkout "origin/$BASE_REF" -- CLAUDE.md GEMINI.md AGENTS.md .claude docs/sdlc
           fi
 
       - name: Claude review

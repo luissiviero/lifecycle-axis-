@@ -484,7 +484,10 @@ class PrReviewWorkflow(unittest.TestCase):
     def test_pins_agent_config_from_base_on_comments(self):
         pin = self._step("Pin review policy")
         run = str(pin.get("run") or "")
-        for path in ("REVIEW.md", "CLAUDE.md", "GEMINI.md", "AGENTS.md", ".claude"):
+        # `docs/sdlc` belongs here with the rest: CLAUDE.md sends the agent to read
+        # docs/sdlc/README.md, and the merge script's ALWAYS_LOCKED floor already counts
+        # docs/sdlc/rules and docs/sdlc/templates as judging surface (PR-A security pass).
+        for path in ("REVIEW.md", "CLAUDE.md", "GEMINI.md", "AGENTS.md", ".claude", "docs/sdlc"):
             self.assertIn(path, run, path)
 
     def test_draft_skip_and_no_bash_unchanged(self):
