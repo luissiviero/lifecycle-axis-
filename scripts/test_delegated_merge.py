@@ -1035,6 +1035,17 @@ class EndToEnd(unittest.TestCase):
             sys.stdout = saved
         return code, out.getvalue()
 
+    def test_supervised_pull_request_ends_not_delegated(self):
+        # work/ci-budget R-7, from the pipeline's end rather than the condition's: the run is green
+        # and NOTHING was merged. `calls()` is the proof -- every mutating call is a line in it, so
+        # an empty file is the assertion that a green verdict here never merges anything.
+        checkout = Checkout(self.tmp.name).happy_path()
+        checkout.set_local_intent(INTENT_TEXT.replace("mode: delegated", "mode: supervised"))
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 0, output)
+        self.assertIn("DELEGATED-MERGE: not-delegated (delegation)", output)
+        self.assertEqual(checkout.calls(), [])
+
     def test_pull_request_that_was_a_draft_merges_on_its_ready_run(self):
         # work/ci-budget R-6, end to end: the draft's last push and the ready run share a sha, so
         # that sha carries a skipped run of each required workflow beside the green one. Before the
