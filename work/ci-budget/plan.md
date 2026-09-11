@@ -5,13 +5,13 @@ title: Reduce GitHub minutes, waiting time and wasted tokens; keep the crucial p
 description: "Two pull requests on one branch: the control plane (gate, review, evals and merge workflows plus the two merge-script rules) then the agent side (draft-first skills, the rule line, the actions_minutes_per_pr measure and its band, the decision record, the handoff)."
 stage: build
 # status: draft | in-review | approved | delegated | superseded  (require-plan.sh refuses code edits until approved)
-status: in-review
+status: approved
 # kind: feature | fix  (fix: protect-tests.sh refuses edits to existing test files)
 kind: feature
 reads: spec.md
 # approved-by: engineer for routine; tech lead/architect for medium/high risk; set only by a human
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-11
 risk-class: low
 record:
 resource: spec.md
