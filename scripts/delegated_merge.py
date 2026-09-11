@@ -100,6 +100,15 @@ HEAD_SHA_ARG_RE = re.compile(r"^[0-9a-f]{7,40}$")
 OK = "ok"
 REFUSED = "refused"
 WAITING = "waiting"
+# A fourth verdict, and the only non-`ok` one that is not a problem: the pull request belongs to a
+# supervised item, so this workflow was never the thing that merges it. Every gate and review
+# completion on such a pull request used to end this run red and billed; it now ends green, while a
+# refusal about the pull request itself stays red beside it (work/ci-budget R-7).
+NOT_DELEGATED = "not-delegated"
+
+# Conclusions that say nothing about the head sha, handled in `_pr_runs` (work/ci-budget R-6).
+SKIPPED = "skipped"
+CANCELLED = "cancelled"
 
 # Test hook: a callable (method, path, fields) -> parsed JSON, installed by --fixtures or by a
 # test. `None` means "really call `gh`". Kept module-level so a test never patches subprocess.
@@ -240,14 +249,47 @@ def _get(mapping, *path):
     return cur
 
 
+def _superseded_by_a_later_success(run, matching):
+    """True when `run` was cancelled and a later run of the same workflow on this head succeeded.
+
+    GitHub holds one running and one pending run per concurrency group and evicts the pending one
+    when a third event joins, whatever `cancel-in-progress` says. So a `cancelled` row can land on a
+    ready head with no push at all -- go ready, apply a label, edit the body -- and
+    `check_required_runs` refuses on any completed non-success run, which no later green run clears.
+    Only a new commit would. The later success is what makes the cancelled row not evidence; a
+    cancelled run with no later success still refuses, as it always did (work/ci-budget R-6)."""
+    if run.get("status") != "completed" or run.get("conclusion") != CANCELLED:
+        return False
+    return any(other.get("name") == run.get("name")
+               and other.get("status") == "completed"
+               and other.get("conclusion") == "success"
+               and (other.get("id") or 0) > (run.get("id") or 0)
+               for other in matching)
+
+
 def _pr_runs(runs, head_ref):
     """The workflow runs that judged THIS pull request: `event == "pull_request"` on `head_ref`.
 
     A `workflow_dispatch` or `schedule` run of the same workflow is one anybody with write access
     can start green on any code, and a run of another branch never saw this diff, so neither may
-    stand in for a required check (pull request 45 security pass, finding 5)."""
-    return [r for r in (runs or [])
-            if r.get("event") == "pull_request" and r.get("head_branch") == head_ref]
+    stand in for a required check (pull request 45 security pass, finding 5).
+
+    Two more are dropped here, and nowhere else, so `check_required_runs`, `check_review` and
+    `check_cool_off` need no rule of their own (work/ci-budget R-6, spec D2):
+      - a completed `skipped` run. A `pull_request` run concludes skipped only when every job's
+        `if:` was false, which after the gate's draft guard means the head was a draft or the event
+        was a Bot's body edit. Neither says anything about the head that later went ready on the
+        same sha, and without this every pull request that was ever a draft is unmergeable.
+      - a cancelled run a later success superseded, per the helper above.
+    Nothing else is ever dropped: `failure`, `timed_out`, a run still in progress and a cancelled
+    run with nothing after it all reach the conditions exactly as before. The empty-`matching`
+    refusal in `check_required_runs` is what keeps "nothing passed" from reading as "nothing
+    failed": dropping every row of a workflow leaves no run at all, which is a refusal."""
+    matching = [r for r in (runs or [])
+                if r.get("event") == "pull_request" and r.get("head_branch") == head_ref]
+    return [r for r in matching
+            if not (r.get("status") == "completed" and r.get("conclusion") == SKIPPED)
+            and not _superseded_by_a_later_success(r, matching)]
 
 
 # --- Conditions. Each is pure: it takes the JSON (and policy/config) it needs and returns
@@ -288,6 +330,50 @@ def pick_pr(pulls, head_sha):
     matches = [p for p in (pulls or [])
                if p.get("state") == "open" and _get(p, "head", "sha") == head_sha]
     return matches[0] if len(matches) == 1 else None
+
+
+def check_delegation(pull, root):
+    """3. Is this item delegated at all? A supervised one is not this workflow's to merge.
+
+    Read from the checkout this job runs in, which is always the default branch, never the head
+    under judgement (delegated-merge.yml). No API call: the file is on disk.
+
+    Three answers are `ok` rather than `not-delegated`, because each belongs to a condition that
+    refuses it properly and red:
+      - no `Work-Item:` line, which `check_pull_request` refuses;
+      - no `work/<slug>/intent.md` in this checkout, which `check_grant_front_matter` refuses;
+      - an intent whose own status is `delegated`, i.e. an agent that signed its own grant. That is
+        the single most serious refusal this script makes, and folding it into a green run would
+        hide it (work/ci-budget, plan step 4, third invariant).
+    """
+    slug = work_item_slug((pull or {}).get("body"))
+    if not slug:
+        return OK, "no Work-Item line; the pull-request condition decides"
+    path = os.path.join(root or ".", "work", slug, "intent.md")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            front = chain.front_matter_text(handle.read())
+    except (OSError, IOError):
+        return OK, "no work/%s/intent.md in this checkout; the grant condition decides" % slug
+    if (front.get("status") or "").strip() == "delegated":
+        return OK, "work/%s/intent.md is signed 'delegated'; the grant condition decides" % slug
+    mode = (front.get("mode") or "supervised").strip()
+    if mode != "delegated":
+        return NOT_DELEGATED, "#%s, Work-Item: %s, mode %s" % (
+            (pull or {}).get("number"), slug, mode)
+    return OK, "work/%s is delegated" % slug
+
+
+def _locked_paths(config, policy, slug):
+    """Every path a delegated pull request may not touch: the repository's own protected and
+    release-gated classes, the policy's `locked-paths`, and this item's intent."""
+    locked = list(config.get("PROTECTED_PATHS") or []) + \
+        list(config.get("RELEASE_GATED_PATHS") or []) + list(policy.locked_paths)
+    if slug:
+        # The grant is read from the base, so a diff that rewrites this item's intent cannot widen
+        # its own permission -- but it must not land under a delegated merge either.
+        locked.append("work/%s/intent.md" % slug)
+    return locked
 
 
 def work_item_slug(body):
@@ -686,40 +772,58 @@ class Run(object):
         self.dry_run = dry_run
         self.stream = stream or sys.stdout
         self.first_bad = None
+        self.bad = []
 
     def record(self, name, result):
         verdict, detail = result
         self.stream.write(u"CONDITION %s: %s — %s\n" % (name, verdict, detail))
-        if verdict != OK and self.first_bad is None:
-            self.first_bad = (name, verdict, detail)
+        if verdict != OK:
+            self.bad.append((name, verdict, detail))
+            if self.first_bad is None:
+                self.first_bad = (name, verdict, detail)
         return verdict == OK
 
     def keep_going(self, ok):
         """Stop at the first refusal; under --dry-run evaluate everything still evaluable."""
         return ok or self.dry_run
 
+    def _worst(self):
+        """The verdict that decides the run. `not-delegated` is outranked by anything else: it
+        says only that this workflow does not merge supervised items, so a locked path or a refused
+        pull request recorded beside it is what the run must report and go red on
+        (work/ci-budget R-7)."""
+        if not self.bad:
+            return None
+        for entry in self.bad:
+            if entry[1] != NOT_DELEGATED:
+                return entry
+        return self.bad[0]
+
     def _code(self):
-        """0 on a merge or a wait, 1 on a refusal -- with `policy` the documented exception:
-        delegated merging being off is the closed state, not a failed run."""
-        if self.first_bad is None:
+        """0 on a merge or a wait, 1 on a refusal -- with two documented exceptions: delegated
+        merging being off is the closed state, and a supervised item is not this workflow's to
+        merge. Neither is a failed run; every other refusal still is."""
+        worst = self._worst()
+        if worst is None:
             return 0
-        name, verdict, _ = self.first_bad
-        if verdict == WAITING or name == "policy":
+        name, verdict, _ = worst
+        if verdict in (WAITING, NOT_DELEGATED) or name == "policy":
             return 0
         return 1
 
     def finish(self, merged=None):
+        worst = self._worst()
         if self.dry_run:
-            if self.first_bad is None:
+            if worst is None:
                 verdict = "would merge #%s" % merged if merged else "all conditions ok"
             else:
-                verdict = "%s: %s" % (self.first_bad[1], self.first_bad[0])
+                verdict = "%s: %s" % (worst[1], worst[0])
             self.stream.write("DELEGATED-MERGE: dry-run (%s)\n" % verdict)
             return self._code()
-        if self.first_bad is None:
+        if worst is None:
             self.stream.write("DELEGATED-MERGE: merged %s\n" % merged)
             return 0
-        self.stream.write("DELEGATED-MERGE: %s (%s)\n" % (self.first_bad[1], self.first_bad[0]))
+        self.stream.write("DELEGATED-MERGE: %s (%s)\n" % (worst[1], worst[0]))
         return self._code()
 
 
@@ -776,13 +880,29 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
 
     pulls = items(gh_api("GET", "repos/%s/commits/%s/pulls" % (repo, head_sha)))
     prefixes = config.get("AGENT_BRANCH_PREFIXES") or []
+    # The pull request whose body supplies the slug is the one pick_pr selects, so it is resolved
+    # before the delegation condition reads it; `check_pull_request` below still refuses an
+    # ambiguous or missing one (work/ci-budget R-7).
+    pr = pick_pr(pulls, head_sha)
+    delegated = out.record("delegation", check_delegation(pr, root))
     ok = out.record("pull-request",
                     check_pull_request(pulls, head_sha, prefixes, default_branch, active_slug))
-    pr = pick_pr(pulls, head_sha)
     if not out.keep_going(ok) or pr is None:
         return out.finish()
     number = pr.get("number")
     slug = work_item_slug(pr.get("body"))
+    if not delegated and not out.dry_run:
+        # A supervised item: the grant, the checks, the review and the cool-off all judge whether an
+        # item this workflow could merge is ready, and this one it could never merge. `locked-paths`
+        # still runs, so an agent branch touching the control plane stays a red run with its own
+        # condition line whatever its item's mode (work/ci-budget R-7).
+        #
+        # Under --dry-run none of this applies: that route exists to print every condition and its
+        # verdict for a sha, which is exactly what the owner wants against a supervised pull
+        # request, so it falls through and evaluates the rest as the module docstring promises.
+        files = items(gh_api("GET", "repos/%s/pulls/%s/files?per_page=100" % (repo, number)))
+        out.record("locked-paths", check_locked_paths(files, _locked_paths(config, policy, slug)))
+        return out.finish()
     head_ref = _get(pr, "head", "ref") or ""
     # The base of this pull request: the branch this job checked out, and the only history that
     # existed before the head branch did. Every grant read below uses it.
@@ -819,14 +939,8 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
         if not out.keep_going(ok):
             return out.finish()
 
-    locked = list(config.get("PROTECTED_PATHS") or []) + \
-        list(config.get("RELEASE_GATED_PATHS") or []) + list(policy.locked_paths)
-    if slug:
-        # The grant is read from the base, so a diff that rewrites this item's intent cannot widen
-        # its own permission -- but it must not land under a delegated merge either.
-        locked.append("work/%s/intent.md" % slug)
     files = items(gh_api("GET", "repos/%s/pulls/%s/files?per_page=100" % (repo, number)))
-    ok = out.record("locked-paths", check_locked_paths(files, locked))
+    ok = out.record("locked-paths", check_locked_paths(files, _locked_paths(config, policy, slug)))
     if not out.keep_going(ok):
         return out.finish()
 

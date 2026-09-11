@@ -79,8 +79,9 @@ The adopter-facing copy of this list, with the first-hour order, the `control-pl
       ("Upgrade to GitHub Pro or make this repository public") on a private repo under the Free plan. This
       repo runs that way on purpose: see `knowledge/decisions/merge-click-is-the-gate.md`. The items below
       apply once the repo is public or on a paid plan.
-- [ ] Require status checks: `sdlc-gate / artifact-chain`, `agent-evals`, later `pr-review`; require
-      branches up to date - **on**; require conversation resolution - **on**
+- [ ] Require status checks: `sdlc-gate / artifact-chain`, later `pr-review`; never `agent-evals`,
+      which no longer runs per pull request (work/ci-budget); require branches up to date - **off**,
+      with one agent code pull request at a time; require conversation resolution - **on**
 - [ ] Do not allow bypassing the above settings - **off** (the admin-merge escape hatch)
 - [ ] Restrict who can push: `luissiviero` + the Claude App; block force pushes and deletions
 - [ ] Settings -> Actions -> General: workflow token **read-only**; "Allow GitHub Actions to create and

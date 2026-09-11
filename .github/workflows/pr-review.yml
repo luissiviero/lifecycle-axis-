@@ -26,11 +26,22 @@ on:
 # Minimum permissions for a review-only job (spike section 1): read the diff, comment on
 # the PR, read issues (needed to resolve issue_comment's parent PR), and id-token for the
 # action's default GitHub App auth path. Never contents: write -- the bot edits nothing.
+# `pull-requests: write` also covers the one API call this workflow makes itself,
+# repos/{repo}/pulls/{number}, which the head-repository guard below reads before any checkout
+# (work/ci-budget A2b; knowledge/lessons/workflow-permissions-name-every-api.md).
 permissions:
   contents: read
   pull-requests: write
   issues: read
   id-token: write
+
+# One review per pull request. Only a new push supersedes a run in flight: a re-trigger on the same
+# sha queues behind it, so a cancelled run never lands on the head the merge script judges
+# (work/ci-budget R-3). Before this, 45 of 52 review runs were superseded by a later push and paid
+# for in full, at about three minutes of model time each.
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
 
 jobs:
   review:
@@ -50,8 +61,37 @@ jobs:
     env:
       HAVE_CLAUDE_AUTH: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
+      # A fork's `pull_request` run gets no secrets, so HAVE_CLAUDE_AUTH is false and every step
+      # below skips. The `@claude` route is different: it runs in base context, holds the
+      # credential, and checks out `refs/pull/N/head` -- a fork's head, if the owner types @claude
+      # on a fork pull request. Resolve the head repository first and let the checkout depend on it
+      # (work/ci-budget A2b). A refusal is a green run with a summary line, not a failure mail.
+      - name: Resolve the head repository before anything is checked out
+        id: local
+        if: env.HAVE_CLAUDE_AUTH == 'true' && github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          head_repo="$(gh api "repos/$REPO/pulls/$NUMBER" --jq .head.repo.full_name)"
+          # A deleted fork prints `null`, which is not $REPO, so it fails closed like any other.
+          if [ "$head_repo" = "$REPO" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Review not run"
+              echo
+              echo "\`@claude\` on a pull request whose head is \`$head_repo\` is not reviewed here:"
+              echo "this route checks out the head with a credential in hand, so it is limited to"
+              echo "heads in \`$REPO\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Checkout the PR head (on both triggers)
-        if: env.HAVE_CLAUDE_AUTH == 'true'
+        if: env.HAVE_CLAUDE_AUTH == 'true' && (github.event_name == 'pull_request' || steps.local.outputs.ok == 'true')
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.event.pull_request.head.sha }}
@@ -61,15 +101,25 @@ jobs:
       # pull_request events, but NOT REVIEW.md (spike finding 1b) -- left alone, a PR diff
       # could rewrite the very policy the reviewer is meant to follow. Pin it ourselves.
       # On issue_comment the base ref is not in the event payload; the default branch is used.
-      - name: Pin review policy from base branch
-        if: env.HAVE_CLAUDE_AUTH == 'true'
+      #
+      # The action's own restore is scoped to pull_request events, so on the @claude route the
+      # reviewer would read its instructions from the head branch under review -- the same problem
+      # REVIEW.md was already pinned against, one file wider (work/ci-budget, spec C4). Restore the
+      # agent configuration from base there too, by the same mechanism.
+      - name: Pin review policy and agent configuration from base branch
+        if: env.HAVE_CLAUDE_AUTH == 'true' && (github.event_name == 'pull_request' || steps.local.outputs.ok == 'true')
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
+          set -euo pipefail
           git show "origin/$BASE_REF:REVIEW.md" > /tmp/REVIEW.base.md
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            git checkout "origin/$BASE_REF" -- CLAUDE.md GEMINI.md AGENTS.md .claude
+          fi
 
       - name: Claude review
-        if: env.HAVE_CLAUDE_AUTH == 'true'
+        if: env.HAVE_CLAUDE_AUTH == 'true' && (github.event_name == 'pull_request' || steps.local.outputs.ok == 'true')
         uses: anthropics/claude-code-action@8251c103ac8c1d761882c86aba1412c7f583c844 # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

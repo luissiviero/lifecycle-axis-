@@ -43,7 +43,7 @@ and gains a label exemption:
    protected paths. A human with write access applies the label 'control-plane-approved' after
    reviewing the diff above; the check re-runs on label.`, exit 1.
 
-`sdlc-gate.yml` adds `labeled, unlabeled` to `on.pull_request.types` so applying or removing the
+`sdlc-gate.yml` carries `labeled, unlabeled` in `on.pull_request.types` so applying or removing the
 label re-triggers the job without a new commit, and always tees the script's output to
 `$GITHUB_STEP_SUMMARY` so the touched-file diff is visible on every run, not only a blocked one.
 

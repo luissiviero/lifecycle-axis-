@@ -286,9 +286,11 @@ Two kinds, per `evals/README.md`:
 
 Every case's `source:` is the doc section it comes from, so the doc is opened exactly when a case fails.
 
-Two further edits to `agent-evals.yml` (proposed in the PR description, rule 3): add `docs/sdlc/prompt-blocks/**`,
-`docs/sdlc/rules/**` and `.github/workflows/pr-review.yml` to its `paths:`, since those change agent behaviour and
-do not trigger the suite today; and have the triage step in `sdlc-gate.yml` return a JSON object (`verdict:
+One further edit, and one that work/ci-budget has since made moot. Moot: widening `agent-evals.yml`'s `paths:`
+to `docs/sdlc/prompt-blocks/**`, `docs/sdlc/rules/**` and `.github/workflows/pr-review.yml`. That workflow has
+no `paths:` filter now, and no per-commit trigger at all: the deterministic cases run on every gated commit
+inside `verify.sh`, which no path list can miss. Still open: have the triage step in `sdlc-gate.yml` return a
+JSON object (`verdict:
 flaky|real`, `cause`, `file`, `line`, `summary`) with `--json-schema`, so the summary is parseable and the
 free-text prompt no longer needs to describe a format (Increase consistency §Structured outputs).
 

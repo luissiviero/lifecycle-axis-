@@ -82,8 +82,8 @@ scripts/next_item.py             the delegated queue: which granted, unstarted i
 scripts/check_okf.py             OKF conformance over knowledge/ and docs/sdlc/ (warning by default, OKF_STRICT=1 to fail)
 scripts/run_evals.sh + evals/    hook cases run anywhere; prompt cases run with `claude -p` when a key exists; --kind/--only/--list select cases
 scripts/detect_bands.py          deterministic Western Electric detector (trailing baseline, four rules, full-series scan), unit-tested; monitoring/bands.yaml tiers and `window:`, read into the workflow matrix by scripts/bands_config.py
-.github/workflows/sdlc-gate.yml  chain check, verify, control-plane guard, triage-on-failure judgment step
-.github/workflows/agent-evals.yml runs on CLAUDE.md / .claude/** / evals changes and nightly
+.github/workflows/sdlc-gate.yml  chain check, verify, control-plane guard; skips drafts and Bot body edits, one run per pull request, triage only under the `triage` label
+.github/workflows/agent-evals.yml nightly and on demand; per commit the same cases run inside sdlc-gate's verify step
 .github/workflows/bands.yml      daily: matrix from bands.yaml, collect GitHub metrics (kept as a run artifact), run the band detector, file an issue on a breach or comment on the open one
 .github/workflows/deploy.yml     workflow_dispatch behind a GitHub Environment; the only place scripts/deploy.sh runs
 .github/workflows/pr-review.yml  reviews against REVIEW.md on PR open with no Bash; quotes Chain/Verify from the gate run; posts via the action's tracking comment
@@ -103,7 +103,7 @@ scripts/detect_bands.py          deterministic Western Electric detector (traili
 | Verified before "done" | rule 5, CLAUDE.md verification block | Stop hook; CI runs `verify.sh`, which reports and fails a non-executable check (`VERIFY_ALLOW_SKIPPED_CHECKS=1` to tolerate); `run_evals.sh` prints a failing oracle's output; `VERIFY_CMDS` runs the chain check against `HEAD` (structure only), the diff-in-plan check is `--base origin/main`, which CI runs | reads the pasted line |
 | Agent stops at the production gate | rule 4, environments.yaml | `production-gate.sh`: destructive → block; deploy (incl. `gh release create`, `gh workflow run`, `gh pr merge`) → ask, or block when unattended, unless `.sdlc/release-authorizations/<sha>` names a `release-manager` or `RELEASE_APPROVAL=<sha>` | release manager |
 | Review has evidence, ≤5 nits, no self-approval | REVIEW.md, `/sdlc-review` | reviewer subagents have no write tools; the merge click on this plan (`knowledge/decisions/merge-click-is-the-gate.md`), protected-branch rules where the plan allows them | code owner |
-| Config that steers the agent is regression-tested | Test play | `agent-evals.yml` on every change to `CLAUDE.md`, `GEMINI.md`, `AGENTS.md`, `REVIEW.md`, `.claude/**`, `.gemini/**`, `.claude-plugin/**`, `docs/sdlc/rules/**`, `docs/sdlc/templates/**`, `evals/**`, `.sdlc/**`, `scripts/**`; nightly `--require-claude`; `eval-cases.sh` refuses a case that cannot fail | config owner |
+| Config that steers the agent is regression-tested | Test play | every gated commit runs `scripts/run_evals.sh` inside `verify.sh` (`VERIFY_CMDS`), so the deterministic cases gate each pull request; `agent-evals.yml` runs the full suite nightly with `--require-claude` and on demand; `eval-cases.sh` refuses a case that cannot fail | config owner |
 | Mistake twice → memory | rule 7, REVIEW.md Memory pass | — | reviewer insists |
 | Detection stays deterministic; tier bounds the agent | — | `detect_bands.py` (no model) + `bands.yaml` tier `tools:` passed to `claude -p` by `bands.yml`; the 3σ `routes:` are declared, not yet acted on | service owner triages |
 | `approved-by` is a real human role, backed by a ledger entry | rule 8, `docs/sdlc/rules/30-conventions.md` | `protect-approvals.sh` refuses an agent-side `status: approved|superseded`, `approved-by`, `approved-on` or `approve.py` call (no unlock); `check_artifact_chain.py` validates against `.sdlc/approvers.yaml` and requires a matching `work/<slug>/log.md` entry | approver named in the file |
@@ -150,7 +150,8 @@ scripts/detect_bands.py          deterministic Western Electric detector (traili
    healthy output, architecture in ten lines, the mistakes the team sees most. One page; the generated block below is
    rendered from `docs/sdlc/rules/`.
 3. Add standards as skills (security is included; add UX, API conventions, data classification) and list them in `/sdlc-spec`.
-4. Protect `main`: require `sdlc-gate` and `agent-evals`; CODEOWNERS for `RELEASE_GATED_PATHS`.
+4. Protect `main`: require `sdlc-gate` (and `pr-review` once it reports), never `agent-evals`, which
+   does not run on every pull request and would block every merge; CODEOWNERS for `RELEASE_GATED_PATHS`.
 5. Run the loop by hand once. Then automate the spec pass on intent merge and the review pass on PR open.
 6. Collect 20–50 real tasks into `evals/cases/`. Add an `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` secret to CI so prompt cases run.
 7. Add your own metrics beside the two GitHub ones `bands.yaml` already reads; `bands.yml` diagnoses at 2σ and 3σ and files an issue with a drafted intent (`/sdlc-incident` is the manual follow-up).

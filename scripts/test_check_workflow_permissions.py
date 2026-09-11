@@ -285,9 +285,56 @@ class SdlcGate(unittest.TestCase):
 
         with open(self.PATH, encoding="utf-8") as f:
             self.doc = yaml.safe_load(f)
+        # YAML 1.1 reads a bare `on:` key as the boolean True (as ApproveWorkflow notes below).
+        self.triggers = self.doc[True] if True in self.doc else self.doc["on"]
+        self.job = self.doc["jobs"]["artifact-chain"]
 
     def test_permissions_are_exactly_contents_read_and_actions_read(self):
         self.assertEqual(self.doc["permissions"], {"contents": "read", "actions": "read"})
+
+    # work/ci-budget R-1 and R-2. The gate ran on every push to every pull request, draft or not,
+    # with no concurrency group, and installed the CLI to triage any red run. These four oracles
+    # are what "a draft costs nothing, a superseded run is cancelled, and a model reads a failure
+    # only when the owner asks" means in the file.
+
+    def test_ready_for_review_triggers(self):
+        types = self.triggers["pull_request"]["types"]
+        # Without this, a pull request that lived as a draft gets no gate run until its next push.
+        self.assertIn("ready_for_review", types)
+        # The six that were there stay: a human's body edit still runs, and the labels still do.
+        for kept in ("opened", "synchronize", "reopened", "edited", "labeled", "unlabeled"):
+            self.assertIn(kept, types)
+
+    def test_skips_drafts_and_bot_edits(self):
+        guard = " ".join((self.job.get("if") or "").split())
+        self.assertIn("github.event.pull_request.draft == false", guard)
+        # A Bot editing the body (an app's summary or tracking comment) changes nothing the gate
+        # reads, and used to buy a second full run on the same sha.
+        self.assertIn("github.event.action == 'edited'", guard)
+        self.assertIn("github.event.sender.type == 'Bot'", guard)
+
+    def test_cancels_only_on_synchronize(self):
+        self.assertIn("concurrency", self.doc, "the gate declares no concurrency group")
+        group = str(self.doc["concurrency"]["group"])
+        self.assertIn("github.event.pull_request.number", group)
+        # Only a new push supersedes a run. A same-sha re-trigger (a label, a human edit, going
+        # ready) queues behind it instead, so the head sha never carries a cancelled run.
+        cancel = str(self.doc["concurrency"]["cancel-in-progress"])
+        self.assertIn("github.event.action == 'synchronize'", cancel)
+
+    def test_triage_is_label_gated(self):
+        label_clause = "contains(github.event.pull_request.labels.*.name, 'triage')"
+        on_failure, gated = [], []
+        for step in self.job["steps"]:
+            guard = " ".join(str(step.get("if") or "").split())
+            if "failure()" in guard:
+                on_failure.append(step.get("name"))
+            if label_clause in guard:
+                gated.append(step.get("name"))
+        self.assertEqual(len(on_failure), 2, "the trust and triage steps are the failure() pair")
+        # Both, and nothing else: a step that installs the CLI without the label is the cost this
+        # requirement removes, and a label clause anywhere else would gate a check that must run.
+        self.assertEqual(sorted(gated), sorted(on_failure))
 
     def test_the_artifact_chain_step_receives_gh_token(self):
         steps = self.doc["jobs"]["artifact-chain"]["steps"]
@@ -386,3 +433,95 @@ class ApproveWorkflow(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class PrReviewWorkflow(unittest.TestCase):
+    """work/ci-budget R-3: one review per ready push, and on the `@claude` comment route the
+    reviewer takes both its policy and its configuration from the base branch.
+
+    The action restores `.claude/` and `CLAUDE.md` from base on `pull_request` events only, and the
+    comment route checks out `refs/pull/N/head` with the credential in hand. So a branch could hand
+    the reviewer its own instructions, which is the same class of problem REVIEW.md was already
+    pinned against (spec C4), and a fork's head could be checked out at all (A2b).
+    """
+
+    PATH = os.path.join(ROOT, ".github", "workflows", "pr-review.yml")
+
+    def setUp(self):
+        import yaml
+
+        with open(self.PATH, encoding="utf-8") as f:
+            self.text = f.read()
+        self.doc = yaml.safe_load(self.text)
+        self.steps = self.doc["jobs"]["review"]["steps"]
+
+    def _step(self, needle):
+        for step in self.steps:
+            if needle in str(step.get("name") or "") or needle in str(step.get("uses") or ""):
+                return step
+        self.fail("no step matching %r" % needle)
+
+    def test_concurrency(self):
+        self.assertIn("concurrency", self.doc, "pr-review declares no concurrency group")
+        group = str(self.doc["concurrency"]["group"])
+        # Both triggers: a pull_request event carries the number, an issue_comment the issue's.
+        self.assertIn("github.event.pull_request.number", group)
+        self.assertIn("github.event.issue.number", group)
+        cancel = str(self.doc["concurrency"]["cancel-in-progress"])
+        self.assertIn("github.event.action == 'synchronize'", cancel)
+
+    def test_fork_guard_precedes_checkout(self):
+        names = [str(s.get("name") or s.get("uses") or "") for s in self.steps]
+        guard = self._step("head repository")
+        checkout = self._step("actions/checkout")
+        self.assertLess(names.index(str(guard.get("name"))), names.index(str(checkout.get("name"))),
+                        "the guard must run before the head is checked out, not beside it")
+        self.assertIn("issue_comment", str(guard.get("if")))
+        # It gates the checkout rather than only reporting: the checkout's own condition reads it.
+        self.assertIn("steps.local.outputs.ok", str(checkout.get("if")))
+
+    def test_pins_agent_config_from_base_on_comments(self):
+        pin = self._step("Pin review policy")
+        run = str(pin.get("run") or "")
+        for path in ("REVIEW.md", "CLAUDE.md", "GEMINI.md", "AGENTS.md", ".claude"):
+            self.assertIn(path, run, path)
+
+    def test_draft_skip_and_no_bash_unchanged(self):
+        guard = " ".join(str(self.doc["jobs"]["review"].get("if") or "").split())
+        self.assertIn("github.event.pull_request.draft == false", guard)
+        self.assertIn('contains(fromJSON(\'["OWNER","MEMBER","COLLABORATOR"]\')', guard)
+        self.assertIn('--disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch"',
+                      self.text)
+
+
+class DelegatedMergeWorkflow(unittest.TestCase):
+    """work/ci-budget R-5: the merge script wakes on the two workflows the policy requires.
+
+    `agent-evals` left `merge.require-checks` on 2026-09-06 (15424e0) but stayed in this list, so
+    every one of its runs woke the merge script for a minute to print `waiting`.
+    """
+
+    PATH = os.path.join(ROOT, ".github", "workflows", "delegated-merge.yml")
+
+    def test_wakes_on_gate_and_review_only(self):
+        import yaml
+
+        with open(self.PATH, encoding="utf-8") as f:
+            doc = yaml.safe_load(f)
+        triggers = doc[True] if True in doc else doc["on"]
+        self.assertEqual(triggers["workflow_run"]["workflows"], ["sdlc-gate", "pr-review"])
+
+    def test_the_wake_list_matches_the_policy(self):
+        # The two lists are the same decision written twice; a later edit to one alone is the
+        # failure this catches (an extra name delays a merge, a missing one never wakes it).
+        import delegation
+
+        policy = delegation.load()
+        import yaml
+
+        with open(self.PATH, encoding="utf-8") as f:
+            doc = yaml.safe_load(f)
+        triggers = doc[True] if True in doc else doc["on"]
+        self.assertEqual(sorted(triggers["workflow_run"]["workflows"]),
+                         sorted(policy.merge.get("require_checks") or []))
