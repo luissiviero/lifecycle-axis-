@@ -5,11 +5,11 @@ title: Reduce GitHub minutes, waiting time and wasted tokens; keep the crucial p
 description: "Two pull requests: the control plane (draft-skipping gate, label-gated triage, per-PR concurrency, nightly-only evals, two-workflow merge wake, the skipped-run rule and the not-delegated verdict in the merge script) and the agent side (draft-first skills, one code PR at a time, the actions_minutes_per_pr measure with its band, the crucial-versus-loosened decision record)."
 stage: design
 # status: draft | in-review | approved | delegated | superseded
-status: in-review
+status: approved
 reads: intent.md
 # approved-by: product owner; tech lead consulted for medium/high risk; set only by a human
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-11
 # skills-applied: skills loaded as hard constraints while writing this spec
 skills-applied: [security-standards]
 skills-version: a8b7001
