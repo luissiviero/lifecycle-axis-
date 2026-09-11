@@ -46,7 +46,7 @@ min-reviewers: 2
 merge:
   enabled: true
   require-review: true
-  require-checks: [sdlc-gate, agent-evals, pr-review]
+  require-checks: [sdlc-gate, pr-review]
   method: merge
   cool-off-hours: 0
 locked-paths: [scripts/check_artifact_chain.py, scripts/approvers.py, scripts/log_ledger.py, scripts/approve.py, scripts/sign.py, scripts/delegation.py, scripts/delegated_merge.py, scripts/check_control_plane.sh, scripts/check_workflow_permissions.py, REVIEW.md, .claude-plugin]
@@ -82,7 +82,10 @@ REVIEW_TIME = "2026-09-05T11:00:00Z"
 NOW = datetime(2026, 9, 5, 12, 0, 0, tzinfo=timezone.utc)
 # The pr-review run whose id the review comment must link (findings 3/4).
 REVIEW_RUN_ID = 7003
-RUN_IDS = {"sdlc-gate": 7001, "agent-evals": 7002, "pr-review": REVIEW_RUN_ID}
+RUN_IDS = {"sdlc-gate": 7001, "pr-review": REVIEW_RUN_ID}
+# The workflow each run belongs to. `name:` is a string the head branch writes, so the superseded
+# rule joins on this instead (PR-A security pass).
+WORKFLOW_IDS = {"sdlc-gate": 11, "pr-review": 13}
 REVIEW_RUN_URL = "https://github.com/%s/actions/runs/%d" % (REPO, REVIEW_RUN_ID)
 
 INTENT_TEXT = """\
@@ -155,9 +158,10 @@ def make_runs(**over):
     """The three required workflow runs, as `actions/runs?head_sha=` returns them: each carries the
     `event` and `head_branch` the checks and review conditions filter on, and an `id` the review
     comment links."""
-    names = ["sdlc-gate", "agent-evals", "pr-review"]
-    runs = [{"name": n, "id": RUN_IDS[n], "event": "pull_request", "head_branch": HEAD_REF,
-             "status": "completed", "conclusion": "success", "updated_at": HEAD_TIME}
+    names = ["sdlc-gate", "pr-review"]
+    runs = [{"name": n, "id": RUN_IDS[n], "workflow_id": WORKFLOW_IDS[n], "event": "pull_request",
+             "head_branch": HEAD_REF, "status": "completed", "conclusion": "success",
+             "updated_at": HEAD_TIME}
             for n in names]
     for run in runs:
         if run["name"] in over:
@@ -165,10 +169,23 @@ def make_runs(**over):
     return runs
 
 
+def _run(name, **over):
+    """One `pull_request` run of `name` on this head, green unless overridden.
+
+    work/ci-budget R-6 needs several runs of the SAME workflow on one head sha -- a draft's skipped
+    attempt, a run a concurrency group evicted, and the green one that followed -- which `make_runs`
+    cannot express, since it builds one run per name.
+    """
+    run = {"name": name, "id": RUN_IDS.get(name, 7000), "workflow_id": WORKFLOW_IDS.get(name, 99),
+           "event": "pull_request", "head_branch": HEAD_REF, "status": "completed",
+           "conclusion": "success", "updated_at": HEAD_TIME}
+    run.update(over)
+    return run
+
+
 def make_check_runs():
     return [
         {"name": "sdlc-gate", "status": "completed", "conclusion": "success"},
-        {"name": "agent-evals", "status": "completed", "conclusion": "success"},
         {"name": "pr-review", "status": "completed", "conclusion": "success"},
         # delegated-merge.yml's own job, named `merge`: GitHub names a check run after the job.
         {"name": "merge", "status": "in_progress", "conclusion": None},
@@ -347,7 +364,7 @@ class PullRequestCondition(unittest.TestCase):
 # 4. checks
 # ---------------------------------------------------------------------------
 class ChecksCondition(unittest.TestCase):
-    required = ["sdlc-gate", "agent-evals", "pr-review"]
+    required = ["sdlc-gate", "pr-review"]
 
     def check(self, runs, head_ref=HEAD_REF):
         return dm.check_required_runs(runs, self.required, head_ref)
@@ -357,10 +374,10 @@ class ChecksCondition(unittest.TestCase):
         self.assertEqual(verdict, dm.OK, detail)
 
     def test_required_workflow_missing_is_refused(self):
-        runs = [r for r in make_runs() if r["name"] != "agent-evals"]
+        runs = [r for r in make_runs() if r["name"] != "sdlc-gate"]
         verdict, detail = self.check(runs)
         self.assertEqual(verdict, dm.REFUSED)
-        self.assertIn("agent-evals", detail)
+        self.assertIn("sdlc-gate", detail)
 
     def test_required_workflow_failed_is_refused(self):
         runs = make_runs(**{"pr-review": {"conclusion": "failure"}})
@@ -373,6 +390,49 @@ class ChecksCondition(unittest.TestCase):
         verdict, detail = self.check(runs)
         self.assertEqual(verdict, dm.WAITING)
         self.assertIn("in_progress", detail)
+
+    # work/ci-budget R-6. A draft's runs and a run an eviction cancelled are not evidence about the
+    # head that later went ready on the same sha; everything else still refuses exactly as before.
+
+    def test_skipped_draft_run_beside_success_is_ok(self):
+        runs = make_runs() + [_run("sdlc-gate", id=6001, conclusion=dm.SKIPPED)]
+        verdict, detail = self.check(runs)
+        self.assertEqual(verdict, dm.OK, detail)
+
+    def test_only_a_skipped_run_is_refused(self):
+        # Dropping every row of a workflow leaves no run at all, which is the empty-`matching`
+        # refusal: "nothing passed" must never read as "nothing failed".
+        runs = [r for r in make_runs() if r["name"] != "sdlc-gate"]
+        runs.append(_run("sdlc-gate", conclusion=dm.SKIPPED))
+        verdict, detail = self.check(runs)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("sdlc-gate", detail)
+
+    def test_cancelled_beside_a_later_success_is_ok(self):
+        runs = make_runs() + [_run("sdlc-gate", id=6001, conclusion=dm.CANCELLED)]
+        verdict, detail = self.check(runs)
+        self.assertEqual(verdict, dm.OK, detail)
+
+    def test_cancelled_beside_an_earlier_success_still_refused(self):
+        # The success came first, so the cancellation is the newer word on this head.
+        runs = make_runs() + [_run("sdlc-gate", id=9001, conclusion=dm.CANCELLED)]
+        verdict, detail = self.check(runs)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn(dm.CANCELLED, detail)
+
+    def test_only_a_cancelled_run_is_refused(self):
+        runs = [r for r in make_runs() if r["name"] != "sdlc-gate"]
+        runs.append(_run("sdlc-gate", conclusion=dm.CANCELLED))
+        verdict, detail = self.check(runs)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("sdlc-gate", detail)
+
+    def test_failed_beside_success_still_refused(self):
+        # Only `skipped` and an evicted `cancelled` are ever dropped. A failure is the answer.
+        runs = make_runs() + [_run("sdlc-gate", id=6001, conclusion="failure")]
+        verdict, detail = self.check(runs)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn("failure", detail)
 
     def test_a_dispatched_green_run_does_not_excuse_a_failed_pull_request_run(self):
         # Finding 5: anybody with write access can start a workflow_dispatch run and let it pass.
@@ -776,6 +836,20 @@ class ReviewCondition(unittest.TestCase):
         self.assertEqual(verdict, dm.WAITING)
         self.assertIn("claude[bot]", detail)
 
+    def test_skipped_review_run_beside_success_reads_the_success(self):
+        # work/ci-budget R-6: the draft's skipped review run must not become "the newest run",
+        # or the comment linking the real one would never be believed.
+        runs = make_runs() + [_run("pr-review", id=9001, conclusion=dm.SKIPPED)]
+        verdict, detail = self.check([make_review_comment()], runs=runs)
+        self.assertEqual(verdict, dm.OK, detail)
+        self.assertIn(str(REVIEW_RUN_ID), detail)
+
+    def test_only_a_skipped_review_run_waits(self):
+        runs = [r for r in make_runs() if r["name"] != "pr-review"]
+        runs.append(_run("pr-review", conclusion=dm.SKIPPED))
+        verdict, _ = self.check([make_review_comment()], runs=runs)
+        self.assertEqual(verdict, dm.WAITING)
+
     def test_a_human_comment_is_not_a_review(self):
         human = {"user": {"login": "owner", "type": "User"},
                  "created_at": REVIEW_TIME,
@@ -839,7 +913,7 @@ class ReviewCondition(unittest.TestCase):
 # 8. cool-off
 # ---------------------------------------------------------------------------
 class CoolOffCondition(unittest.TestCase):
-    required = ["sdlc-gate", "agent-evals", "pr-review"]
+    required = ["sdlc-gate", "pr-review"]
 
     def test_zero_hours_is_ok(self):
         verdict, detail = dm.check_cool_off(make_runs(), self.required, 0, NOW, HEAD_REF)
@@ -858,6 +932,22 @@ class CoolOffCondition(unittest.TestCase):
     def test_no_required_run_timestamp_waits(self):
         verdict, _ = dm.check_cool_off([], self.required, 4, NOW, HEAD_REF)
         self.assertEqual(verdict, dm.WAITING)
+
+    def test_skipped_run_is_not_a_stamp(self):
+        # work/ci-budget R-6: a draft's run finishes in seconds, so counting it would let the
+        # waiting window be satisfied by the very runs the draft guard made meaningless.
+        # The stamp is recent enough to CLEAR a one-hour window, so a passing verdict here would
+        # mean the skipped run was counted. The detail is asserted too, because "waiting" alone
+        # cannot tell "no stamp at all" from "a stamp too recent" (PR-A M2 revision).
+        skipped = [_run(name, conclusion=dm.SKIPPED, updated_at="2026-09-05T10:00:00Z")
+                   for name in self.required]
+        verdict, detail = dm.check_cool_off(skipped, self.required, 1, NOW, HEAD_REF)
+        self.assertEqual(verdict, dm.WAITING)
+        self.assertIn("no", detail.lower())
+        # The same runs, not skipped, do clear that window: it is the conclusion that decides.
+        verdict, _ = dm.check_cool_off([_run(name) for name in self.required],
+                                       self.required, 1, NOW, HEAD_REF)
+        self.assertEqual(verdict, dm.OK)
 
     def test_a_dispatched_run_is_not_a_cool_off_stamp(self):
         # Finding 5: the same filter as the checks condition, or a hand-started run would restart
@@ -896,6 +986,12 @@ class Checkout(object):
     def set_fixture(self, method, path, payload):
         _write(os.path.join(self.fixtures, dm.fixture_name(method, path)),
                json.dumps(payload))
+
+    def set_local_intent(self, text):
+        """The item's intent as it stands in the checkout this job runs from, which is always the
+        default branch. `check_delegation` reads it from disk rather than the API."""
+        _write(os.path.join(self.root, "work", SLUG, "intent.md"), text)
+        return self
 
     def set_intent(self, ref, text):
         self.set_fixture("GET", "repos/%s/contents/%s?ref=%s" % (REPO, INTENT_PATH, ref),
@@ -952,13 +1048,69 @@ class EndToEnd(unittest.TestCase):
             sys.stdout = saved
         return code, out.getvalue()
 
+    def test_pull_request_with_an_evicted_attempt_merges_on_the_later_success(self):
+        # work/ci-budget R-6, the case plan.md's step 4 and Proof row promise: an evicted attempt
+        # carried through the WHOLE pipeline, not through one condition. Going ready, a label and a
+        # human body edit are three events on one sha, and GitHub evicts the pending run of the
+        # group as `cancelled`. The later success of the same workflow is what clears it.
+        checkout = Checkout(self.tmp.name).happy_path()
+        runs = make_runs() + [_run("sdlc-gate", id=6001, conclusion=dm.CANCELLED)]
+        checkout.set_fixture("GET", "repos/%s/actions/runs?head_sha=%s&per_page=100" % (REPO, HEAD_SHA),
+                             {"workflow_runs": runs})
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 0, output)
+        self.assertIn("DELEGATED-MERGE: merged #12 %s" % HEAD_SHA, output)
+
+    def test_an_evicted_attempts_check_run_row_still_refuses(self):
+        # The residual this item deliberately does not widen (spec R6 confines the rule to
+        # _pr_runs; plan.md's Risks row names it). `check_check_runs` reads the commit's check-run
+        # rows, a different API list, and `cancelled` is not an accepted conclusion there. If that
+        # list ever carries the evicted attempt's row, the sha refuses at `checks` -- fail-closed,
+        # never a merge, and the live dry run at M3 is what settles whether GitHub's default
+        # `filter=latest` returns such a row at all.
+        checkout = Checkout(self.tmp.name).happy_path()
+        checkout.set_fixture("GET", "repos/%s/commits/%s/check-runs?per_page=100" % (REPO, HEAD_SHA),
+                             {"check_runs": make_check_runs() + [
+                                 {"name": "sdlc-gate", "status": "completed",
+                                  "conclusion": dm.CANCELLED}]})
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 1, output)
+        self.assertIn("CONDITION checks: refused", output)
+        self.assertEqual(checkout.calls(), [])
+
+    def test_supervised_pull_request_ends_not_delegated(self):
+        # work/ci-budget R-7, from the pipeline's end rather than the condition's: the run is green
+        # and NOTHING was merged. `calls()` is the proof -- every mutating call is a line in it, so
+        # an empty file is the assertion that a green verdict here never merges anything.
+        checkout = Checkout(self.tmp.name).happy_path()
+        checkout.set_local_intent(INTENT_TEXT.replace("mode: delegated", "mode: supervised"))
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 0, output)
+        self.assertIn("DELEGATED-MERGE: not-delegated (delegation)", output)
+        self.assertEqual(checkout.calls(), [])
+
+    def test_pull_request_that_was_a_draft_merges_on_its_ready_run(self):
+        # work/ci-budget R-6, end to end: the draft's last push and the ready run share a sha, so
+        # that sha carries a skipped run of each required workflow beside the green one. Before the
+        # rule in `_pr_runs`, every pull request that was ever a draft was unmergeable.
+        checkout = Checkout(self.tmp.name).happy_path()
+        runs = make_runs() + [_run("sdlc-gate", id=6001, conclusion=dm.SKIPPED),
+                              _run("pr-review", id=6002, conclusion=dm.SKIPPED)]
+        checkout.set_fixture("GET", "repos/%s/actions/runs?head_sha=%s&per_page=100" % (REPO, HEAD_SHA),
+                             {"workflow_runs": runs})
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 0, output)
+        self.assertIn("DELEGATED-MERGE: merged #12 %s" % HEAD_SHA, output)
+
     def test_every_condition_ok_merges_deletes_the_branch_and_comments(self):
         checkout = Checkout(self.tmp.name).happy_path()
         code, output = self.run_main(checkout)
         self.assertEqual(code, 0, output)
         names = [line.split(":")[0].replace("CONDITION ", "")
                  for line in output.splitlines() if line.startswith("CONDITION ")]
-        self.assertEqual(names, ["policy", "event", "pull-request", "checks", "grant",
+        # `delegation` joins the order at work/ci-budget R-7, between `event` and `pull-request`:
+        # on a delegated item it is `ok` and changes nothing below it.
+        self.assertEqual(names, ["policy", "event", "delegation", "pull-request", "checks", "grant",
                                  "locked-paths", "review", "cool-off"])
         self.assertIn("DELEGATED-MERGE: merged #12 %s" % HEAD_SHA, output)
         self.assertIn("on %s" % BASE_REF, output)  # the grant was read from the base branch
@@ -1146,6 +1298,59 @@ class StaleMerge(unittest.TestCase):
 
 
 class Plumbing(unittest.TestCase):
+    def test_pr_runs_drops_completed_skipped_keeps_in_progress(self):
+        runs = [_run("sdlc-gate", id=6001, conclusion=dm.SKIPPED),
+                _run("sdlc-gate", id=6002, status="in_progress", conclusion=None),
+                _run("sdlc-gate", id=6003)]
+        kept = dm._pr_runs(runs, HEAD_REF)
+        self.assertEqual([r["id"] for r in kept], [6002, 6003])
+
+    def test_pr_runs_drops_cancelled_only_under_a_later_success(self):
+        evicted = _run("sdlc-gate", id=6001, conclusion=dm.CANCELLED)
+        later_success = _run("sdlc-gate", id=6002)
+        self.assertEqual([r["id"] for r in dm._pr_runs([evicted, later_success], HEAD_REF)], [6002])
+        # No later success of that workflow: the cancellation stands, and so does the refusal.
+        self.assertEqual([r["id"] for r in dm._pr_runs([evicted], HEAD_REF)], [6001])
+        # A later success of a DIFFERENT workflow says nothing about this one.
+        other = _run("pr-review", id=6003)
+        self.assertEqual(sorted(r["id"] for r in dm._pr_runs([evicted, other], HEAD_REF)),
+                         [6001, 6003])
+
+    def test_a_same_named_run_of_another_workflow_never_supersedes(self):
+        # PR-A security pass: `name:` is written by the head branch, so a diff could add
+        # .github/workflows/x.yml called `sdlc-gate` whose body always succeeds. On a same-repository
+        # pull request that file runs from the head. Keyed on the name it would launder the real
+        # gate's cancelled row and the required check would read green for a commit the real gate
+        # never judged. The join key is workflow_id.
+        evicted = _run("sdlc-gate", id=6001, conclusion=dm.CANCELLED)
+        forged = _run("sdlc-gate", id=6002, workflow_id=4242)
+        self.assertEqual(sorted(r["id"] for r in dm._pr_runs([evicted, forged], HEAD_REF)),
+                         [6001, 6002])
+        # And the condition still refuses on it, which is the point.
+        verdict, detail = dm.check_required_runs([evicted, forged], ["sdlc-gate"], HEAD_REF)
+        self.assertEqual(verdict, dm.REFUSED)
+        self.assertIn(dm.CANCELLED, detail)
+
+    def test_a_run_with_no_workflow_id_supersedes_nothing(self):
+        evicted = _run("sdlc-gate", id=6001, conclusion=dm.CANCELLED)
+        del evicted["workflow_id"]
+        later = _run("sdlc-gate", id=6002)
+        self.assertEqual(sorted(r["id"] for r in dm._pr_runs([evicted, later], HEAD_REF)),
+                         [6001, 6002])
+
+    def test_code_maps_not_delegated_to_0_refused_to_1(self):
+        supervised = dm.Run(dry_run=False, stream=io.StringIO())
+        supervised.record("delegation", (dm.NOT_DELEGATED, "#12, Work-Item: x, mode supervised"))
+        self.assertEqual(supervised._code(), 0)
+        # A real refusal beside it outranks it: the run is red and says so, which is the whole
+        # point of the verdict (work/ci-budget R-7).
+        both = dm.Run(dry_run=False, stream=io.StringIO())
+        both.record("delegation", (dm.NOT_DELEGATED, "#12, Work-Item: x, mode supervised"))
+        both.record("locked-paths", (dm.REFUSED, ".github/workflows/sdlc-gate.yml"))
+        self.assertEqual(both._code(), 1)
+        both.finish()
+        self.assertIn("DELEGATED-MERGE: refused (locked-paths)", both.stream.getvalue())
+
     def test_fixture_name_flattens_the_query_string(self):
         self.assertEqual(dm.fixture_name("GET", "repos/o/r/pulls/1/files?per_page=100"),
                          "GET_repos_o_r_pulls_1_files_per_page_100.json")
@@ -1418,6 +1623,110 @@ class Advance(unittest.TestCase):
         self.assertEqual(self._pointer(), "merged-item")
         self.assertEqual(self._git("rev-parse", "HEAD"), before)
         self.assertIn("dry-run", out.stream.getvalue())
+
+
+class DelegationCondition(unittest.TestCase):
+    """work/ci-budget R-7: a supervised item is not this workflow's to merge, and saying so is a
+    green run rather than a red one -- while every refusal about the pull request itself stays red
+    beside it, so the run list still means "a human is needed" when it is red."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(setattr, dm, "API", None)
+        self.root = os.path.join(self.tmp.name, "checkout")
+
+    def _intent(self, text):
+        _write(os.path.join(self.root, "work", SLUG, "intent.md"), text)
+
+    def run_main(self, checkout, *extra):
+        out = io.StringIO()
+        saved = sys.stdout
+        sys.stdout = out
+        try:
+            code = dm.main(checkout.argv(*extra))
+        finally:
+            sys.stdout = saved
+        return code, out.getvalue()
+
+    # --- the condition itself -------------------------------------------------------------
+    def test_delegated_intent_is_ok(self):
+        self._intent(INTENT_TEXT)
+        verdict, detail = dm.check_delegation(make_pr(), self.root)
+        self.assertEqual(verdict, dm.OK, detail)
+
+    def test_missing_intent_is_ok(self):
+        # Not this condition's refusal to make: check_grant_front_matter refuses it, red.
+        verdict, detail = dm.check_delegation(make_pr(), self.root)
+        self.assertEqual(verdict, dm.OK)
+        self.assertIn("grant condition", detail)
+
+    def test_no_slug_is_ok(self):
+        self._intent(INTENT_TEXT)
+        verdict, detail = dm.check_delegation(make_pr(body="No work item line here.\n"), self.root)
+        self.assertEqual(verdict, dm.OK)
+        self.assertIn("pull-request condition", detail)
+
+    def test_a_misspelled_mode_defers_to_the_grant_condition(self):
+        # `Delegated` is not the grant word. The grant condition refuses it red and names the
+        # spelling; answering a green not-delegated here would swallow that reason, on an intent
+        # whose owner plainly meant to delegate it (PR-A M2 revision).
+        self._intent(INTENT_TEXT.replace("mode: delegated", "mode: Delegated"))
+        verdict, detail = dm.check_delegation(make_pr(), self.root)
+        self.assertEqual(verdict, dm.OK)
+        self.assertIn("grant condition", detail)
+
+    def test_self_signed_intent_defers_to_the_grant_condition(self):
+        # The dangerous shape: an agent signed the grant itself. `mode` is not `delegated`, so a
+        # naive reading would answer not-delegated and end the run green, hiding the one refusal
+        # that matters most. It must reach check_grant_front_matter, which refuses it red.
+        self._intent(INTENT_TEXT.replace("status: approved", "status: delegated")
+                                .replace("mode: delegated", "mode: supervised"))
+        verdict, detail = dm.check_delegation(make_pr(), self.root)
+        self.assertEqual(verdict, dm.OK)
+        self.assertIn("grant condition", detail)
+
+    # --- end to end -----------------------------------------------------------------------
+    def _supervised_checkout(self):
+        checkout = Checkout(self.tmp.name).happy_path()
+        checkout.set_local_intent(INTENT_TEXT.replace("mode: delegated", "mode: supervised"))
+        return checkout
+
+    def test_supervised_intent_is_not_delegated_exit_0(self):
+        code, output = self.run_main(self._supervised_checkout())
+        self.assertEqual(code, 0, output)
+        self.assertIn("CONDITION delegation: not-delegated", output)
+        self.assertIn("DELEGATED-MERGE: not-delegated (delegation)", output)
+        # Nothing was merged, and the conditions that only matter for a mergeable item are skipped.
+        self.assertNotIn("CONDITION grant", output)
+        self.assertNotIn("CONDITION checks", output)
+
+    def test_supervised_intent_with_a_locked_path_stays_red(self):
+        checkout = self._supervised_checkout()
+        checkout.set_fixture("GET", "repos/%s/pulls/12/files?per_page=100" % REPO,
+                             [{"filename": ".github/workflows/sdlc-gate.yml"}])
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 1, output)
+        self.assertIn("CONDITION locked-paths: refused", output)
+        self.assertIn("DELEGATED-MERGE: refused (locked-paths)", output)
+
+    def test_supervised_intent_on_a_non_agent_branch_stays_red(self):
+        checkout = self._supervised_checkout()
+        checkout.set_fixture("GET", "repos/%s/commits/%s/pulls" % (REPO, HEAD_SHA),
+                             [make_pr(head={"sha": HEAD_SHA, "ref": "work/%s" % SLUG,
+                                            "label": "owner:work/%s" % SLUG})])
+        code, output = self.run_main(checkout)
+        self.assertEqual(code, 1, output)
+        self.assertIn("CONDITION pull-request: refused", output)
+
+    def test_dry_run_prints_and_continues(self):
+        code, output = self.run_main(self._supervised_checkout(), "--dry-run")
+        self.assertEqual(code, 0, output)
+        self.assertIn("CONDITION delegation: not-delegated", output)
+        # --dry-run evaluates everything still evaluable, which is what makes it useful against a
+        # supervised item's pull request (the owner's route through delegated-merge.yml).
+        self.assertIn("CONDITION checks", output)
+        self.assertIn("dry-run", output)
 
 
 if __name__ == "__main__":
