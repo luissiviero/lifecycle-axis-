@@ -22,7 +22,7 @@ timestamp: 2026-09-13T22:40:00Z
 
 One pull request on this session's branch `claude/app-creation-mock-test-w4gf88`, reset from `main`, opened as a
 draft and ending in the owner's merge click — which this item needs on three grounds, any one of which suffices:
-it is `mode: supervised`, so no delegated merge ever runs for it; ten of its fourteen paths sit under the merge
+it is `mode: supervised`, so no delegated merge ever runs for it; eight of its fourteen paths sit under the merge
 script's `ALWAYS_LOCKED` floor (`.claude`, `docs/sdlc/rules`, the three rendered files; `delegated_merge.py:89-93`);
 and the owner put `docs/sdlc/handoff` on the policy's `locked-paths` at `d035c6e` (spec C5, closed).
 The writer is this session on Fable; the reviewers run on a different model (`plan-reviewer` and
