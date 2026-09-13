@@ -269,6 +269,44 @@ class ActionsMinutesSeries(unittest.TestCase):
         ]
         self.assertEqual(actions_minutes_series(rows, days=1), [2.0])
 
+    def test_a_fork_branch_sharing_the_default_name_is_still_a_pull_request(self):
+        # A fork's `head_branch` is the bare ref name, so a pull request opened from the
+        # fork's own default branch arrives as "main" -- the ordinary case, not a contrived
+        # one. Before this it paid minutes into the day and divided none of them, inflating
+        # every other pull request's average (PR-B security pass).
+        rows = [
+            _run("2026-09-01", "10:00:00Z", "10:09:00Z", head_branch="main"),
+            _run("2026-09-01", "11:00:00Z", "11:01:00Z", head_branch="claude/real"),
+        ]
+        rows[0]["head_repository"] = {"full_name": "outsider/repo"}
+        rows[0]["repository"] = {"full_name": "owner/repo"}
+        rows[1]["head_repository"] = {"full_name": "owner/repo"}
+        rows[1]["repository"] = {"full_name": "owner/repo"}
+        self.assertEqual(actions_minutes_series(rows, days=30), [5.0])
+
+    def test_two_forks_on_the_same_branch_name_are_two_pull_requests(self):
+        rows = [
+            _run("2026-09-01", "10:00:00Z", "10:03:00Z", head_branch="patch"),
+            _run("2026-09-01", "11:00:00Z", "11:07:00Z", head_branch="patch"),
+        ]
+        rows[0]["head_repository"] = {"full_name": "alice/repo"}
+        rows[1]["head_repository"] = {"full_name": "bob/repo"}
+        for row in rows:
+            row["repository"] = {"full_name": "owner/repo"}
+        self.assertEqual(actions_minutes_series(rows, days=30), [5.0])
+
+    def test_the_wake_on_this_repository_s_default_branch_still_divides_nothing(self):
+        # The fork rule must not readmit the merge wake: same repository, default branch.
+        rows = [
+            _run("2026-09-01", "10:00:00Z", "10:02:00Z", head_branch="claude/a"),
+            _run("2026-09-01", "10:03:00Z", "10:03:20Z", event="workflow_run", head_branch="main"),
+        ]
+        rows[0]["head_repository"] = {"full_name": "owner/repo"}
+        rows[1]["head_repository"] = {"full_name": "owner/repo"}
+        for row in rows:
+            row["repository"] = {"full_name": "owner/repo"}
+        self.assertEqual(actions_minutes_series(rows, days=30), [3.0])
+
     def test_the_default_branch_is_configurable(self):
         rows = [_run("2026-09-01", "10:00:00Z", "10:02:00Z", head_branch="trunk")]
         self.assertEqual(actions_minutes_series(rows, days=30, default_branch="main"), [2.0])
