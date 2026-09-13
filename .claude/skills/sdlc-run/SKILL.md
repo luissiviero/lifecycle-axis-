@@ -26,11 +26,15 @@ what makes it a queue.
 3. Implement on the session's own branch, whose prefix is in `AGENT_BRANCH_PREFIXES` (`.sdlc/config.env`, for
    example `claude/`): the merge workflow refuses any other head, and `work/<slug>` stays the human's branch. Log
    a file-list or order deviation as a ledger line in the same commit, capped by the policy's `max-deviations`.
+   Open the pull request with `gh pr create --draft` on the first push and leave it a draft until step 5: the
+   gate and the reviewer skip a draft, so the whole build window is CI-free, not gate-free -- you still run
+   step 4 locally at every step. One agent code pull request is open at a time (an intent-only one may run
+   beside it).
 4. Run `scripts/verify.sh`, `python3 scripts/check_artifact_chain.py --base origin/main`, `scripts/run_evals.sh`,
    `python3 scripts/check_okf.py`.
-5. `/sdlc-review`, with reviewer subagents run on a different model from the writer where possible. On a
-   delegated item that skill posts the findings with the summary line `Important: <n> | Nits: <m>`, runs
-   `gh pr ready` and logs `PR #<n> | draft -> in-review`; do not repeat those here.
+5. `/sdlc-review`, with reviewer subagents run on a different model from the writer where possible. That skill
+   runs `gh pr ready` and logs `PR #<n> | draft -> in-review`, and on a delegated item also posts the findings
+   with the summary line `Important: <n> | Nits: <m>`; do not repeat those here.
 6. The ready pull request is the callback when the policy has `merge.enabled: false`; otherwise the
    delegated-merge workflow merges when its printed conditions hold.
 7. **Advance.** Subscribe to the pull request you opened (`subscribe_pr_activity`) and stay on it: answer its

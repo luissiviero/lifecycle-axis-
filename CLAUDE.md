@@ -50,21 +50,20 @@ Run all of them before reporting a task complete and paste the last lines. If a 
 - Keep this file under `MAX_CONTEXT_LINES` (120): `wc -l CLAUDE.md` after regenerating; trim prose, never rules, if over
 
 ## Workflow
-One stage at a time: write `intent.md`, then `spec.md`, then `plan.md`, then implement,
-then review, and file `incident.md` when something breaks. Templates for each artifact
-are in `docs/sdlc/templates/`. Do not start an artifact until a human has approved the
-previous one, or the agent has signed it under a delegation grant.
+One stage at a time: write `intent.md`, then `spec.md`, then `plan.md`, then implement, then review, and file
+`incident.md` when something breaks. Templates for each artifact are in `docs/sdlc/templates/`. Do not start an
+artifact until a human has approved the previous one, or the agent has signed it under a delegation grant.
 
 ## Conventions
 - Branch: `work/<slug>` for a human; an agent session's branch carries a prefix from `AGENT_BRANCH_PREFIXES`
   (`claude/`). PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
-- A review runs on a **different model from the one that wrote the work**, whenever a second one is available:
-  a writer re-reading its own diff shares its own blind spots, and pull request 51 has the scars — three rounds,
-  each finding real defects in the last round's fixes, two of them introduced by the fix before. The item's
-  ledger records which model wrote and which reviewed (the owner writes the names, as `revisions/<n>.md`'s
-  `## Reviewer: <role> (<model>)` heading expects), so a later reader can tell a second pair of eyes from one.
+- Keep one agent code pull request open at a time (an intent-only one may run beside it); open it as a draft and mark it ready once.
+- A review runs on a **different model from the one that wrote the work** when a second is available: a writer re-reading its own
+  diff shares its blind spots, and pull request 51 has the scars — three rounds, each finding real defects in the last round's
+  fixes, two introduced by the fix before. The owner records in the item's ledger which model wrote and which reviewed, as
+  `revisions/<n>.md`'s `## Reviewer: <role> (<model>)` heading expects, so a later reader can tell a second pair of eyes from one.
 - `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
   handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
   `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.
@@ -105,4 +104,5 @@ A mistake made twice becomes a file there and a pointer line here, in the same P
 - A fixture supplies its own identity and time; a test that reads the ambient environment passes here and fails on the runner — knowledge/lessons/tests-carry-their-own-environment.md
 - A rules-fragment line is paid for at the adopter's render, which sits at exactly the cap; measure with adopt.sh into scratch — knowledge/lessons/adopter-context-file-sits-at-the-cap.md
 - Commit before `check_artifact_chain.py --base origin/main`: staged work is invisible to it, and an empty diff passes as in-progress — knowledge/lessons/commit-before-the-chain-check.md
+- Watch a new test, eval case or `Verifiable:` clause fail before the change; one only ever seen green proves nothing — knowledge/lessons/a-verifiable-command-fails-before-the-change.md
 <!-- END GENERATED -->

@@ -45,7 +45,31 @@ timestamp: 2026-09-06T01:20:00Z
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-08 ~19:40 UTC)
+## Task state (2026-09-13 ~15:45 UTC)
+- **One session per work item is the context protocol.** Durable state lives in git — `.sdlc/active`, each
+  item's `log.md`, this file — and the session itself is disposable. A session takes one item from its
+  approved intent to a merged pull request, then ends; the next session reads `.sdlc/active` from `main` and
+  starts the next item. Subagents read and return evidence (paths, commands, outputs); the session holding the
+  plan makes every edit (`knowledge/decisions/one-writer-until-ledger.md`). Nothing is lost to a context reset
+  that was not lost anyway: the pointer on `main` is already correct.
+- **`work/ci-budget` PR-A is merged** (#71, `ed96584`). What changed: a draft costs no gate and no review run,
+  one run per pull request cancelled only by a new push, the gate's triage step is behind the owner's `triage`
+  label, `agent-evals` is nightly and on demand only, and the merge script gained a `delegation` condition plus
+  a supersession rule in `_pr_runs`. What did NOT change is the point of
+  `knowledge/decisions/ci-budget-crucial-and-loosened.md` — read it before touching any of the six.
+- **The one non-obvious thing in that diff**: `_pr_runs` drops a `cancelled` run only where a later run of the
+  same **`workflow_id`** succeeded. Not the workflow *name* — the head branch writes workflow files, so a name
+  join let a forged `sdlc-gate` launder the real gate's cancelled row. A run with no `workflow_id` supersedes
+  nothing, deliberately.
+- **A stale check-run row persists on a head sha.** PR #71's sha carried both a red `artifact-chain` row from
+  the blocked run and a green one from the re-run the label triggered. `check_check_runs` has no supersession
+  rule, so this is the open question against delegated merging; see the item's ledger for where it landed.
+- **Branch protection is still absent** on `main` (spec C2). If it is ever created: require
+  `sdlc-gate / artifact-chain`, never `agent-evals`, and leave "require branches to be up to date" off.
+- **Local runs still need the token unset** and there is still no `gh` binary in the container, so anything
+  that shells out to `gh` — `delegated_merge.py`, `github_metrics.py` without `--from-json` — cannot run here.
+
+## Task state (2026-09-08 ~19:40 UTC) — HISTORY, superseded by the section above
 - **Delegated mode has run a full item end to end.** `work/approve-by-dispatch` (#51), `work/retire-active-pointer`
   (#53), `work/run-queue` (#55, #57) and `work/run-queue-followups` (#56 intent, #58 implementation) are the
   record. The queue machinery works: `scripts/next_item.py` orders it, `delegated_merge.py` advances
@@ -130,11 +154,16 @@ timestamp: 2026-09-06T01:20:00Z
   made, and do not answer automated stop-hook prompts in the chat (the owner reads only the last message).
 
 ## Suggested first prompt for the new session
-"Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Task state'. work/delegated-mode is merged and no
-work item is open, so do not resume it: the next step is the first live delegated item, which needs my grant
-first; until then pick up whichever follow-up that section lists, or wait for me."
+"Read docs/sdlc/handoff/HANDOFF.md on main, starting at the newest 'Task state'. `.sdlc/active` names
+`ci-budget`: both of its code pull requests are merged, so what is left is step 13 of work/ci-budget/plan.md —
+the seven acceptance numbers of spec R14 on real runs, one week after PR-A merged, then the M5 revision over
+them, then I retire the item. Do not open a new work item until I have. If the acceptance week is not up yet,
+say so and stop; the fix queue from the mock walk is the next thing after retirement, and it is in this file."
 
-(Superseded, kept as a record: the prompt that opened Batch B read "Resume the lifecycle-axis SDLC work.
+(Superseded, kept as a record: the prompt before it read "Read docs/sdlc/handoff/HANDOFF.md on main, starting
+at 'Task state'. work/delegated-mode is merged and no work item is open, so do not resume it: the next step is
+the first live delegated item, which needs my grant first." And before that, the prompt that opened Batch B:
+"Resume the lifecycle-axis SDLC work.
 Read docs/sdlc/handoff/HANDOFF.md on branch claude/session-handoff first, then follow its resume steps.
 Batch A is merged; open Batch B starting with WI-7 band-detector.")
 
