@@ -17,4 +17,7 @@ description: Deploy stage. Review a diff or PR against plan.md, spec.md, REVIEW.
    `scripts/delegated_merge.py`: it keeps every failed run of a required workflow on that sha, so the merge
    waits on a push, not on a re-run. Fix the cause and push.
 5. If the change touches `RELEASE_GATED_PATHS`, state the named human owner who must approve. Never approve those yourself.
-6. If the same class of mistake appeared in a previous review of this repo, add a line to CLAUDE.md "Lessons learned" in this PR.
+6. If the same class of mistake appeared in a previous review of this repo, write it up in this PR as one file in
+   `knowledge/lessons/` plus one pointer line in `docs/sdlc/rules/60-lessons.md`, then run
+   `python3 scripts/gen_context_files.py`. Never hand-edit a rendered context file: they are generated from
+   `docs/sdlc/rules/`, and `scripts/checks/context-drift.sh` fails a hand edit.

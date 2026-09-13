@@ -12,8 +12,9 @@ Each work item lives in `work/<slug>/` and holds `intent.md`, `spec.md`, `plan.m
 Every artifact has YAML front matter with `status` (`draft` | `in-review` | `approved` | `delegated` |
 `superseded`) and `approved-by`. Only a human sets `status: approved`; a hook refuses it from an agent. An
 agent may set `delegated` only under a human's delegation grant on the intent (`.sdlc/delegation.yaml`). The
-active work item is named in `.sdlc/active`; when an item completes, a human retires it (`superseded` on its
-artifacts, a ledger line each, the pointer cleared or moved to the next item) and a retired plan closes the gate.
+active work item is named in `.sdlc/active`; the session protocol and the seed prompt for the next session are
+in `docs/sdlc/handoff/HANDOFF.md`; when an item completes, a human retires it (`superseded` on its artifacts, a
+ledger line each, the pointer cleared or moved to the next item) and a retired plan closes the gate.
 
 ## Hard rules (enforced by hooks and CI, not by good intentions)
 1. No code edits under the paths in `.sdlc/config.env` (`PLAN_REQUIRED_PATHS`)
@@ -59,7 +60,7 @@ artifact until a human has approved the previous one, or the agent has signed it
   (`claude/`). PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
-- Keep one agent code pull request open at a time (an intent-only one may run beside it); open it as a draft and mark it ready once.
+- Keep one agent code pull request open at a time (an intent-only or handoff-only one may run beside it); draft first, ready once.
 - A review runs on a **different model from the one that wrote the work** when a second is available: a writer re-reading its own
   diff shares its blind spots, and pull request 51 has the scars — three rounds, each finding real defects in the last round's
   fixes, two introduced by the fix before. The owner records in the item's ledger which model wrote and which reviewed, as
@@ -70,10 +71,9 @@ artifact until a human has approved the previous one, or the agent has signed it
 - Humans approve one of three ways; the tap is the cheapest. **Actions -> approve -> Run workflow**
   (`.github/workflows/approve.yml`) with `slug`, `artifact` and `mode` runs the approval script as the run's actor
   and commits with `Approved-Run`/`Approved-Actor` trailers CI verifies against the run; an agent names the three inputs and waits.
-- Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone:
-  `git config sdlc.approver <github-handle>`, or pass `--as <handle>`; it enforces intent → spec → plan order), or by
-  editing the artifact plus `log.md` in the GitHub web editor; then commit as themselves. The script refuses to run
-  inside an agent session; an agent asks for approval and waits. CI checks the approval commit's author.
+- Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone `git config sdlc.approver
+  <handle>`, or `--as <handle>`; it enforces intent → spec → plan order), or by editing the artifact plus `log.md` in the GitHub web
+  editor, then commit as themselves. The script refuses an agent session; an agent asks and waits. CI checks the commit's author.
 - When the intent has `mode: delegated`, the agent signs with `python3 scripts/sign.py <slug> <artifact>` under
   its own handle; ledger lines read `-> delegated`, with `deviation:` and `revision <n>:` notes as the case may
   be; re-signing an already-signed or approved artifact needs `--revision revisions/<n>.md`.
