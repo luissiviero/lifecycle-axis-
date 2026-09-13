@@ -9,9 +9,9 @@ timestamp: 2026-09-06T01:20:00Z
 # Session handoff (read this first after any context reset)
 
 ## How to resume in a NEW session (container state is gone; only git survives)
-1. Read, in this order, from `main`: `docs/sdlc/handoff/HANDOFF.md` (this file), then
-   `work/delegated-mode/plan.md` (the last item's plan; its deviations log is the most recent design record)
-   and `knowledge/decisions/delegated-mode.md`. The older handoff files beside this one (`PLAN.md`,
+1. Read, in this order, from `main`: `docs/sdlc/handoff/HANDOFF.md` (this file), then `work/<slug>/plan.md`
+   for the item `.sdlc/active` names (its deviations log is the most recent design record) and the newest
+   records in `knowledge/decisions/`. The older handoff files beside this one (`PLAN.md`,
    `consensus.md`, `lifecycle-axis-vs-playbook.md`) are the record of the 2026-09-04 plan, all merged.
 2. No task list to re-create: `.sdlc/active` on `main` names the item under implementation, and the newest
    "Task state" below says where it stands. Read "Session protocol" first.
@@ -32,8 +32,10 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
    request, then ends. It does not start the next item in the same context.
 2. **Everything durable is in git, so the session is disposable.** `.sdlc/active` on `main` names the item;
    `work/<slug>/log.md` is its ledger; this file is the handoff. A context reset loses nothing those three do
-   not already hold. The session never writes `.sdlc/active`: the owner's approval tap repoints it, the merge
-   workflow's `advance()` moves it on a delegated merge, and the owner moves it by hand at retirement.
+   not already hold. The session never writes `.sdlc/active`: the owner's delegation-grant tap repoints it
+   (`approve.py --delegate --activate`, which only a grant passes), the merge workflow's `advance()` moves it
+   on a delegated merge, and otherwise the owner moves it by hand — at retirement, or to point at a
+   supervised item.
 3. **The session that finishes an item is the one that starts the next.** On the merge it refreshes the
    "Task state" and the "Seed prompt" below, commits and pushes them as a handoff-only pull request, and only
    then schedules its successor with that prompt through whatever its runtime provides; a runtime with no such
@@ -50,8 +52,8 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   → WI-10 delegation-boundary (needs the owner's answers in `work/delegation-boundary/intent.md`) → WI-11
   docs-reconcile. Per item: `place.sh <slug> <title>` from `origin/main` (branch `claude/<slug>`, intent+spec+plan
   drafted `in-review` from `docs/sdlc/handoff/PLAN.md`, draft PR `[<slug>] …` with `Work-Item: <slug>`), then the
-  owner approves from the phone (routine below), whose tap points `.sdlc/active` at the item — the session never
-  writes that file — then the session implements per the plan,
+  owner approves from the phone (routine below) and `.sdlc/active` is pointed at the item by hand — today the
+  session never writes that file — then the session implements per the plan,
   verifies, pushes, asks for `control-plane-approved` where hooks/workflows/`.sdlc` change, and the owner merges.
   Serial, one item at a time. **Batch B is merged** (PRs 31 to 37) and **Step 0 is done**: the owner set
   `work/sdlc-kit-phase-1`'s three artifacts to `superseded` from the web editor and the indexes were
@@ -70,7 +72,8 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
 - **`work/session-chaining` is in Build** on the pull request that carries this section: the protocol above,
   the chaining act in `sdlc-run` step 7, the two skill corrections, one rendered pointer line in
   `docs/sdlc/rules/00-chain.md`, and the eval case `session-protocol-is-written-down`. When it merges, the item
-  waits for the owner's retirement, like `ci-budget`; a supervised merge moves no pointer.
+  waits for the owner's retirement, like `ci-budget`; a supervised merge moves no pointer, so the first live
+  run of step 7 is (a) reading `ci-budget`, (b) and (c) as one handoff-only pull request, and no successor.
 - **The chain cannot yet be seen working end to end.** `delegated_merge.py`'s `advance()` pushes `HEAD:main`
   from a checkout taken before its own merge call and swallows the rejection (`:1123-1130`), so no delegated
   merge has ever moved the pointer; the fix is the owner's open PR #59. Until it lands, step 7's (a) succeeds
@@ -195,7 +198,8 @@ This section is the contract `sdlc-run` step 7 sends. The finishing session rewr
 (b), pushes it at (c), and passes the same text as the successor's payload at (d); it is refreshed every
 cycle, never accumulated. It must be standalone — the next session has no conversation — and it names where
 to look; it grants nothing. The successor re-reads `.sdlc/active` on `main` and the item's approved artifacts
-before acting, whatever this section says.
+before acting, whatever this section says. It is written for the state as of the merge of the pull request
+that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
 "Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'.
 `.sdlc/active` names `ci-budget`; its code is merged and its step 13 (the acceptance numbers, not before
@@ -242,8 +246,9 @@ Batch A is merged; open Batch B starting with WI-7 band-detector.")
   `Work-Item: <slug>`; title `[<slug>] …`.
 - `.sdlc/active` names the item under implementation, and the session never writes it: `.sdlc` is in
   `PROTECTED_PATHS`, so `protect-paths.sh` refuses the write, and an item's own pull request may not contain it
-  (`ALWAYS_LOCKED`). It moves by the owner's approval tap (a grant repoints it), by the merge workflow's
-  `advance()` on a delegated merge, or by the owner's hand at retirement — see "Session protocol".
+  (`ALWAYS_LOCKED`). It moves by the owner's delegation-grant tap (`--delegate --activate`; a supervised tap
+  moves nothing), by the merge workflow's `advance()` on a delegated merge, or by the owner's hand — see
+  "Session protocol".
   `require-plan.sh` blocks every write under `scripts/` (including Bash text that mentions
   `scripts`) until the active plan is approved by a `tech-lead`.
 - Retiring an item is a human act, from the web editor today (`work/retire-active-pointer`): set

@@ -17,7 +17,7 @@ artifact until a human has approved the previous one, or the agent has signed it
   (`claude/`). PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
-- Keep one agent code pull request open at a time (an intent-only one may run beside it); open it as a draft and mark it ready once.
+- Keep one agent code pull request open at a time (an intent-only or handoff-only one may run beside it); draft first, ready once.
 - A review runs on a **different model from the one that wrote the work** when a second is available: a writer re-reading its own
   diff shares its blind spots, and pull request 51 has the scars — three rounds, each finding real defects in the last round's
   fixes, two introduced by the fix before. The owner records in the item's ledger which model wrote and which reviewed, as

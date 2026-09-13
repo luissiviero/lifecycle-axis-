@@ -10,7 +10,7 @@ Run four passes and tag each finding with its pass:
   (no unplanned files; deviations logged), and our design principles. A diff that touches `scripts/verify.sh`,
   `scripts/checks/`, `scripts/run_tests.py` or `scripts/run_evals.sh`, or under `kind: fix` an existing test file,
   is **Important** unless `plan.md` names that file.
-- **Memory**: a mistake seen for the second time in this repo gets a line in `CLAUDE.md` "Lessons learned" in this PR;
+- **Memory**: a mistake seen for the second time in this repo gets one file in `knowledge/lessons/` plus a pointer line in `docs/sdlc/rules/60-lessons.md` in this PR, then `python3 scripts/gen_context_files.py`;
   flag when the change has made `CLAUDE.md` outdated.
 
 ## What Important means here
