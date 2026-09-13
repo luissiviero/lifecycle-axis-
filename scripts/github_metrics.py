@@ -8,19 +8,27 @@ first — exactly the shape `scripts/detect_bands.py --file` accepts.
 Usage:
   github_metrics.py ci_test_failure_rate  [--repo owner/name] [--days N=30] [--from-json PATH] [--workflow NAME]
   github_metrics.py pr_cycle_time_hours   [--repo owner/name] [--days N=30] [--from-json PATH]
+  github_metrics.py actions_minutes_per_pr [--repo owner/name] [--days N=30] [--from-json PATH] [--default-branch B]
 
 Metrics:
   ci_test_failure_rate  -- per-day failures/completed-runs for the workflow runs endpoint; a run
                            whose conclusion is failure, timed_out or startup_failure is a failure.
   pr_cycle_time_hours   -- hours from PR open to merge, one value per merged PR, oldest first,
                            keeping the merges within --days of the latest merge in the data.
+  actions_minutes_per_pr -- per-day billed Actions minutes divided by the pull requests paying
+                           for them; excludes schedule and workflow_dispatch runs and skipped
+                           runs, and omits a day with minutes but no non-default head branch.
 
 Exit codes: 0 (including "no data, nothing printed"); 2 if `gh` is missing ("install gh or pass
 --from-json") or `gh api` exits non-zero (its stderr is relayed, no partial output is printed).
 """
-import argparse, datetime, json, os, shutil, subprocess, sys
+import argparse, datetime, json, math, os, shutil, subprocess, sys
 
 NO_GH_MSG = "install gh or pass --from-json"
+# Events no pull request causes: the nightly suite and a human's manual run. `workflow_run` is
+# NOT here -- the merge wake fires on the default branch because a pull request's checks finished,
+# so its minute belongs to that pull request (work/ci-budget R10).
+NON_PR_EVENTS = {"schedule", "workflow_dispatch"}
 # Conclusions that mean "this run did not pass". `cancelled` is a human act and stays a
 # completed non-failure; `null` (in progress / queued) is excluded from both sides of the ratio.
 FAILURE_CONCLUSIONS = {"failure", "timed_out", "startup_failure"}
@@ -84,7 +92,7 @@ def _api_path(metric, repo, days, workflow):
     """The `gh api` path for a metric. Runs are filtered server-side by creation date (and
     workflow); pulls have no merge-date filter, so they are fetched newest-updated first and
     `pr_cycle_series` applies `days` itself."""
-    if metric == "ci_test_failure_rate":
+    if metric in ("ci_test_failure_rate", "actions_minutes_per_pr"):
         since = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)).date().isoformat()
         if workflow:
             return f"repos/{repo}/actions/workflows/{workflow}/runs?per_page=100&created=>={since}"
@@ -131,6 +139,64 @@ def ci_failure_series(runs, days, bucket="day"):
     ]
 
 
+def _billed_minutes(run):
+    """Minutes GitHub bills for one run: wall clock from `run_started_at` to `updated_at`,
+    rounded UP to the minute, with a one-minute floor once a run has started.
+
+    0 when either stamp is missing or the span is negative: a run that never started bills
+    nothing, and clock skew between two stamps must never subtract from a bucket. The floor is
+    why `skipped` runs are excluded by the caller rather than counted as zero here -- a skipped
+    run never starts, so it has no `run_started_at` at all on most events, and where it does
+    have one the floor would charge it a minute GitHub never billed.
+    """
+    started, updated = run.get("run_started_at"), run.get("updated_at")
+    if not started or not updated:
+        return 0
+    seconds = (_parse_iso(updated) - _parse_iso(started)).total_seconds()
+    if seconds < 0:
+        return 0
+    return max(1, math.ceil(seconds / 60.0))
+
+
+def actions_minutes_series(runs, days, default_branch="main", bucket="day"):
+    """Billed Actions minutes per open pull request, one value per day, oldest first.
+
+    Numerator: `_billed_minutes` summed over every run in the bucket that a pull request could
+    have caused -- excluding `schedule` and `workflow_dispatch` (nobody's pull request), and
+    excluding runs with conclusion `null` (not finished, so not yet billed a total) or `skipped`
+    (GitHub bills nothing, and after R1/R3 every draft push creates two of them).
+
+    Denominator: the distinct head branches in the bucket that are not `default_branch`, which
+    is the count of pull requests that were actually paying that day. A bucket with minutes but
+    no such branch -- a day of merge wakes and nothing else -- is omitted rather than divided by
+    zero, and so is a bucket whose only runs were excluded above.
+
+    Only the trailing `days` buckets, measured from the most recent surviving bucket rather than
+    wall-clock "now", so the function stays pure against a fixed fixture.
+    """
+    minutes, branches = {}, {}
+    for run in runs or []:
+        created_at, conclusion = run.get("created_at"), run.get("conclusion")
+        if not created_at or conclusion is None or conclusion == "skipped":
+            continue
+        if run.get("event") in NON_PR_EVENTS:
+            continue
+        key = _bucket_key(created_at, bucket)
+        minutes[key] = minutes.get(key, 0) + _billed_minutes(run)
+        head = run.get("head_branch")
+        if head and head != default_branch:
+            branches.setdefault(key, set()).add(head)
+    keys = sorted(key for key in minutes if branches.get(key))
+    if not keys:
+        return []
+    cutoff = datetime.date.fromisoformat(keys[-1]) - datetime.timedelta(days=max(days, 1) - 1)
+    return [
+        minutes[key] / len(branches[key])
+        for key in keys
+        if datetime.date.fromisoformat(key) >= cutoff
+    ]
+
+
 def pr_cycle_series(prs, days):
     """Hours from created_at to merged_at for merged PRs, ordered by merged_at (oldest first).
 
@@ -157,12 +223,21 @@ def pr_cycle_series(prs, days):
 # ---------------------------------------------------------------------------
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("metric", choices=["ci_test_failure_rate", "pr_cycle_time_hours"])
+    ap.add_argument("metric", choices=["ci_test_failure_rate", "pr_cycle_time_hours",
+                                       "actions_minutes_per_pr"])
     ap.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"))
     ap.add_argument("--days", type=int, default=30)
     ap.add_argument("--from-json")
     ap.add_argument("--workflow", help="ci_test_failure_rate only: restrict to one workflow file or id")
+    ap.add_argument("--default-branch", default="main",
+                    help="actions_minutes_per_pr only: the branch that is not a pull request")
     a = ap.parse_args(argv)
+
+    if a.metric == "actions_minutes_per_pr" and a.workflow:
+        # Restricting to one workflow would divide that workflow's minutes by every pull request
+        # of the day, which is not a per-pull-request cost of anything.
+        print("--workflow is for ci_test_failure_rate only", file=sys.stderr)
+        return 2
 
     if a.from_json:
         with open(a.from_json) as fh:
@@ -175,6 +250,8 @@ def main(argv=None):
 
     if a.metric == "ci_test_failure_rate":
         values = ci_failure_series(data, a.days)
+    elif a.metric == "actions_minutes_per_pr":
+        values = actions_minutes_series(data, a.days, a.default_branch)
     else:
         values = pr_cycle_series(data, a.days)
 

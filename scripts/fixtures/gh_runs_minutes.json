@@ -1,0 +1,12 @@
+{
+  "total_count": 7,
+  "workflow_runs": [
+    {"id": 2001, "name": "sdlc-gate", "event": "pull_request", "head_branch": "claude/one", "created_at": "2026-09-01T09:00:00Z", "run_started_at": "2026-09-01T09:00:00Z", "updated_at": "2026-09-01T09:01:00Z", "status": "completed", "conclusion": "success"},
+    {"id": 2002, "name": "pr-review", "event": "pull_request", "head_branch": "claude/one", "created_at": "2026-09-01T09:01:00Z", "run_started_at": "2026-09-01T09:01:00Z", "updated_at": "2026-09-01T09:04:00Z", "status": "completed", "conclusion": "success"},
+    {"id": 2003, "name": "delegated-merge", "event": "workflow_run", "head_branch": "main", "created_at": "2026-09-01T09:05:00Z", "run_started_at": "2026-09-01T09:05:00Z", "updated_at": "2026-09-01T09:05:20Z", "status": "completed", "conclusion": "success"},
+    {"id": 2004, "name": "agent-evals", "event": "schedule", "head_branch": "main", "created_at": "2026-09-01T03:00:00Z", "run_started_at": "2026-09-01T03:00:00Z", "updated_at": "2026-09-01T03:12:00Z", "status": "completed", "conclusion": "success"},
+    {"id": 2005, "name": "sdlc-gate", "event": "pull_request", "head_branch": "claude/two", "created_at": "2026-09-02T10:00:00Z", "run_started_at": "2026-09-02T10:00:00Z", "updated_at": "2026-09-02T10:02:00Z", "status": "completed", "conclusion": "success"},
+    {"id": 2006, "name": "pr-review", "event": "pull_request", "head_branch": "claude/two", "created_at": "2026-09-02T10:00:00Z", "run_started_at": "2026-09-02T10:00:00Z", "updated_at": "2026-09-02T10:00:02Z", "status": "completed", "conclusion": "skipped"},
+    {"id": 2007, "name": "sdlc-gate", "event": "pull_request", "head_branch": "claude/two", "created_at": "2026-09-02T11:00:00Z", "run_started_at": "2026-09-02T11:00:00Z", "updated_at": null, "status": "in_progress", "conclusion": null}
+  ]
+}
