@@ -69,11 +69,14 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   what is left is step 13 of `work/ci-budget/plan.md`, the seven acceptance numbers of its spec R14 on real
   runs, not before 2026-09-20, then the M5 revision, then the owner retires it. A routine already opens a
   session for that on 2026-09-20 15:00 UTC. Do not open a new work item for it.
-- **`work/session-chaining` is in Build** on the pull request that carries this section: the protocol above,
-  the chaining act in `sdlc-run` step 7, the two skill corrections, one rendered pointer line in
-  `docs/sdlc/rules/00-chain.md`, and the eval case `session-protocol-is-written-down`. When it merges, the item
-  waits for the owner's retirement, like `ci-budget`; a supervised merge moves no pointer, so the first live
-  run of step 7 is (a) reading `ci-budget`, (b) and (c) as one handoff-only pull request, and no successor.
+- **`work/session-chaining` is merged** (#76, `2b469e7`): the protocol above, the chaining act in `sdlc-run`
+  step 7, the two skill corrections plus `REVIEW.md`, one rendered pointer line in `docs/sdlc/rules/00-chain.md`,
+  and the eval case `session-protocol-is-written-down`. It waits for the owner's retirement, like `ci-budget`.
+  This section is the first live run of step 7: (a) read `ci-budget` on `main` — a supervised merge moves no
+  pointer — so no successor was scheduled; (b) and (c) are the handoff-only pull request that carries this
+  line. One thing that run showed: (a) names three shapes for the pointer (empty, still the merged item, a
+  granted unstarted item) and met a fourth, another supervised item already under way; the outcome is the
+  same, no successor, but the sentence should say so. Second time it bites, it becomes a lesson.
 - **The chain cannot yet be seen working end to end.** `delegated_merge.py`'s `advance()` pushes `HEAD:main`
   from a checkout taken before its own merge call and swallows the rejection (`:1123-1130`), so no delegated
   merge has ever moved the pointer; the fix is the owner's open PR #59. Until it lands, step 7's (a) succeeds
