@@ -18,11 +18,17 @@ Twice in `work/ci-budget`, two days apart, on different kinds of artifact.
    the decision record was never written. Each clause named a real command and none of them
    discriminated. The plan was re-written to assert the thing that only the change makes true.
 2. The M2 revision on pull request 71 found that the two new classes in
-   `scripts/test_delegated_merge.py` sat **after** the `if __name__ == "__main__"` block, so
-   `python3 scripts/test_delegated_merge.py` ran 39 tests and `python3 -m unittest
-   scripts.test_delegated_merge` ran 45. Six new cases were green in one invocation and skipped in
-   the other, and the invocation that skipped them still exited 0. The block moved to the end of the
-   file; both now run 45.
+   `scripts/test_check_workflow_permissions.py` sat **after** the `if __name__ == "__main__"` block,
+   so `python3 scripts/test_check_workflow_permissions.py` ran 39 tests and `python3 -m unittest
+   scripts.test_check_workflow_permissions` ran 45. Six new cases were green in one invocation and
+   skipped in the other, and the invocation that skipped them still exited 0. The block moved to the
+   end of the file; both now run 45.
+
+   This lesson's first draft named the wrong file here — `scripts/test_delegated_merge.py`, which
+   never had the defect — because the ledger line it was written from did not name a file and the
+   author did not go and look. The conformance review on pull request 72 caught it by checking out
+   `441da35` and running both invocations. That is the lesson eating its own tail, and it is left in
+   the record on purpose: a citation is a verifiable command too, and an unrun one is a guess.
 
 A correction in the same ledger is the third face of it: a review line claimed every new test had
 been proved to fail against the reverted source. M2 checked and about eleven were boundary pins that
