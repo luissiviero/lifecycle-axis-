@@ -2,7 +2,7 @@
 type: sdlc/index
 title: Work items
 description: Generated index of every work/<slug> item; run scripts/gen_index.py to refresh.
-timestamp: 2026-09-11T16:00:00Z
+timestamp: 2026-09-13T16:30:00Z
 ---
 # Work items
 
@@ -28,3 +28,4 @@ timestamp: 2026-09-11T16:00:00Z
 | [run-queue](run-queue/index.md) | Grant several items up front and let one delegated run work through them, so I can be away for hours | plan | approved | delegated | delegated | plan.md -> delegated by claude |
 | [run-queue-followups](run-queue-followups/index.md) | The chain check reports PASS on work it never saw; make it say so instead | plan | approved | delegated | delegated | PR #58 -> in-review by claude |
 | [sdlc-kit-phase-1](sdlc-kit-phase-1/index.md) | Make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
+| [session-chaining](session-chaining/index.md) | The kit never says who manages session context, so the owner has been doing it by hand | intent | in-review | — | — | intent.md -> in-review by claude |
