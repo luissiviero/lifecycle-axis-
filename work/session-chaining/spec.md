@@ -5,11 +5,11 @@ title: "A session owns one work item, leaves its state in git, and schedules its
 description: "Names the one-session-per-work-item protocol in the handoff and in sdlc-run, makes the finishing session schedule the next one where its runtime can and say so where it cannot, and fixes three places where kit documentation instructs an act the repository's own checks refuse."
 stage: design
 # status: draft | in-review | approved | delegated | superseded
-status: in-review
+status: approved
 reads: intent.md
 # approved-by: product owner; tech lead consulted for medium/high risk; set only by a human
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-13
 # skills-applied: skills loaded as hard constraints while writing this spec
 skills-applied: [security-standards]
 skills-version: 29535f3
