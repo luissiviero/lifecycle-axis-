@@ -1,0 +1,165 @@
+<title>Lifecycle Axis Step Review</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ink:#1b2229; --muted:#5c6771; --ground:#f3f5f6; --panel:#ffffff; --line:#d5dbe0; --line-soft:#e6eaed;
+  --accent:#1f5f8b; --accent-ink:#ffffff; --accent-soft:#e3edf5;
+  --keep:#2f6b4f; --keep-bg:#e4f0ea; --note:#1f6b6b; --note-bg:#e0f0f0; --change:#8a5a00; --change-bg:#f7ecd2;
+  --fix:#b3261e; --fix-bg:#f9e3e1; --build:#4b4fa0; --build-bg:#e7e7f5; --drop:#5b6670; --drop-bg:#e8ebee; --new:#1f5f8b; --new-bg:#e3edf5;
+  --code-bg:#eceff2; --shadow:0 1px 2px rgba(20,30,40,.08);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --ink:#e6e9ec; --muted:#9aa4ad; --ground:#14181c; --panel:#1c2228; --line:#333c45; --line-soft:#262e36;
+  --accent:#7fb3dd; --accent-ink:#0f1a24; --accent-soft:#1d2f3d;
+  --keep:#8fd0ae; --keep-bg:#1d3328; --note:#8dd0d0; --note-bg:#193333; --change:#f0c46a; --change-bg:#3a2d10;
+  --fix:#f39a93; --fix-bg:#3f1d1a; --build:#b3b6f0; --build-bg:#272a4a; --drop:#aab3bb; --drop-bg:#262c32; --new:#7fb3dd; --new-bg:#1d2f3d;
+  --code-bg:#242c34; --shadow:none;
+}}
+:root[data-theme="dark"]{
+  --ink:#e6e9ec; --muted:#9aa4ad; --ground:#14181c; --panel:#1c2228; --line:#333c45; --line-soft:#262e36;
+  --accent:#7fb3dd; --accent-ink:#0f1a24; --accent-soft:#1d2f3d;
+  --keep:#8fd0ae; --keep-bg:#1d3328; --note:#8dd0d0; --note-bg:#193333; --change:#f0c46a; --change-bg:#3a2d10;
+  --fix:#f39a93; --fix-bg:#3f1d1a; --build:#b3b6f0; --build-bg:#272a4a; --drop:#aab3bb; --drop-bg:#262c32; --new:#7fb3dd; --new-bg:#1d2f3d;
+  --code-bg:#242c34; --shadow:none;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5;padding-inline:clamp(16px,3vw,40px);padding-block:0 64px;}
+a{color:var(--accent);text-decoration:none;border-bottom:1px solid transparent}
+a:hover,a:focus-visible{border-bottom-color:currentColor;outline:none}
+code{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;background:var(--code-bg);padding:.05em .3em;border-radius:3px;word-break:break-word}
+h2,h3{font-family:"Source Serif 4",Georgia,"Times New Roman",serif;font-weight:600;letter-spacing:-.01em;text-wrap:balance;margin:2.2em 0 .6em}
+h2{font-size:1.55rem} h3{font-size:1.2rem;color:var(--ink)}
+p,li{max-width:72ch}
+ul,ol{padding-left:1.4em} li{margin:.35em 0}
+strong{font-weight:600}
+.masthead{max-width:1280px;margin:0 auto;padding-block:34px 18px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:16px 32px;align-items:end}
+.masthead .eyebrow{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.masthead h1{font-family:"Source Serif 4",Georgia,serif;font-weight:600;font-size:clamp(1.7rem,3.2vw,2.5rem);line-height:1.1;margin:0;letter-spacing:-.015em;text-wrap:balance;max-width:24ch}
+.masthead .sub{color:var(--muted);margin:10px 0 0;max-width:64ch}
+.tally{display:grid;grid-template-columns:repeat(3,auto);gap:6px 18px;font-variant-numeric:tabular-nums;align-self:end}
+.tally div{display:flex;flex-direction:column;gap:2px}
+.tally b{font-family:"Source Serif 4",Georgia,serif;font-size:1.5rem;font-weight:600;line-height:1}
+.tally span{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.wrap{max-width:1280px;margin:0 auto}
+.filters{position:sticky;top:0;z-index:5;background:var(--ground);padding-block:12px;margin-block:8px 4px;display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;border-bottom:1px solid var(--line-soft)}
+.filters label.search{flex:1 1 220px;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+.filters input{flex:1;border:0;background:transparent;color:var(--ink);font:inherit;min-width:0}
+.filters input:focus{outline:none}
+.filters label.search:focus-within{border-color:var(--accent)}
+.chip{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;font-size:.82rem;padding:5px 10px;border-radius:999px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;font-variant-numeric:tabular-nums}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--c,var(--muted))}
+.chip[aria-pressed="true"] .dot{background:var(--accent-ink)}
+.chip.lens{border-style:dashed}
+.count{color:var(--muted);font-size:.82rem;margin-left:auto;font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);margin:14px 0 26px}
+table{border-collapse:collapse;width:100%;min-width:720px}
+th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--line-soft);font-size:.86rem;line-height:1.45}
+th{position:sticky;top:0;background:var(--panel);font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);z-index:1}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap;font-family:"IBM Plex Mono",monospace;font-size:.8rem}
+table.steps th:nth-child(1){width:3.5rem} table.steps th:nth-child(2){width:24%} table.steps th:nth-child(3){width:26%} table.steps th:nth-child(4){width:7rem}
+table.newsteps th:nth-child(2){width:38%}
+table.plain td:first-child{white-space:nowrap}
+tr[hidden]{display:none}
+.pill{display:inline-block;font-size:.72rem;font-weight:600;letter-spacing:.03em;padding:2px 8px;border-radius:999px;white-space:nowrap;color:var(--pc);background:var(--pb)}
+.pill-keep{--pc:var(--keep);--pb:var(--keep-bg)} .pill-note{--pc:var(--note);--pb:var(--note-bg)} .pill-change{--pc:var(--change);--pb:var(--change-bg)}
+.pill-fix{--pc:var(--fix);--pb:var(--fix-bg)} .pill-build{--pc:var(--build);--pb:var(--build-bg)} .pill-drop{--pc:var(--drop);--pb:var(--drop-bg)} .pill-merge{--pc:var(--drop);--pb:var(--drop-bg)} .pill-other{--pc:var(--muted);--pb:var(--code-bg)}
+.filters .chip.keep{--c:var(--keep)} .filters .chip.note{--c:var(--note)} .filters .chip.change{--c:var(--change)} .filters .chip.fix{--c:var(--fix)} .filters .chip.build{--c:var(--build)} .filters .chip.drop{--c:var(--drop)} .filters .chip.merge{--c:var(--drop)} .filters .chip.new{--c:var(--new)}
+details.appendix{border-top:1px solid var(--line);padding-block:6px 4px}
+details.appendix summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px}
+details.appendix summary::-webkit-details-marker{display:none}
+details.appendix summary h2{margin:.9em 0}
+details.appendix summary::before{content:"";width:8px;height:8px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(-45deg);transition:transform .15s}
+details.appendix[open] summary::before{transform:rotate(45deg)}
+@media (prefers-reduced-motion: reduce){ details.appendix summary::before{transition:none} }
+.intro{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+.stances li{max-width:78ch}
+.findings ol{counter-reset:f;list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;max-width:none}
+.findings ol li{counter-increment:f;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--fix);border-radius:6px;padding:12px 14px;margin:0;max-width:none;font-size:.9rem}
+.findings ol li::before{content:counter(f);display:block;font-family:"Source Serif 4",Georgia,serif;font-size:1.3rem;font-weight:600;color:var(--fix);margin-bottom:4px}
+.toc{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.84rem;margin:14px 0 0;padding:0;list-style:none}
+.toc li{margin:0}
+@media (max-width:700px){ .masthead{grid-template-columns:1fr} .tally{grid-template-columns:repeat(3,auto);justify-content:start} }
+</style>
+
+<header class="masthead">
+  <div>
+    <p class="eyebrow">lifecycle-axis · revision · 2026-09-10 · second draft for the owner</p>
+    <h1>Every step the kit prescribes, assessed</h1>
+    <p class="sub">164 existing steps with the repository's own answer to each question, an assessment, the reason and the trade-off; 27 proposed new steps; the interview answered from evidence; the contradictions; an order of work; and the adversarial round with what was agreed, conceded and left to decide. Source and evidence: <a href="https://github.com/luissiviero/lifecycle-axis-/pull/68">pull request 68</a>.</p>
+    <ul class="toc">
+      <li><a href="#findings">Five findings</a></li><li><a href="#stances">Design stance</a></li><li><a href="#lens-a-the-life-of-one-work-item">Lens A · work item</a></li><li><a href="#lens-b-adopting-the-kit-into-another-repository">Lens B · adoption</a></li><li><a href="#maintain-loop-bands-incidents-scans-on-call">Maintain loop</a></li><li><a href="#2-new-steps">New steps</a></li><li><a href="#appendix-a-the-thirty-questions-answered-from-the-current-state">Appendices</a></li><li><a href="#appendix-e-the-adversarial-round-agreed-conceded-undecided">Adversarial round</a></li>
+    </ul>
+  </div>
+  <div class="tally" id="tally"></div>
+</header>
+
+<main class="wrap">
+<div class="filters" id="filters" role="group" aria-label="Filter the step tables">
+  <label class="search" for="q"><span aria-hidden="true">⌕</span><input id="q" type="search" placeholder="Search steps, files, reasons…" autocomplete="off"></label>
+  <span id="chips"></span>
+  <span class="count" id="count"></span>
+</div>
+{{BODY}}
+</main>
+
+<script>
+(function(){
+  var counts = {{COUNTS}};
+  var total = {{TOTAL}};
+  var order = [["fix","fix"],["change","change"],["build","build"],["drop","drop"],["merge","merge"],["note","keep (note)"],["keep","keep"],["new","new step"]];
+  var lenses = [["A","Lens A"],["B","Lens B"],["M","Maintain"]];
+  var newCount = document.querySelectorAll('tr[data-verdict="new"]').length;
+  counts["new"] = newCount;
+  var active = {verdict:null, lens:null};
+  var chips = document.getElementById("chips");
+  function chip(cls, label, n, kind, key){
+    var b = document.createElement("button");
+    b.className = "chip " + cls + (kind==="lens"?" lens":"");
+    b.setAttribute("aria-pressed","false");
+    b.dataset.kind = kind; b.dataset.key = key;
+    b.innerHTML = (kind==="verdict"?'<span class="dot"></span>':'') + label + (n!=null?' <span>'+n+'</span>':'');
+    b.addEventListener("click", function(){
+      active[kind] = (active[kind]===key) ? null : key;
+      render();
+    });
+    chips.appendChild(b);
+  }
+  order.forEach(function(o){ if(counts[o[0]]) chip(o[0], o[1], counts[o[0]], "verdict", o[0]); });
+  lenses.forEach(function(l){ chip("", l[1], null, "lens", l[0]); });
+  var q = document.getElementById("q");
+  try{ q.value = localStorage.getItem("sr.q") || ""; }catch(e){}
+  q.addEventListener("input", function(){ try{localStorage.setItem("sr.q", q.value);}catch(e){} render(); });
+  var rows = Array.prototype.slice.call(document.querySelectorAll("table.steps tbody tr, table.newsteps tbody tr"));
+  rows.forEach(function(r){ r.dataset.text = r.textContent.toLowerCase(); });
+  function render(){
+    var needle = q.value.trim().toLowerCase();
+    var shown = 0;
+    rows.forEach(function(r){
+      var ok = true;
+      if(active.verdict && r.dataset.verdict !== active.verdict) ok = false;
+      if(active.lens && r.dataset.lens !== active.lens) ok = false;
+      if(needle && r.dataset.text.indexOf(needle) < 0) ok = false;
+      r.hidden = !ok; if(ok) shown++;
+    });
+    Array.prototype.forEach.call(chips.children, function(b){
+      b.setAttribute("aria-pressed", String(active[b.dataset.kind] === b.dataset.key));
+    });
+    document.getElementById("count").textContent = shown + " of " + rows.length + " rows";
+    document.querySelectorAll(".tablewrap").forEach(function(w){
+      var t = w.querySelector("table");
+      if(!t.classList.contains("steps") && !t.classList.contains("newsteps")) return;
+      var any = Array.prototype.some.call(t.querySelectorAll("tbody tr"), function(r){ return !r.hidden; });
+      w.hidden = !any;
+    });
+  }
+  var t = document.getElementById("tally");
+  [["fix","to fix"],["change","to change"],["keep","to keep"]].forEach(function(p){
+    var n = p[0]==="keep" ? (counts.keep||0)+(counts.note||0) : (counts[p[0]]||0);
+    var d = document.createElement("div"); d.innerHTML = "<b>"+n+"</b><span>"+p[1]+"</span>"; t.appendChild(d);
+  });
+  render();
+})();
+</script>
