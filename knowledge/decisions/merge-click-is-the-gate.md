@@ -28,7 +28,9 @@ The owner chose, on 2026-09-02, to keep the repo private on the Free plan and ac
 **CI is informational and the merge click is the gate**:
 
 - Every workflow keeps running on every PR and reports its result on the merge button:
-  `sdlc-gate` (chain, verify, control plane), `agent-evals`, `pr-review`.
+  `sdlc-gate` (chain, verify, control plane) and `pr-review`. `agent-evals` left this list on
+  2026-09-06 (15424e0) and stopped running per commit at all in work/ci-budget: it runs nightly,
+  so requiring it would block every merge.
 - `scripts/check_control_plane.sh` keeps failing the gate for a bot-authored or `claude/*`
   diff under `PROTECTED_PATHS` until a human applies `control-plane-approved`. Dependabot's
   workflow bumps go through exactly that route (first case: PR #5).
@@ -52,8 +54,12 @@ The owner chose, on 2026-09-02, to keep the repo private on the Free plan and ac
   fails closed rather than open.
 - Adopters on a paid plan or a public repo should still apply the spike checklist; the
   `adopt.sh` next-steps say so.
-- Revisit if the repo goes public or the account moves to Pro/Team: protection rules then
-  become a one-time settings task, and this record is superseded.
+- The repository went public on 2026-09-09, so protection rules are available and free. They
+  have not been created: as of work/ci-budget `main` carries no rule at all (the branches API
+  reports `protected: false`), so the merge script's own `require-checks` and the owner's click
+  are still the whole of the gate, and this record still stands. Creating the rule is the
+  one-time settings task described in `docs/sdlc/github-setup.md`; the day it exists, this
+  record is superseded.
 
 ## Alternatives considered
 

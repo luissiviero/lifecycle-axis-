@@ -126,4 +126,4 @@ Paths under RELEASE_GATED_PATHS with a named human owner (leave "(none)" if none
 - Each change reverts on its own line: the `_pr_runs` clauses, the `delegation` condition (map the verdict to `refused` in `_code()`), the job guards, the concurrency blocks, the fork guard and its four step conditions, the band entry. PR-A and PR-B revert independently, and no change is a migration.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- R12 said no existing test in `scripts/test_delegated_merge.py` changes except the seven fixture sites it names. `EndToEnd::test_every_condition_ok_merges_deletes_the_branch_and_comments` also pins the exact list of condition names, which R7 necessarily lengthens by one, so its expected list gains `delegation` between `event` and `pull-request`. No test is removed or weakened and R12's own machine check, that the diff carries no removed `def test_`, still holds; the oracle is updated to the behaviour R7 requires, not relaxed.
