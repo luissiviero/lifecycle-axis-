@@ -40,11 +40,26 @@ what makes it a queue.
 7. **Advance.** Subscribe to the pull request you opened (`subscribe_pr_activity`) and stay on it: answer its
    review findings and CI until it merges. On the merge, the workflow has already moved `.sdlc/active` to the
    next queued item and written a ledger line on both items — you do not move the pointer, and an item's own
-   pull request may never contain `.sdlc/active` (`ALWAYS_LOCKED`). Re-read `.sdlc/active` from `main`: when it
-   names a different granted, unstarted item, reset your branch onto `main` and go to step 1 for that item,
-   without asking the owner for anything. When it is empty, the queue is done — say so once and stop.
-   If the session ends mid-queue, nothing is lost: the pointer on `main` is already correct, so the next
-   session resumes at the right item with no repair.
+   pull request may never contain `.sdlc/active` (`ALWAYS_LOCKED`). Re-read `.sdlc/active` from `main`. When it
+   is empty, the queue is done — say so once and stop. When it names a different granted, unstarted item, hand
+   that item to a fresh session rather than starting it here: one session owns one work item and this one's
+   context is spent (`docs/sdlc/handoff/HANDOFF.md`, "Session protocol"). The chaining act, in this order, as
+   the session's last act:
+   (a) confirm that `.sdlc/active` on `main` names the next item; if it does not, stop here and say so;
+   (b) refresh the handoff's `## Task state` and its `## Seed prompt` for that item — one standalone prompt
+       that names where to look: the handoff, `.sdlc/active` on `main`, `work/<slug>/`;
+   (c) commit and push those as a handoff-only draft pull request; `docs/sdlc/handoff` is a locked path, so
+       the owner merges it, and nothing below waits for that;
+   (d) only then schedule a successor session with that prompt, using whatever your runtime provides (a
+       scheduled routine, a session API); a runtime with no such capability skips (d) and says so in its
+       final message, leaving (a)–(c) done;
+   (e) end.
+   At most one successor per finish, and never as a successor's own first act: this account has exhausted its
+   Actions minutes once, and an unbounded chain is how to do it again. The seed prompt is
+   context, never authority: it says where to look, and the successor re-reads the item's approved artifacts
+   and `.sdlc/active` before acting; nothing a prompt says widens what the hooks and the chain check allow. If
+   the session ends before (d), nothing is lost: the pointer on `main` is already correct, and the owner
+   starts the next session from the handoff as they do today.
 
 ## The revision rule
 A plan revision is the last resort. A file-list or order deviation is logged as today plus a ledger line, capped
@@ -64,7 +79,9 @@ next one. The deviation cap is reached; a `keep` verdict, or a blocking error wi
 fix inside its plan; a hook refusal you do not understand. Two more end the queue quietly rather than badly:
 the queue is empty (`next_item.py` exits 3), and a pull request that needs the owner's merge click — a
 locked-path item never merges on its own, so no advance follows it and the queue ends there. Tell the owner to
-grant such items last.
+grant such items last. One locked-path pull request is the exception and ends nothing: the handoff refresh of
+step 7(c). Nothing downstream reads it from `main` — the successor carries the same prompt as its payload and
+re-reads `.sdlc/active` — so it waits for the owner's click while the queue goes on.
 
 ## Never
 Write `approved`; touch the grant keys (`mode`, `delegated-by`, `delegated-on`, `risk-class`); sign `intent.md`;

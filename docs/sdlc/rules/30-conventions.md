@@ -28,10 +28,9 @@ artifact until a human has approved the previous one, or the agent has signed it
 - Humans approve one of three ways; the tap is the cheapest. **Actions -> approve -> Run workflow**
   (`.github/workflows/approve.yml`) with `slug`, `artifact` and `mode` runs the approval script as the run's actor
   and commits with `Approved-Run`/`Approved-Actor` trailers CI verifies against the run; an agent names the three inputs and waits.
-- Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone:
-  `git config sdlc.approver <github-handle>`, or pass `--as <handle>`; it enforces intent → spec → plan order), or by
-  editing the artifact plus `log.md` in the GitHub web editor; then commit as themselves. The script refuses to run
-  inside an agent session; an agent asks for approval and waits. CI checks the approval commit's author.
+- Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone `git config sdlc.approver
+  <handle>`, or `--as <handle>`; it enforces intent → spec → plan order), or by editing the artifact plus `log.md` in the GitHub web
+  editor, then commit as themselves. The script refuses an agent session; an agent asks and waits. CI checks the commit's author.
 - When the intent has `mode: delegated`, the agent signs with `python3 scripts/sign.py <slug> <artifact>` under
   its own handle; ledger lines read `-> delegated`, with `deviation:` and `revision <n>:` notes as the case may
   be; re-signing an already-signed or approved artifact needs `--revision revisions/<n>.md`.

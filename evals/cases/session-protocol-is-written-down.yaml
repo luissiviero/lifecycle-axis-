@@ -1,0 +1,40 @@
+name: session-protocol-is-written-down
+kind: hook
+source: work/session-chaining/spec.md R1-R7 and R10 (a session owns one work item, leaves its state in git, and schedules its successor; two skills stop instructing acts the repository refuses); work/session-chaining/plan.md step 1
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"
+  H="$R/docs/sdlc/handoff/HANDOFF.md"; RUN="$R/.claude/skills/sdlc-run/SKILL.md"
+  # R1: the handoff names the protocol and its three invariants: one item per session, git is the
+  # durable state so the session is disposable, the finishing session starts the next.
+  grep -q '^## Session protocol' "$H"
+  grep -q 'exactly one work item' "$H"
+  grep -q 'disposable' "$H"
+  grep -q 'starts the next' "$H"
+  # R2: sdlc-run's advance step carries the chaining act in the spec's order, (a) to (e), with the
+  # scheduling call after the push and at most one successor per finish.
+  for step in '(a)' '(b)' '(c)' '(d)' '(e)'; do grep -qF "$step" "$RUN"; done
+  grep -q 'schedule' "$RUN"
+  grep -q 'At most one successor per finish' "$RUN"
+  grep -q "never as a successor's own first act" "$RUN"
+  # R4: the runtime dependency is stated, and a runtime without it skips (d) and says so.
+  grep -q 'skips (d) and says so' "$RUN"
+  # R10: the seed prompt is context, never authority; the successor re-reads the approved artifacts.
+  grep -q 'context, never authority' "$RUN"
+  grep -q 're-reads the item' "$RUN"
+  # The handoff-refresh pull request is the one locked-path pull request the queue does not stop for
+  # (plan.md, first consequence): no spec row covers this sentence, so this grep is what keeps it.
+  grep -q 'handoff refresh' "$RUN"
+  # R3: the prompt section is the contract the chaining act sends: renamed, refreshed, standalone.
+  ! grep -q 'Suggested first prompt' "$H" || exit 1
+  grep -q '^## Seed prompt' "$H"
+  grep -q 'refreshed' "$H"
+  grep -q 'standalone' "$H"
+  # R7: nowhere does the handoff say the session sets .sdlc/active; advance() moves it.
+  ! grep -qE 'session sets' "$H" || exit 1
+  # R5: the review skill names the lesson convention, not a CLAUDE.md section, and never CLAUDE.md.
+  ! grep -q 'CLAUDE.md "Lessons learned"' "$R/.claude/skills/sdlc-review/SKILL.md" || exit 1
+  grep -q 'knowledge/lessons/' "$R/.claude/skills/sdlc-review/SKILL.md"
+  grep -q 'docs/sdlc/rules/60-lessons.md' "$R/.claude/skills/sdlc-review/SKILL.md"
+  # R6: the intent skill creates the ledger and regenerates the index.
+  grep -q 'work/<slug>/log.md' "$R/.claude/skills/sdlc-intent/SKILL.md"
+  grep -q 'python3 scripts/gen_index.py' "$R/.claude/skills/sdlc-intent/SKILL.md"
