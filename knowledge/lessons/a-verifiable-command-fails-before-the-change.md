@@ -11,12 +11,18 @@ timestamp: 2026-09-13T15:30:00Z
 ## What happened
 Twice in `work/ci-budget`, two days apart, on different kinds of artifact.
 
-1. The automated reviewer on pull request 70 read the plan's `Verifiable:` clauses and found
-   **six commands that would have passed with the work absent** — one shape, caught six times.
-   `grep -n "head_repository" .github/workflows/pr-review.yml` finds the string whether the guard
-   gates the checkout or merely reports beside it; `check_okf.py` ends `0 warnings` on a tree where
-   the decision record was never written. Each clause named a real command and none of them
-   discriminated. The plan was re-written to assert the thing that only the change makes true.
+1. The M1 revision on pull request 70 read the plan's `Verifiable:` clauses and found **six
+   commands that would have passed with the work absent or wrong** — one shape, caught six times
+   (`work/ci-budget/log.md`, `acf5530`). Two of them: a `grep` for `triage` in
+   `docs/sdlc/github-setup.md` matched text already on line 89 of that file, so it would have
+   passed before the bullet was written; and the adopter render clause ran `wc -l`, which proves
+   the context file is still at the cap and says nothing about whether the new bullet is in it.
+   The others were an eval case matching a string already present, two added invariants with no
+   test at all, a step citing a test suite the workflow does not invoke, and a fixture literal
+   given to the wrong precision. Each clause named a real command and none of them discriminated.
+   The plan was re-written to assert what only the change makes true. (The rule-7 request — that
+   this shape become a lesson — came separately, from the automated reviewer on the same pull
+   request.)
 2. The M2 revision on pull request 71 found that the two new classes in
    `scripts/test_check_workflow_permissions.py` sat **after** the `if __name__ == "__main__"` block,
    so `python3 scripts/test_check_workflow_permissions.py` ran 39 tests and `python3 -m unittest
@@ -24,11 +30,14 @@ Twice in `work/ci-budget`, two days apart, on different kinds of artifact.
    skipped in the other, and the invocation that skipped them still exited 0. The block moved to the
    end of the file; both now run 45.
 
-   This lesson's first draft named the wrong file here — `scripts/test_delegated_merge.py`, which
-   never had the defect — because the ledger line it was written from did not name a file and the
-   author did not go and look. The conformance review on pull request 72 caught it by checking out
-   `441da35` and running both invocations. That is the lesson eating its own tail, and it is left in
-   the record on purpose: a citation is a verifiable command too, and an unrun one is a guess.
+This lesson needed correcting twice, on its own evidence, before it was merged — which is left in
+the record on purpose, because it is the best argument the lesson has. Its first draft named the
+wrong file in instance 2 (`scripts/test_delegated_merge.py`, which never had the defect); the
+conformance review on pull request 72 caught that by checking out `441da35` and running both
+invocations. Its second draft still described instance 1 with two examples that were never among
+the six; the M4 revision caught that by reading the ledger line the paragraph was summarising and
+diffing the plan's own history. Both times the author had written from memory of a ledger entry
+instead of opening it. A citation is a verifiable command too, and an unrun one is a guess.
 
 A correction in the same ledger is the third face of it: a review line claimed every new test had
 been proved to fail against the reverted source. M2 checked and about eleven were boundary pins that

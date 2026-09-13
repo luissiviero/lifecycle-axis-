@@ -171,16 +171,23 @@ def _paying_head(run, default_branch):
     outsider could steer (PR-B security pass).
 
     Only a run on THIS repository's `default_branch` divides nothing -- the `workflow_run` merge
-    wake, whose minutes a pull request caused but which is not itself one. When the run carries no
-    repository fields (an older recorded response, or a hand-written fixture), fall back to the
-    name comparison: it cannot tell a fork from the trunk, so it keeps the conservative reading.
+    wake, whose minutes a pull request caused but which is not itself one. Knowing the base
+    repository is enough to rule the trunk out: a trunk run always reports `head_repository` equal
+    to `repository`, so once the base is known and the head is not equal to it -- including the
+    nullable case where the head repository was DELETED, which is how an outside contributor's
+    fork ordinarily disappears -- the run is somebody's pull request. Requiring the head to be
+    known as well would hand that contributor the same inflation back (PR-B M4 revision).
+
+    Only when the base repository is unknown too (an older recorded response, or a hand-written
+    fixture) does the name comparison apply: it cannot tell a fork from the trunk, so it keeps the
+    conservative reading.
     """
     head = run.get("head_branch")
     if not head:
         return None
     head_repo = ((run.get("head_repository") or {}).get("full_name") or "").strip()
     base_repo = ((run.get("repository") or {}).get("full_name") or "").strip()
-    if head_repo and base_repo and head_repo != base_repo:
+    if base_repo and head_repo != base_repo:
         return (head_repo, head)          # a fork: a pull request whatever its branch is named
     if head == default_branch:
         return None

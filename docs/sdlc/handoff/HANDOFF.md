@@ -154,11 +154,16 @@ timestamp: 2026-09-06T01:20:00Z
   made, and do not answer automated stop-hook prompts in the chat (the owner reads only the last message).
 
 ## Suggested first prompt for the new session
-"Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Task state'. work/delegated-mode is merged and no
-work item is open, so do not resume it: the next step is the first live delegated item, which needs my grant
-first; until then pick up whichever follow-up that section lists, or wait for me."
+"Read docs/sdlc/handoff/HANDOFF.md on main, starting at the newest 'Task state'. `.sdlc/active` names
+`ci-budget`: both of its code pull requests are merged, so what is left is step 13 of work/ci-budget/plan.md —
+the seven acceptance numbers of spec R14 on real runs, one week after PR-A merged, then the M5 revision over
+them, then I retire the item. Do not open a new work item until I have. If the acceptance week is not up yet,
+say so and stop; the fix queue from the mock walk is the next thing after retirement, and it is in this file."
 
-(Superseded, kept as a record: the prompt that opened Batch B read "Resume the lifecycle-axis SDLC work.
+(Superseded, kept as a record: the prompt before it read "Read docs/sdlc/handoff/HANDOFF.md on main, starting
+at 'Task state'. work/delegated-mode is merged and no work item is open, so do not resume it: the next step is
+the first live delegated item, which needs my grant first." And before that, the prompt that opened Batch B:
+"Resume the lifecycle-axis SDLC work.
 Read docs/sdlc/handoff/HANDOFF.md on branch claude/session-handoff first, then follow its resume steps.
 Batch A is merged; open Batch B starting with WI-7 band-detector.")
 

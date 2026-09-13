@@ -284,6 +284,21 @@ class ActionsMinutesSeries(unittest.TestCase):
         rows[1]["repository"] = {"full_name": "owner/repo"}
         self.assertEqual(actions_minutes_series(rows, days=30), [5.0])
 
+    def test_a_deleted_fork_on_the_default_name_is_still_a_pull_request(self):
+        # `head_repository` is nullable: deleting the fork after opening the pull request is the
+        # ordinary way to get there, and it is within the contributor's control. A run whose base
+        # repository is known and whose head repository is not can never be this repository's own
+        # trunk, so it must not fall back to the name comparison (PR-B M4 revision).
+        rows = [
+            _run("2026-09-01", "10:00:00Z", "10:09:00Z", head_branch="main"),
+            _run("2026-09-01", "11:00:00Z", "11:01:00Z", head_branch="claude/real"),
+        ]
+        rows[0]["head_repository"] = None
+        rows[1]["head_repository"] = {"full_name": "owner/repo"}
+        for row in rows:
+            row["repository"] = {"full_name": "owner/repo"}
+        self.assertEqual(actions_minutes_series(rows, days=30), [5.0])
+
     def test_two_forks_on_the_same_branch_name_are_two_pull_requests(self):
         rows = [
             _run("2026-09-01", "10:00:00Z", "10:03:00Z", head_branch="patch"),
