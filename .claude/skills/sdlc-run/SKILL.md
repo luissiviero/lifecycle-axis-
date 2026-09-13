@@ -28,8 +28,8 @@ what makes it a queue.
    a file-list or order deviation as a ledger line in the same commit, capped by the policy's `max-deviations`.
    Open the pull request with `gh pr create --draft` on the first push and leave it a draft until step 5: the
    gate and the reviewer skip a draft, so the whole build window is CI-free, not gate-free -- you still run
-   step 4 locally at every step. One agent code pull request is open at a time (an intent-only one may run
-   beside it).
+   step 4 locally at every step. One agent code pull request is open at a time (an intent-only one, or the
+   handoff-only one of step 7(c), may run beside it).
 4. Run `scripts/verify.sh`, `python3 scripts/check_artifact_chain.py --base origin/main`, `scripts/run_evals.sh`,
    `python3 scripts/check_okf.py`.
 5. `/sdlc-review`, with reviewer subagents run on a different model from the writer where possible. That skill
