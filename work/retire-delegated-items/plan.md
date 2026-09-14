@@ -5,13 +5,13 @@ title: Red cases in four test modules first, then the check, the script, the dis
 description: "Step 1 writes every new case the spec names across scripts/test_check_artifact_chain.py, scripts/test_approve.py, scripts/test_approve_dispatch.py and scripts/test_check_workflow_permissions.py and records the red set; steps 2 to 5 change check_artifact_chain.py (superseded judged by the retirer, the trailer route bound to the retiring line, the retire run-name waiver), approve.py (--retire, --next), approve_dispatch.py (mode retire in the role gate and the commit subject) and approve.yml (mode retire, next input, slug required) under the unlock; step 6 writes the routine into github-setup.md, HANDOFF.md and the indexes lesson; step 7 is the loop, the review on a second model and the ready flip."
 stage: build
 # status: draft | in-review | approved | delegated | superseded  (require-plan.sh refuses code edits until approved)
-status: in-review
+status: approved
 # kind: feature | fix  (fix: protect-tests.sh refuses edits to existing test files)
 kind: feature
 reads: spec.md
 # approved-by: engineer for routine; tech lead/architect for medium/high risk; set only by a human
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-14
 risk-class: medium
 record:
 resource: https://github.com/luissiviero/lifecycle-axis-/pull/92
