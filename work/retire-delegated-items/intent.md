@@ -117,5 +117,7 @@ supervised by construction and needs the tech lead's eye on spec and plan.
 - Q: for the chain check, is the retiring ledger line enough, or must the retirement commit also carry
   `Approved-Run`/`Approved-Actor` trailers like a dispatch approval? Proposed: the ledger line's actor
   plus the commit's author for a shell or web-editor retirement, and the trailers when the tap did it,
-  the same two routes `check_grant_commit` already knows.
+  the same two routes the chain check already walks for `approved-by` (the trailer route when
+  `dispatch_attestation` finds one on the commit, the author rule otherwise, at
+  `scripts/check_artifact_chain.py:806`).
   A:
