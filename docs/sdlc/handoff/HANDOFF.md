@@ -100,10 +100,14 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   active item's, and leave it alone.** Runs `34846578359` and `34846667149` on #88's check completions
   both end `CONDITION pull-request: refused — Work-Item is 'retire-delegated-items' but .sdlc/active
   names 'advance-push'` and exit 1. That is `work/ci-budget` R-7's deliberate choice, not a gap it left:
-  R-7 made `not-delegated` exit 0 and in the same breath kept this one red — "a locked path or a refused
-  pull request on a supervised item stays a red run with its own `CONDITION` line", because a refusal
-  about the pull request itself must never hide behind the grant verdict
-  (`work/ci-budget/spec.md` R7; the same sentence is in `delegated_merge.py`'s `NOT_DELEGATED` comment).
+  R-7 made `not-delegated` exit 0 and in the same breath kept this one red: "a locked path or a refused
+  pull request on a supervised item stays a red run with its own `CONDITION` line"
+  (`work/ci-budget/spec.md` R7, verbatim; its Decisions section gives the reason, that a
+  `not-delegated` verdict must not hide a refusal about the pull request rather than the grant). Two
+  comments in `delegated_merge.py` say as much in their own words, and neither is that sentence: the
+  one above `NOT_DELEGATED`, "a refusal about the pull request itself stays red beside it", and the one
+  in the supervised branch beside the `locked-paths` call, "stays a red run with its own condition line
+  whatever its item's mode".
   It costs a run per event, which is the price R-7 weighed and paid. Changing it needs an intent that
   argues the case R-7 already decided, not a bug report.
 - **Open pull requests**: #88 `retire-delegated-items` intent (green, mergeable, `Important: 0 | Nits: 0`
