@@ -31,8 +31,7 @@ ledger line each, the pointer cleared or moved to the next item) and a retired p
    That human act may be one tap: a `workflow_dispatch` run of `.github/workflows/approve.yml` writes what the
    approval script writes, with the run's actor as the deciding handle. Ask for the tap and wait; the production
    gate catches every route an agent has to press it.
-4. Never deploy, publish, or push to a protected branch. The production gate hook
-   stops you; a human authorizes releases.
+4. Never deploy, publish, or push to a protected branch. The production gate hook stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.
 6. Review findings cite `file:line` and evidence. Max five minor comments per review.
 7. A mistake made twice becomes a line in this file or a skill, in the same PR.
@@ -105,4 +104,5 @@ A mistake made twice becomes a file there and a pointer line here, in the same P
 - A rules-fragment line is paid for at the adopter's render, which sits at exactly the cap; measure with adopt.sh into scratch — knowledge/lessons/adopter-context-file-sits-at-the-cap.md
 - Commit before `check_artifact_chain.py --base origin/main`: staged work is invisible to it, and an empty diff passes as in-progress — knowledge/lessons/commit-before-the-chain-check.md
 - Watch a new test, eval case or `Verifiable:` clause fail before the change; one only ever seen green proves nothing — knowledge/lessons/a-verifiable-command-fails-before-the-change.md
+- A tap or a web-editor retirement commits no index: run `gen_index.py --check` on `main` before cutting a branch, and carry the regeneration under the item whose index it is — knowledge/lessons/human-commits-leave-indexes-stale.md
 <!-- END GENERATED -->

@@ -22,8 +22,7 @@ timestamp: 2026-09-05T20:00:00Z
    That human act may be one tap: a `workflow_dispatch` run of `.github/workflows/approve.yml` writes what the
    approval script writes, with the run's actor as the deciding handle. Ask for the tap and wait; the production
    gate catches every route an agent has to press it.
-4. Never deploy, publish, or push to a protected branch. The production gate hook
-   stops you; a human authorizes releases.
+4. Never deploy, publish, or push to a protected branch. The production gate hook stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.
 6. Review findings cite `file:line` and evidence. Max five minor comments per review.
 7. A mistake made twice becomes a line in this file or a skill, in the same PR.
