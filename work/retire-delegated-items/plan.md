@@ -117,6 +117,11 @@ adopter's render measured 120 lines before and after (deviation 5).
 - Risk: a Bash command that names `scripts` near a write, or names the approval script, is refused by
   `require-plan.sh` or `protect-approvals.sh` even with this plan approved → mitigation: edits through the
   Edit/Write tools, test runs through `python3 -m unittest` with module names; no `sed -i` on those paths.
+- Risk (revision 1): a retired agent-signed artifact is valid only while its `-> delegated` line, with the
+  handle in `approved-by` as actor, is still in `log.md`; a ledger ever compacted, truncated or rewritten
+  turns a green retirement red → mitigation: the ledger is append-only by rule (`docs/sdlc/templates/log.md`)
+  and the failure is one `approved-by '<handle>' is not valid` line with a human fix (append the signature
+  line the signature made); the trade was chosen over an unbound, agent-writable trigger.
 - What this could break: a retired item that was red becomes green (intended); a strict-mode pull request
   naming a retired item stays red (intended, D5); nothing on the approval path changes, proven by the
   pre-existing classes running unmodified.
@@ -126,7 +131,10 @@ adopter's render measured 120 lines before and after (deviation 5).
 
 ## Proof
 - `scripts/verify.sh` green: `VERIFY: PASS (<sha>)`.
-- Spec rows → tests: R-1 → `RetiredDelegatedItem.test_human_retirement_of_an_agent_signed_item_passes`;
+- Spec rows → tests: R-1 → `RetiredDelegatedItem.test_human_retirement_of_an_agent_signed_item_passes`, its
+  negative half the pre-existing `InProgressChain.test_superseded_with_an_invalid_approver_fails` (revision 1),
+  and the binding's pins `test_a_delegated_line_by_another_handle_switches_nothing_off` and
+  `test_the_append_hint_never_names_the_agent`;
   R-2 → `test_agent_actor_on_the_retiring_line_fails_naming_the_line`; R-3 → `test_tap_retirement_with_trailers_passes`,
   `test_tap_retirement_by_a_handle_outside_the_role_fails`, `DispatchAttestation.test_a_retire_run_verifies_any_artifact_and_an_approval_run_does_not`;
   R-4 → `test_strict_mode_still_refuses_a_superseded_artifact` and the `--numstat` clause; R-5 → the first
@@ -189,6 +197,14 @@ adopter's render measured 120 lines before and after (deviation 5).
   `append:` hint never names the agent's handle; and `mode: retire` is dispatched from the default branch
   only, like a grant, because a retirement moves the pointer and a branch whose diff moves it is strict
   (spec R-7). No file joins or leaves the list. Two pre-existing defects the reviews named are out of this
-  plan and filed in the handoff: `EXEMPT` and the `gh`-less crash on a token. The spec's R-1 row and D1 are amended to say so, in this commit; the owner is told on the pull
-  request, since the spec was approved before the amendment. This spec read the case and did not see it
-  (gotcha missed).
+  plan and filed in the handoff: `EXEMPT` and the `gh`-less crash on a token. The binding's pin,
+  `test_a_delegated_line_by_another_handle_switches_nothing_off`, was seen red by the security reviewer
+  against the pre-binding code (one fabricated `-> delegated` line flipped the trigger's fixture to
+  `CHAIN: PASS`; with the binding it is `CHAIN: FAIL` again), which is its red-before-the-change evidence.
+- 2026-09-14 step 7, revision 1 signed by both reviewers (plan-reviewer and security-reviewer on Opus,
+  `verdict: revise` each) with corrections folded into the same commit: the record's "what goes stale"
+  paragraph argues from the actor-bound form; R-1's acceptance column names the binding's two pins; the
+  spec's Data and migrations sentence says the production case turns green because its `-> delegated`
+  lines carry the handle in `approved-by`; D1 and this plan's Risks record that the ledger's append-only
+  property is now load-bearing for a retired signed artifact's validity; and Proof names the trigger case
+  as R-1's negative half.
