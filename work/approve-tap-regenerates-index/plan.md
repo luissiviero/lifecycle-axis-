@@ -132,3 +132,9 @@ no data, format or workflow changes persist, and no other file imports the new f
   exists. The plan miscounted; the spec did not change, no case was edited, and the direction is the
   safe one (one more case proven to exercise the change). The other two new cases were green as
   predicted, for the reason predicted. 1 of 5.
+- 2026-09-14 — the build commit (98daa7c) edited the signed spec's body, design step 4, which first said
+  the regenerated indexes were left staged on the index-only refusal; R-5's own acceptance test requires
+  the index to be empty, so the code refuses before staging and the sentence was corrected to match.
+  The file list allows a spec body edit "only if the review finds a line the code proves wrong", and the
+  code proved it before the review did; the deviation entry written in that commit said "the spec did not
+  change", which was wrong about this sentence. Logged here as the plan pass asked. 2 of 5.
