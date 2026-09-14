@@ -47,7 +47,10 @@ the three owner answers on the intent).
 - knowledge/lessons/human-commits-leave-indexes-stale.md — "Where it is enforced": the tap route is closed for approvals (`approve-tap-regenerates-index`) and retirements (this item); the web-editor route stays open and the pointer stays (R-12)
 - work/retire-delegated-items/spec.md — R-1 and D1 amended under deviation 3 and revision 1 (added to this list by deviation 5: the plan review on #92 found it changed and unlisted)
 - work/retire-delegated-items/revisions/1.md — the consensus record for the R-1 amendment (deviation 5)
-- docs/sdlc/rules/60-lessons.md, CLAUDE.md, GEMINI.md, AGENTS.md — the indexes lesson's pointer line corrected to what the code does since `approve-tap-regenerates-index` (a tap regenerates; the web editor does not), and the three renders regenerated (deviation 5; the plan review found the lesson contradicting the code two paragraphs above the line this item added)
+- docs/sdlc/rules/60-lessons.md — the indexes lesson's pointer line corrected to what the code does since `approve-tap-regenerates-index` (a tap regenerates; the web editor does not); one line reworded in place, no line added (deviation 5; the plan review found the lesson contradicting the code two paragraphs above the line this item added)
+- CLAUDE.md — regenerated from the fragment above (deviation 5)
+- GEMINI.md — regenerated from the fragment above (deviation 5; `EXEMPT` in the chain check does not cover this render, so it is listed by name)
+- AGENTS.md — regenerated from the fragment above (deviation 5; the same)
 - work/retire-delegated-items/plan.md — this plan; its deviations log
 - work/retire-delegated-items/log.md — one ledger line per gate
 - work/retire-delegated-items/index.md — regenerated
