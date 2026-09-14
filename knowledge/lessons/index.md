@@ -33,3 +33,4 @@ single incident that yields more than one distinct lesson gets `<incident-slug>-
 - [eval-checks-have-no-blank-lines.md](eval-checks-have-no-blank-lines.md) — a blank line truncates an eval `check:` block into a stub that always passes
 - [adopter-context-file-sits-at-the-cap.md](adopter-context-file-sits-at-the-cap.md) — a rules-fragment line is paid for at the adopter's render, which sits at exactly the cap
 - [commit-before-the-chain-check.md](commit-before-the-chain-check.md) — staged work is invisible to the chain check; commit first, and since work/run-queue-followups it refuses rather than passing
+- [a-verifiable-command-fails-before-the-change.md](a-verifiable-command-fails-before-the-change.md) — watch a new test, eval case or `Verifiable:` clause fail before the change; one only ever seen green proves nothing

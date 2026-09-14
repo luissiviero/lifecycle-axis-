@@ -30,3 +30,12 @@ metrics:
       1sigma: { action: log }
       2sigma: { action: diagnose, tools: "Read,Grep" }
       3sigma: { action: propose,  routes: [report:engineering-leadership] }
+  - metric: actions_minutes_per_pr
+    source: "scripts/github_metrics.py actions_minutes_per_pr --days 30"
+    baseline: rolling_30d
+    rules: western_electric
+    window: 14
+    tiers:
+      1sigma: { action: log }
+      2sigma: { action: diagnose, tools: "Read,Grep,Bash(gh run list *)" }
+      3sigma: { action: propose,  routes: [report:engineering-leadership] }

@@ -23,12 +23,16 @@ name: delegated-merge
 
 on:
   workflow_run:
-    # The three workflows .sdlc/delegation.yaml names in `merge.require-checks`. Listing them here
-    # only decides when to *look*; the script re-reads the policy and checks every name again, so
-    # adding a name to the policy without adding it here delays the merge, never widens it. The
-    # script counts only `pull_request` runs of the pull request's own head branch, so a run of any
-    # of these three started by hand (workflow_dispatch) wakes this workflow but satisfies nothing.
-    workflows: [sdlc-gate, agent-evals, pr-review]
+    # The two workflows .sdlc/delegation.yaml names in `merge.require-checks`, and no others.
+    # Listing them here only decides when to *look*; the script re-reads the policy and checks every
+    # name again, so adding a name to the policy without adding it here delays the merge, never
+    # widens it. The script counts only `pull_request` runs of the pull request's own head branch,
+    # so a run of either started by hand (workflow_dispatch) wakes this workflow but satisfies
+    # nothing. `agent-evals` left the policy on 2026-09-06 (15424e0) but stayed here until
+    # work/ci-budget R-5, so each of its runs woke this workflow for a minute to print `waiting`;
+    # scripts/test_check_workflow_permissions.py::DelegatedMergeWorkflow now holds the two lists
+    # together so neither can be edited alone.
+    workflows: [sdlc-gate, pr-review]
     types: [completed]
   # The owner's dry run: "Run workflow" with a head sha prints every condition and its verdict for
   # that sha, from main's checkout, and never merges (the script forces --dry-run for this route).

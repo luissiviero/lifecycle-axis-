@@ -299,32 +299,47 @@ class RunEvalsScript(unittest.TestCase):
 
 
 class AgentEvalsWorkflow(unittest.TestCase):
-    """The workflow watches every source that steers the agent, can be started by hand, and its nightly
-    job can go red (work/agent-evals R-4, R-6)."""
+    """The suite runs nightly and by hand; per commit it runs inside the gate's own verify step.
+
+    work/ci-budget R-4. The `hook-cases` job ran `--kind hook` on every pull request whose diff
+    touched `scripts/**`, `.claude/**`, `.sdlc/**` or `evals/**`, which is nearly every pull request
+    here, while `sdlc-gate` was already running `scripts/run_evals.sh` through `VERIFY_CMDS` on the
+    same commit. Ninety-two runs bought nothing the gate had not proved, and each one also woke the
+    merge script. What must not be lost with it: the nightly credential check (work/agent-evals R-4,
+    R-6) and the deterministic cases on every gated commit.
+    """
 
     WORKFLOW = os.path.join(os.path.dirname(HERE), ".github", "workflows", "agent-evals.yml")
+    CONFIG = os.path.join(os.path.dirname(HERE), ".sdlc", "config.env")
 
     def setUp(self):
         self.text = _read(self.WORKFLOW)
 
-    def test_paths_cover_agent_config(self):
-        for path in ("CLAUDE.md", "GEMINI.md", "AGENTS.md", "REVIEW.md", ".claude/**", ".gemini/**",
-                     ".claude-plugin/**", "docs/sdlc/rules/**", "docs/sdlc/templates/**", "evals/**",
-                     ".sdlc/**", "scripts/**"):
-            self.assertIn("'%s'" % path, self.text, path)
+    def test_no_pull_request_trigger_and_no_hook_cases_job(self):
+        self.assertNotIn("pull_request:", self.text)
+        self.assertNotIn("hook-cases", self.text)
+        self.assertNotIn("--kind hook", self.text)
+        # The paths filter goes with the trigger; a leftover one would be the only thing standing
+        # between this workflow and a required-check that never reports.
+        self.assertNotIn("paths:", self.text)
+
+    def test_runs_nightly_and_can_be_started_by_hand(self):
+        self.assertIn("schedule:", self.text)
+        self.assertIn("cron:", self.text)
+        self.assertIn("workflow_dispatch:", self.text)
+        # `full-suite` no longer needs to ask which event it is: there is only one kind left.
+        self.assertNotIn("github.event_name != 'pull_request'", self.text)
 
     def test_nightly_requires_claude(self):
         self.assertIn("scripts/run_evals.sh --require-claude", self.text)
-        # The PR-time job stays deterministic-only and holds no secret.
-        self.assertIn("scripts/run_evals.sh --kind hook", self.text)
-
-    def test_dispatchable(self):
-        self.assertIn("workflow_dispatch:", self.text)
-        self.assertIn("github.event_name != 'pull_request'", self.text)
-        self.assertNotIn("github.event_name == 'schedule'", self.text)
 
     def test_nightly_trusts_the_checkout(self):
         self.assertIn("hasTrustDialogAccepted", self.text)
+
+    def test_the_deterministic_cases_still_run_on_every_gated_commit(self):
+        # This is the compensating control for dropping the per-pull-request job: the gate's Verify
+        # step runs VERIFY_CMDS, which runs the same cases on the same commit.
+        self.assertIn("scripts/run_evals.sh", _read(self.CONFIG))
 
 
 class CaseBlocksAreWhole(unittest.TestCase):
