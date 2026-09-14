@@ -95,7 +95,9 @@ ALWAYS_LOCKED = (
 HTTP_STATUS_RE = re.compile(r"HTTP (\d{3})")
 STALE_STATUSES = (405, 409)
 # `--head-sha` is interpolated into API paths; a sha is hex and nothing else.
-HEAD_SHA_ARG_RE = re.compile(r"^[0-9a-f]{7,40}$")
+# `\Z`, not `$`: `$` also matches before a trailing newline, and the value is interpolated into an
+# API path and printed into notes (second security pass on pull request 89).
+HEAD_SHA_ARG_RE = re.compile(r"^[0-9a-f]{7,40}\Z")
 
 OK = "ok"
 REFUSED = "refused"
@@ -1085,6 +1087,15 @@ def advance(root, out, merged_slug, number, policy, now=None, merge_sha=None):
     # request 89, finding 2).
     if not (isinstance(merge_sha, str) and HEAD_SHA_ARG_RE.match(merge_sha)):
         merge_sha = None
+    # The allowlist below bounds which *files* are committed, not what is inside them: `git add` on
+    # an already-dirty file would stage that file's other changes too (security pass, nit 2). The
+    # workflow's checkout is always fresh, so a dirty tree here means something unexpected touched
+    # it, and the honest answer is to write nothing at all -- and to move nothing either, so the
+    # check runs before the fetch and fast-forward below (second security pass on pull request 89).
+    dirty = _git(root, "status", "--porcelain")
+    if dirty:
+        out.stream.write("note: the checkout is not clean, so nothing was advanced:\n%s\n" % dirty)
+        return None
     branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
     if branch == "HEAD":
         # Detached: the fetch below would take the remote's default and the fast-forward would
@@ -1117,14 +1128,6 @@ def advance(root, out, merged_slug, number, policy, now=None, merge_sha=None):
         # Never reset or rebase it: a note, and the checkout is left exactly where it was.
         out.stream.write("note: the checkout could not fast-forward to origin/%s (%s); not advancing\n"
                          % (branch, (ff.stderr.strip().splitlines() or ["merge --ff-only failed"])[-1]))
-        return None
-    # The allowlist below bounds which *files* are committed, not what is inside them: `git add` on
-    # an already-dirty file would stage that file's other changes too (security pass, nit 2). The
-    # workflow's checkout is always fresh, so a dirty tree here means something unexpected touched
-    # it, and the honest answer is to write nothing at all.
-    dirty = _git(root, "status", "--porcelain")
-    if dirty:
-        out.stream.write("note: the checkout is not clean, so nothing was advanced:\n%s\n" % dirty)
         return None
     pointer = read_active_slug(root)
     if pointer != merged_slug:

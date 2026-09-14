@@ -167,3 +167,13 @@ owner's click too.
   outside the tree, then green. The spec's R-5 file list and its Interfaces notes are amended in the same
   commit; the ledger's two deviation lines had named the owner as their actor and now name the agent, as
   the supervised precedent does. 3 of 5.
+- 2026-09-14 — the second security pass on pull request 89 (Opus) found no Important and five nits; two
+  carried. The dirty-tree check now runs before the fetch rather than after the fast-forward, because a
+  dirty checkout was being moved onto the merge commit and then told "nothing was advanced"; the spec's
+  design step 5 and its failure-mode line are amended, and the existing dirty-tree cases stay green
+  unmodified. `HEAD_SHA_ARG_RE` ends with `\Z` instead of `$`, which also matched before a trailing
+  newline, and the same regex guards `--head-sha` before it is interpolated into an API path. Not
+  carried: a present-but-malformed sha treated as absent (pinned by the review module's own case and by
+  R-6, and a fast-forward onto origin never writes wrong content); the unreachable `(unreadable
+  FETCH_HEAD)` placeholder (harmless); an unused `import tempfile` in the review module (locked; one line
+  for the owner, or the next item's hand). 4 of 5.

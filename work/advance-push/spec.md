@@ -52,8 +52,10 @@ It becomes, in `advance()`, before the dirty check:
    `origin/<branch> is at <tip[:12]>, not the merge commit <merge_sha[:12]>; not advancing`, return `None`.
 4. `git merge --ff-only FETCH_HEAD`. On failure: the note `the checkout could not fast-forward to
    origin/<branch> (<last stderr line>); not advancing`, return `None`.
-5. The existing flow, unchanged: dirty check, pointer check, next item, writes, allowlist, commit, the
-   non-forced push, the existing rejected-push note.
+5. The existing flow, unchanged: pointer check, next item, writes, allowlist, commit, the non-forced
+   push, the existing rejected-push note. The existing dirty check runs before step 1, not here: the
+   second security pass on pull request 89 showed a dirty checkout being fast-forwarded and then told
+   nothing was advanced (plan deviation 4).
 
 And in `run()`: `merged = gh_api("PUT", .../merge, {...})`; `advance(root, out, slug, number, policy,
 now=now, merge_sha=(merged or {}).get("sha"))`. The merge endpoint returns `{"sha", "merged", "message"}`
@@ -91,8 +93,8 @@ None. No field, no schema, no classification (security-standards §4: n/a).
   nothing written, no reset (R-3).
 - **Push rejected after the fast-forward**: another push landed between the fetch and the push. The
   existing note, no retry, no force (R-4).
-- **A dirty tree after the fast-forward**: the existing refusal, unchanged, now reached only after the
-  checkout is at the merge commit.
+- **A dirty tree**: the existing refusal, unchanged, reached before the fetch, so a dirty checkout is
+  neither written nor moved (plan deviation 4).
 - **`git merge --ff-only` on a shallow checkout**: `actions/checkout` fetches depth 1; `git fetch origin
   <branch>` deepens as needed, and a fast-forward needs only that the current `HEAD` be an ancestor of the
   fetched tip, which the merge commit's first parent guarantees (G-4).
