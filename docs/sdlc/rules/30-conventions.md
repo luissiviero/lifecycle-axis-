@@ -19,9 +19,8 @@ artifact until a human has approved the previous one, or the agent has signed it
 - Tests live next to the code they test; every bug fix adds a regression test.
 - Keep one agent code pull request open at a time (an intent-only or handoff-only one may run beside it); draft first, ready once.
 - A review runs on a **different model from the one that wrote the work** when a second is available: a writer re-reading its own
-  diff shares its blind spots, and pull request 51 has the scars — three rounds, each finding real defects in the last round's
-  fixes, two introduced by the fix before. The owner records in the item's ledger which model wrote and which reviewed, as
-  `revisions/<n>.md`'s `## Reviewer: <role> (<model>)` heading expects, so a later reader can tell a second pair of eyes from one.
+  diff shares its blind spots (pull request 51: three rounds, each finding real defects in the last round's fixes, two of them
+  introduced by the fix before). The item's ledger records which model wrote and which reviewed, as `revisions/<n>.md` expects.
 - `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
   handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
   `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.
