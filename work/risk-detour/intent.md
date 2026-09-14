@@ -139,3 +139,14 @@ the fact rather than a stop they are called back for, and that is the trade the 
 - Q: `scripts/next_item.py` is read by the advance but is not on `locked-paths`. Add it? Proposed: yes,
   in `.sdlc/delegation.yaml`, the owner's file, after this item merges.
   A: agreed (owner, 2026-09-08): add `scripts/next_item.py` to `locked-paths` after this item merges, as the owner's own edit.
+- Q: the detour fires at intent drafting too (Proposed outcome, first line), but the adoption mechanism
+  this intent names is `scripts/sign.py --revision`, and `intent.md` is never signable: it carries the
+  grant, and making it signable is a `sign.py` change the Must-not list forbids. At that one gate, what
+  does a unanimous `revise` amend and re-sign? Raised by the automated review on pull request 60 and
+  unresolved across three passes; carried here so `spec.md` inherits a question, not a contradiction.
+  Proposed: at the intent-drafting gate there is nothing to re-sign, and none is needed. The record is
+  still filed and ledgered, the route it agrees is drafted into the intent's own Proposed outcome while
+  the intent is `in-review`, which an agent may write, and the owner's approval tap is the sign-off that a
+  signature would be at every later gate. If the owner would rather the detour start at the spec gate,
+  the first line of Proposed outcome changes to say so and this question closes the other way.
+  A:
