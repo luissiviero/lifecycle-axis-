@@ -74,10 +74,13 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
 - **One follow-up is open, #84**, one commit on the same item, ready for review: the automated reviewer
   posted a nit on #83 at 03:44:51 and the workflow merged at 03:45:28, so the fix (the porcelain parse
   reads `git status --porcelain -z`, and a rename's source can no longer be mis-split) landed on a
-  re-created branch and needed its own pull request. The pointer still names the item and its plan is
-  signed, so #84 is mergeable by the workflow on the same conditions. A nit posted after the tracking
-  comment's `Important: 0` line never blocks the merge; a fix that arrives after the merge is a new pull
-  request, never a push to a deleted branch.
+  re-created branch and needed its own pull request. A nit posted after the tracking comment's
+  `Important: 0` line never blocks the merge; a fix that arrives after the merge is a new pull request,
+  never a push to a deleted branch. The automated review on #84 then found rule 7 unmet (the arrow
+  misparse had been found twice), so #84 also carries `knowledge/lessons/nul-terminated-git-output.md`,
+  its pointer line, a re-flowed hooks bullet in the CLAUDE-only fragment to pay for it at the adopter's
+  cap, and the regenerated context files: deviation 5 of 5, the cap. **`CLAUDE.md` in that diff is one
+  of the two the merge workflow refuses by design, so #84 is the owner's click**, not an automatic merge.
 - **What #83 changed in production.** `scripts/approve_dispatch.py --commit` regenerates the indexes before
   it judges the tree. On `main` (a grant, or an intent approval tapped there) it also heals any other item's
   stale index; on a work branch (every supervised spec or plan tap) it writes only the item's own
