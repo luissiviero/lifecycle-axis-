@@ -563,5 +563,125 @@ class Commit(unittest.TestCase):
         self.assertEqual(kw.get("default_branch"), "main")
 
 
+class Retire(unittest.TestCase):
+    """work/retire-delegated-items R-7, R-8, R-9: the role gate reads the checkout and requires
+    every present artifact's role; the commit says Retire and carries the same trailers, the pointer
+    and the regenerated indexes; the workflow requires an explicit slug for a retirement."""
+
+    APPROVED = "---\nstatus: approved\napproved-by: luissiviero\n---\n# Demo\n"
+    SUPERSEDED = "---\nstatus: superseded\napproved-by: luissiviero\n---\n# Demo\n"
+    LEDGER = ("- 2026-09-14T00:00:00Z | intent.md | approved -> superseded | luissiviero | abc1234 | retired\n"
+              "- 2026-09-14T00:00:00Z | spec.md | approved -> superseded | luissiviero | abc1234 | retired\n"
+              "- 2026-09-14T00:00:00Z | plan.md | approved -> superseded | luissiviero | abc1234 | retired\n")
+    PRODUCT_OWNER_ONLY = (
+        "roles:\n  product-owner: [luissiviero]\n  tech-lead: [someone-else]\n"
+        "  release-manager: [someone-else]\n  service-owner: [someone-else]\n"
+        "artifacts:\n  intent.md: product-owner\n  spec.md: product-owner\n  plan.md: tech-lead\n"
+        "  incident.md: service-owner\n"
+        "never-approve: [\"claude[bot]\", \"github-actions[bot]\", \"claude\"]\n")
+
+    def setUp(self):
+        self.root = make_repo()
+        for name in ("intent.md", "spec.md", "plan.md"):
+            write(self.root, f"work/demo/{name}", self.APPROVED)
+        subprocess.run(["git", "-C", self.root, "add", "-A"], check=True)
+        subprocess.run(["git", "-C", self.root, "commit", "-q", "-m", "approved"], check=True)
+        self._env = mock.patch.dict(os.environ)
+        self._env.start()
+        for var in Commit.ROUTE_VARS:
+            os.environ.pop(var, None)
+
+    def tearDown(self):
+        self._env.stop()
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def git(self, *args):
+        return subprocess.run(["git", "-C", self.root, *args],
+                              capture_output=True, text=True).stdout.strip()
+
+    def check(self, login="luissiviero", **kw):
+        return approve_dispatch.check_actor(login, "intent.md", mode="retire", root=self.root, **kw)
+
+    def retire_on_disk(self, pointer=None):
+        for name in ("intent.md", "spec.md", "plan.md"):
+            write(self.root, f"work/demo/{name}", self.SUPERSEDED)
+        write(self.root, "work/demo/log.md", self.LEDGER)
+        if pointer is not None:
+            write(self.root, ".sdlc/active", pointer)
+
+    def run_commit(self, **kw):
+        kw.setdefault("artifact", "intent.md")
+        kw.setdefault("mode", "retire")
+        with contextlib.redirect_stdout(io.StringIO()):
+            return approve_dispatch.commit("demo", "luissiviero", "12345", root=self.root,
+                                           identity=IDENTITY, **kw)
+
+    # --- R-7: the role gate -------------------------------------------------------------------
+
+    def test_retire_requires_every_present_artifacts_role(self):
+        write(self.root, ".sdlc/approvers.yaml", self.PRODUCT_OWNER_ONLY)
+        ok, reason = self.check(slug="demo")
+        self.assertFalse(ok)
+        self.assertIn("plan.md", reason)
+
+    def test_retire_with_every_role_passes(self):
+        ok, reason = self.check(slug="demo")
+        self.assertTrue(ok, reason)
+        self.assertEqual(reason, "ok")
+
+    def test_retire_without_a_slug_is_refused(self):
+        ok, reason = self.check()
+        self.assertFalse(ok)
+        self.assertIn("slug", reason)
+        os.makedirs(os.path.join(self.root, "work", "empty"))
+        ok, reason = self.check(slug="empty")
+        self.assertFalse(ok)
+        self.assertIn("no chain artifact", reason)
+
+    # --- R-8: the commit ----------------------------------------------------------------------
+
+    def test_retire_subject_and_trailers(self):
+        self.retire_on_disk()
+        self.assertEqual(self.run_commit(note="all merged"), 0)
+        body = self.git("log", "-1", "--format=%B").strip()
+        self.assertTrue(body.startswith("[demo] Retire as luissiviero"), body)
+        self.assertIn("all merged", body)
+        self.assertTrue(body.endswith("Approved-Run: 12345\nApproved-Actor: luissiviero"), body)
+        self.assertEqual(self.git("log", "-1", "--format=%an"), "luissiviero")
+        self.assertEqual(self.git("log", "-1", "--format=%cn"), approve_dispatch.BOT_NAME)
+        # Any other mode keeps the approval subject.
+        write(self.root, "work/demo/intent.md", self.APPROVED)
+        self.assertEqual(self.run_commit(mode="supervised"), 0)
+        self.assertTrue(self.git("log", "-1", "--format=%s").startswith("[demo] Approve intent.md as"))
+
+    def test_retire_commits_the_pointer_and_the_regenerated_indexes(self):
+        """R-8, R-10: the pointer approve.py cleared and every index the route allows land in the
+        one commit, and the committed tree is what the generator would write."""
+        self.retire_on_disk(pointer="")
+        self.assertEqual(self.run_commit(), 0)
+        names = sorted(self.git("show", "--name-only", "--format=", "HEAD").split())
+        for rel in (".sdlc/active", "work/demo/index.md", "work/index.md", "work/demo/log.md",
+                    "work/demo/intent.md", "work/demo/spec.md", "work/demo/plan.md"):
+            self.assertIn(rel, names, names)
+        self.assertEqual(self.git("show", "HEAD:.sdlc/active"), "")
+        self.assertEqual(self.git("status", "--porcelain"), "", "the commit left the tree dirty")
+        r = subprocess.run([sys.executable, GEN_INDEX, "--check", "--root", self.root],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("INDEX: up to date", r.stdout)
+
+    # --- R-9: the workflow --------------------------------------------------------------------
+
+    def test_the_workflow_requires_an_explicit_slug_for_a_retirement(self):
+        """The same reason as the grant: run-name interpolates the raw input, and a retirement's
+        attestation is bound to the slug in it (spec R-3, D4). The grant line is not edited."""
+        wf = os.path.join(REPO, ".github", "workflows", "approve.yml")
+        with open(wf, encoding="utf-8") as f:
+            text = f.read()
+        self.assertIn('[ -z "$slug" ] && [ "$MODE" = delegated ]', text)
+        self.assertIn('[ -z "$slug" ] && [ "$MODE" = retire ]', text)
+        self.assertIn("a retirement must name its slug explicitly", text)
+
+
 if __name__ == "__main__":
     unittest.main()

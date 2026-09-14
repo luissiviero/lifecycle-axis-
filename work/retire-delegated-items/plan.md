@@ -139,4 +139,13 @@ Not in the list, on purpose: `.sdlc/`, `.claude/hooks/`, `scripts/checks/`, `scr
   human-approved (an agent-signed one goes red again, the state before this item).
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- 2026-09-14 step 1: twenty-five red, not twenty-six. `test_approve_dispatch.Retire.test_retire_with_every_role_passes`
+  is green before the code because `check_actor` treats an unknown mode as supervised and the actor holds
+  every role; it stays as the pin it is. The other twenty-five and the two chain pins are as predicted
+  (chain 3 failures and 1 error, approve 15, dispatch 5, workflow-permissions 1).
+- 2026-09-14 step 1: two fixture facts the file list had wrong. `test_approve.make_repo()` writes its three
+  artifacts `in-review`, so `Retire.setUp` approves them with the script and commits before each case; and
+  `own_artifact` counts `.sdlc/active` as the item's own file only while it names the item, so a retirement
+  that moves the pointer is strict on a pull request. The R-5 chain case therefore points the pointer at
+  another live item on the base first, and the `RetiredDelegatedItem` fixture does the same. The tap runs
+  on `main` and never meets this; the handoff bullet in step 6 says so.
