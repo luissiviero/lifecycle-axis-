@@ -1,12 +1,15 @@
 import json, os, subprocess, sys, tempfile, unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
-from github_metrics import _api_path, ci_failure_series, pr_cycle_series
+from github_metrics import (
+    _api_path, _billed_minutes, actions_minutes_series, ci_failure_series, pr_cycle_series,
+)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURES = os.path.join(ROOT, "scripts", "fixtures")
 RUNS_FIXTURE = os.path.join(FIXTURES, "gh_runs.json")
 PRS_FIXTURE = os.path.join(FIXTURES, "gh_prs.json")
+MINUTES_FIXTURE = os.path.join(FIXTURES, "gh_runs_minutes.json")
 
 
 def _load(path):
@@ -104,6 +107,10 @@ class ApiPaths(unittest.TestCase):
         path = _api_path("ci_test_failure_rate", "o/r", 30, None)
         self.assertTrue(path.startswith("repos/o/r/actions/runs?per_page=100&created=>="), path)
 
+    def test_actions_minutes_shares_the_runs_path(self):
+        path = _api_path("actions_minutes_per_pr", "o/r", 30, None)
+        self.assertTrue(path.startswith("repos/o/r/actions/runs?per_page=100&created=>="), path)
+
 
 class EndToEndThroughDetectBands(unittest.TestCase):
     """github_metrics.py --from-json piped straight into detect_bands.py --file."""
@@ -147,6 +154,198 @@ class EndToEndThroughDetectBands(unittest.TestCase):
         result = json.loads(proc.stdout)
         self.assertIsNone(result["tier"])
         self.assertEqual(result["tested"], 0)
+
+    def test_actions_minutes_per_pr_end_to_end(self):
+        series_text = self._run_metrics("actions_minutes_per_pr", MINUTES_FIXTURE)
+        proc = self._feed_to_detect_bands(series_text)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertIsNone(result["tier"])
+        self.assertEqual(result["tested"], 0)
+
+
+def _run(day, started, updated, event="pull_request", conclusion="success", head_branch="claude/x"):
+    """One workflow-run row. `started`/`updated` are times on `day`; either may be None."""
+    return {
+        "created_at": "%sT%s" % (day, started or "00:00:00Z"),
+        "run_started_at": ("%sT%s" % (day, started)) if started else None,
+        "updated_at": ("%sT%s" % (day, updated)) if updated else None,
+        "event": event,
+        "conclusion": conclusion,
+        "head_branch": head_branch,
+    }
+
+
+class BilledMinutes(unittest.TestCase):
+    """GitHub bills a started run by the wall-clock minute, rounded up, with a one-minute floor."""
+
+    def test_a_ten_second_run_bills_the_one_minute_floor(self):
+        self.assertEqual(_billed_minutes(_run("2026-09-01", "10:00:00Z", "10:00:10Z")), 1)
+
+    def test_three_minutes_five_seconds_bills_four(self):
+        self.assertEqual(_billed_minutes(_run("2026-09-01", "10:00:00Z", "10:03:05Z")), 4)
+
+    def test_a_missing_stamp_bills_nothing(self):
+        self.assertEqual(_billed_minutes(_run("2026-09-01", None, "10:03:05Z")), 0)
+        self.assertEqual(_billed_minutes(_run("2026-09-01", "10:00:00Z", None)), 0)
+
+    def test_a_negative_span_bills_nothing(self):
+        # Clock skew between the two stamps must never subtract from a bucket.
+        self.assertEqual(_billed_minutes(_run("2026-09-01", "10:03:05Z", "10:00:00Z")), 0)
+
+
+class ActionsMinutesSeries(unittest.TestCase):
+    """Billed minutes per pull request per day: the sum over runs a pull request caused,
+    divided by the distinct non-default head branches that day."""
+
+    def test_buckets_come_out_oldest_first(self):
+        series = actions_minutes_series([
+            _run("2026-09-02", "10:00:00Z", "10:02:00Z", head_branch="claude/b"),
+            _run("2026-09-01", "10:00:00Z", "10:05:00Z", head_branch="claude/a"),
+        ], days=30)
+        self.assertEqual(series, [5.0, 2.0])
+
+    def test_schedule_and_workflow_dispatch_are_excluded(self):
+        # The nightly eval suite and a manual dispatch are not a pull request's cost.
+        series = actions_minutes_series([
+            _run("2026-09-01", "10:00:00Z", "10:02:00Z"),
+            _run("2026-09-01", "11:00:00Z", "11:30:00Z", event="schedule"),
+            _run("2026-09-01", "12:00:00Z", "12:30:00Z", event="workflow_dispatch"),
+        ], days=30)
+        self.assertEqual(series, [2.0])
+
+    def test_a_skipped_run_is_excluded(self):
+        # GitHub bills a skipped run nothing, and after R1/R3 every draft push creates two.
+        series = actions_minutes_series([
+            _run("2026-09-01", "10:00:00Z", "10:02:00Z"),
+            _run("2026-09-01", "11:00:00Z", "11:00:03Z", conclusion="skipped"),
+        ], days=30)
+        self.assertEqual(series, [2.0])
+
+    def test_a_workflow_run_wake_on_the_default_branch_counts_its_minutes(self):
+        # The merge wake runs on `main` and bills a minute; the pull request caused it, so
+        # its minutes land in the bucket while its branch never divides it.
+        series = actions_minutes_series([
+            _run("2026-09-01", "10:00:00Z", "10:02:00Z", head_branch="claude/a"),
+            _run("2026-09-01", "10:03:00Z", "10:03:20Z", event="workflow_run", head_branch="main"),
+        ], days=30)
+        self.assertEqual(series, [3.0])
+
+    def test_a_day_of_wakes_alone_is_omitted(self):
+        # Minutes but no pull request to divide by: emit nothing rather than divide by zero.
+        series = actions_minutes_series([
+            _run("2026-09-01", "10:00:00Z", "10:02:00Z", event="workflow_run", head_branch="main"),
+        ], days=30)
+        self.assertEqual(series, [])
+
+    def test_an_in_progress_run_omits_its_bucket(self):
+        # conclusion null is queued or running: it has no billed total yet.
+        series = actions_minutes_series([
+            _run("2026-09-01", "10:00:00Z", "10:02:00Z", conclusion=None),
+        ], days=30)
+        self.assertEqual(series, [])
+
+    def test_two_pull_requests_divide_the_day(self):
+        series = actions_minutes_series([
+            _run("2026-09-01", "10:00:00Z", "10:03:00Z", head_branch="claude/a"),
+            _run("2026-09-01", "11:00:00Z", "11:07:00Z", head_branch="claude/b"),
+        ], days=30)
+        self.assertEqual(series, [5.0])
+
+    def test_the_same_branch_twice_is_one_pull_request(self):
+        series = actions_minutes_series([
+            _run("2026-09-01", "10:00:00Z", "10:03:00Z", head_branch="claude/a"),
+            _run("2026-09-01", "11:00:00Z", "11:07:00Z", head_branch="claude/a"),
+        ], days=30)
+        self.assertEqual(series, [10.0])
+
+    def test_empty_input_is_an_empty_series(self):
+        self.assertEqual(actions_minutes_series([], days=30), [])
+
+    def test_days_trims_to_the_trailing_buckets(self):
+        rows = [
+            _run("2026-09-01", "10:00:00Z", "10:05:00Z", head_branch="claude/a"),
+            _run("2026-09-02", "10:00:00Z", "10:02:00Z", head_branch="claude/b"),
+        ]
+        self.assertEqual(actions_minutes_series(rows, days=1), [2.0])
+
+    def test_a_fork_branch_sharing_the_default_name_is_still_a_pull_request(self):
+        # A fork's `head_branch` is the bare ref name, so a pull request opened from the
+        # fork's own default branch arrives as "main" -- the ordinary case, not a contrived
+        # one. Before this it paid minutes into the day and divided none of them, inflating
+        # every other pull request's average (PR-B security pass).
+        rows = [
+            _run("2026-09-01", "10:00:00Z", "10:09:00Z", head_branch="main"),
+            _run("2026-09-01", "11:00:00Z", "11:01:00Z", head_branch="claude/real"),
+        ]
+        rows[0]["head_repository"] = {"full_name": "outsider/repo"}
+        rows[0]["repository"] = {"full_name": "owner/repo"}
+        rows[1]["head_repository"] = {"full_name": "owner/repo"}
+        rows[1]["repository"] = {"full_name": "owner/repo"}
+        self.assertEqual(actions_minutes_series(rows, days=30), [5.0])
+
+    def test_a_deleted_fork_on_the_default_name_is_still_a_pull_request(self):
+        # `head_repository` is nullable: deleting the fork after opening the pull request is the
+        # ordinary way to get there, and it is within the contributor's control. A run whose base
+        # repository is known and whose head repository is not can never be this repository's own
+        # trunk, so it must not fall back to the name comparison (PR-B M4 revision).
+        rows = [
+            _run("2026-09-01", "10:00:00Z", "10:09:00Z", head_branch="main"),
+            _run("2026-09-01", "11:00:00Z", "11:01:00Z", head_branch="claude/real"),
+        ]
+        rows[0]["head_repository"] = None
+        rows[1]["head_repository"] = {"full_name": "owner/repo"}
+        for row in rows:
+            row["repository"] = {"full_name": "owner/repo"}
+        self.assertEqual(actions_minutes_series(rows, days=30), [5.0])
+
+    def test_two_forks_on_the_same_branch_name_are_two_pull_requests(self):
+        rows = [
+            _run("2026-09-01", "10:00:00Z", "10:03:00Z", head_branch="patch"),
+            _run("2026-09-01", "11:00:00Z", "11:07:00Z", head_branch="patch"),
+        ]
+        rows[0]["head_repository"] = {"full_name": "alice/repo"}
+        rows[1]["head_repository"] = {"full_name": "bob/repo"}
+        for row in rows:
+            row["repository"] = {"full_name": "owner/repo"}
+        self.assertEqual(actions_minutes_series(rows, days=30), [5.0])
+
+    def test_the_wake_on_this_repository_s_default_branch_still_divides_nothing(self):
+        # The fork rule must not readmit the merge wake: same repository, default branch.
+        rows = [
+            _run("2026-09-01", "10:00:00Z", "10:02:00Z", head_branch="claude/a"),
+            _run("2026-09-01", "10:03:00Z", "10:03:20Z", event="workflow_run", head_branch="main"),
+        ]
+        rows[0]["head_repository"] = {"full_name": "owner/repo"}
+        rows[1]["head_repository"] = {"full_name": "owner/repo"}
+        for row in rows:
+            row["repository"] = {"full_name": "owner/repo"}
+        self.assertEqual(actions_minutes_series(rows, days=30), [3.0])
+
+    def test_the_default_branch_is_configurable(self):
+        rows = [_run("2026-09-01", "10:00:00Z", "10:02:00Z", head_branch="trunk")]
+        self.assertEqual(actions_minutes_series(rows, days=30, default_branch="main"), [2.0])
+        self.assertEqual(actions_minutes_series(rows, days=30, default_branch="trunk"), [])
+
+
+class ActionsMinutesCli(unittest.TestCase):
+    def _cli(self, *args):
+        return subprocess.run(
+            [sys.executable, os.path.join(ROOT, "scripts", "github_metrics.py")] + list(args),
+            capture_output=True, text=True, cwd=ROOT,
+        )
+
+    def test_workflow_is_rejected_for_this_metric(self):
+        # --workflow is for ci_test_failure_rate only, as the help text already says.
+        proc = self._cli("actions_minutes_per_pr", "--from-json", MINUTES_FIXTURE,
+                         "--workflow", "sdlc-gate.yml")
+        self.assertEqual(proc.returncode, 2, proc.stdout)
+        self.assertIn("--workflow", proc.stderr)
+
+    def test_the_fixture_prints_five_then_two(self):
+        proc = self._cli("actions_minutes_per_pr", "--from-json", MINUTES_FIXTURE)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout.split(), ["5.000000", "2.000000"])
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 ---
 type: doc
 title: Session handoff (2026-09-06)
-description: "How to resume after the delegated-mode work: constraints, task state, the owner's grant routine, resume steps."
+description: "How to resume in a new session: the session protocol, the task state, the owner's routine, and the seed prompt the finishing session leaves for the next one."
 tags: [sdlc, handoff, playbook-comparison, delegated-mode]
 timestamp: 2026-09-06T01:20:00Z
 ---
@@ -9,11 +9,12 @@ timestamp: 2026-09-06T01:20:00Z
 # Session handoff (read this first after any context reset)
 
 ## How to resume in a NEW session (container state is gone; only git survives)
-1. Read, in this order, from `main`: `docs/sdlc/handoff/HANDOFF.md` (this file), then
-   `work/delegated-mode/plan.md` (the last item's plan; its deviations log is the most recent design record)
-   and `knowledge/decisions/delegated-mode.md`. The older handoff files beside this one (`PLAN.md`,
+1. Read, in this order, from `main`: `docs/sdlc/handoff/HANDOFF.md` (this file), then `work/<slug>/plan.md`
+   for the item `.sdlc/active` names (its deviations log is the most recent design record) and the newest
+   records in `knowledge/decisions/`. The older handoff files beside this one (`PLAN.md`,
    `consensus.md`, `lifecycle-axis-vs-playbook.md`) are the record of the 2026-09-04 plan, all merged.
-2. No task list to re-create: no work item is open. The next act is a human grant (see "Task state").
+2. No task list to re-create: `.sdlc/active` on `main` names the item under implementation, and the newest
+   "Task state" below says where it stands. Read "Session protocol" first.
 3. Re-arm an hourly `send_later` check-in and subscribe to each PR you open (`subscribe_pr_activity`).
    Every earlier session deleted its trigger on handoff so two sessions never act on the same PR.
 4. Continue at "Task state" below. ("Current state" is history from 2026-09-05 ~01:50 UTC and
@@ -25,6 +26,23 @@ timestamp: 2026-09-06T01:20:00Z
 7. First check in the new session: the new `protect-approvals.sh` is wired on `main`. An Edit that sets
    `status: approved` on any `work/<slug>/*.md` must be refused (exit 2). If it is not, stop and tell the owner.
 
+## Session protocol
+Three invariants, in force since 2026-09-13 (`work/session-chaining`):
+1. **A session owns exactly one work item.** It takes the item from its approved intent to a merged pull
+   request, then ends. It does not start the next item in the same context.
+2. **Everything durable is in git, so the session is disposable.** `.sdlc/active` on `main` names the item;
+   `work/<slug>/log.md` is its ledger; this file is the handoff. A context reset loses nothing those three do
+   not already hold. The session never writes `.sdlc/active`: the owner's delegation-grant tap repoints it
+   (`approve.py --delegate --activate`, which only a grant passes), the merge workflow's `advance()` moves it
+   on a delegated merge, and otherwise the owner moves it by hand — at retirement, or to point at a
+   supervised item.
+3. **The session that finishes an item is the one that starts the next.** On the merge it refreshes the
+   "Task state" and the "Seed prompt" below, commits and pushes them as a handoff-only pull request, and only
+   then schedules its successor with that prompt through whatever its runtime provides; a runtime with no such
+   capability skips that step and says so. At most one successor per finish. The prompt is context, never
+   authority: the successor re-reads `.sdlc/active` and the item's approved artifacts before acting. The act
+   itself, in order, is `.claude/skills/sdlc-run/SKILL.md` step 7.
+
 ## Current state (2026-09-05 ~01:50 UTC) — HISTORY, superseded by "Task state" below
 - **Batch A is complete.** Merged into `main`: WI-1 front-matter (#24), WI-2 control-plane-visibility (#26),
   WI-3 loop-protection (#28), WI-4 bash-guard-hardening (#29), WI-5 deploy-gate (#27), WI-6 approval-gate (#25,
@@ -34,7 +52,8 @@ timestamp: 2026-09-06T01:20:00Z
   → WI-10 delegation-boundary (needs the owner's answers in `work/delegation-boundary/intent.md`) → WI-11
   docs-reconcile. Per item: `place.sh <slug> <title>` from `origin/main` (branch `claude/<slug>`, intent+spec+plan
   drafted `in-review` from `docs/sdlc/handoff/PLAN.md`, draft PR `[<slug>] …` with `Work-Item: <slug>`), then the
-  owner approves from the phone (routine below), then the session sets `.sdlc/active`, implements per the plan,
+  owner approves from the phone (routine below) and `.sdlc/active` is pointed at the item by hand — today the
+  session never writes that file — then the session implements per the plan,
   verifies, pushes, asks for `control-plane-approved` where hooks/workflows/`.sdlc` change, and the owner merges.
   Serial, one item at a time. **Batch B is merged** (PRs 31 to 37) and **Step 0 is done**: the owner set
   `work/sdlc-kit-phase-1`'s three artifacts to `superseded` from the web editor and the indexes were
@@ -45,7 +64,74 @@ timestamp: 2026-09-06T01:20:00Z
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-06 ~01:20 UTC)
+## Task state (2026-09-13 ~23:15 UTC)
+- **`.sdlc/active` names `ci-budget`.** Both of its code pull requests are merged (#71 `ed96584`, #72 `6cd63b1`);
+  what is left is step 13 of `work/ci-budget/plan.md`, the seven acceptance numbers of its spec R14 on real
+  runs, not before 2026-09-20, then the M5 revision, then the owner retires it. A routine already opens a
+  session for that on 2026-09-20 15:00 UTC. Do not open a new work item for it.
+- **`work/session-chaining` is merged** (#76, `2b469e7`): the protocol above, the chaining act in `sdlc-run`
+  step 7, the two skill corrections plus `REVIEW.md`, one rendered pointer line in `docs/sdlc/rules/00-chain.md`,
+  and the eval case `session-protocol-is-written-down`. **Retired** by the owner on 2026-09-14 (`a9a40d5`):
+  all three artifacts `superseded`, one ledger line each, the pointer left on `ci-budget`, which is still
+  the active item. That retirement left both index files stale, which is `index-after-approval` (PR #62)
+  on the retirement route as well as the approval one — regenerated by the pull request carrying this line.
+  This section is the first live run of step 7: (a) read `ci-budget` on `main` — a supervised merge moves no
+  pointer — so no successor was scheduled; (b) and (c) are the handoff-only pull request that carries this
+  line. One thing that run showed: (a) names three shapes for the pointer (empty, still the merged item, a
+  granted unstarted item) and met a fourth, another supervised item already under way; the outcome is the
+  same, no successor, but the sentence should say so. Second time it bites, it becomes a lesson.
+- **The chain cannot yet be seen working end to end.** `delegated_merge.py`'s `advance()` pushes `HEAD:main`
+  from a checkout taken before its own merge call and swallows the rejection (`:1123-1130`), so no delegated
+  merge has ever moved the pointer; the fix is the owner's open PR #59. Until it lands, step 7's (a) succeeds
+  only on a pointer the owner moved by hand.
+- **Next after retirement**, from the mock walk's fix queue: `chain-check-robustness` (`kind: fix`),
+  `adopt-ships-what-it-references`, `index-after-approval` (PR #62 is the fix); each touches a locked path, so
+  each ends in the owner's click. The owner's retrospective of 2026-09-13 adds two unfiled defects: retiring a
+  delegated item is impossible today (`superseded` needs a human approver and those artifacts carry
+  `approved-by: claude`), and the ledger's sha slot is unvalidated.
+- Still true from the section below: branch protection is absent on `main`; the `triage` label does not exist;
+  local runs need `GH_TOKEN`/`GITHUB_TOKEN` unset and there is no `gh` binary in the container.
+
+## Task state (2026-09-13 ~15:45 UTC) — HISTORY, superseded by the section above
+- **One session per work item is the context protocol.** Durable state lives in git — `.sdlc/active`, each
+  item's `log.md`, this file — and the session itself is disposable. A session takes one item from its
+  approved intent to a merged pull request, then ends; the next session reads `.sdlc/active` from `main` and
+  starts the next item. Subagents read and return evidence (paths, commands, outputs); the session holding the
+  plan makes every edit (`knowledge/decisions/one-writer-until-ledger.md`). Nothing is lost to a context reset
+  that was not lost anyway: the pointer on `main` is already correct.
+- **`work/ci-budget` PR-A is merged** (#71, `ed96584`). What changed: a draft costs no gate and no review run,
+  one run per pull request cancelled only by a new push, the gate's triage step is behind the owner's `triage`
+  label, `agent-evals` is nightly and on demand only, and the merge script gained a `delegation` condition plus
+  a supersession rule in `_pr_runs`. What did NOT change is the point of
+  `knowledge/decisions/ci-budget-crucial-and-loosened.md` — read it before touching any of the six.
+- **The one non-obvious thing in that diff**: `_pr_runs` drops a `cancelled` run only where a later run of the
+  same **`workflow_id`** succeeded. Not the workflow *name* — the head branch writes workflow files, so a name
+  join let a forged `sdlc-gate` launder the real gate's cancelled row. A run with no `workflow_id` supersedes
+  nothing, deliberately.
+- **A stale check-run row persists on a head sha.** PR #71's sha carried both a red `artifact-chain` row from
+  the blocked run and a green one from the re-run the label triggered. `check_check_runs` has no supersession
+  rule, so this is the open question against delegated merging; see the item's ledger for where it landed.
+- **Branch protection is still absent** on `main` (spec C2). If it is ever created: require
+  `sdlc-gate / artifact-chain`, never `agent-evals`, and leave "require branches to be up to date" off.
+- **Local runs still need the token unset** and there is still no `gh` binary in the container, so anything
+  that shells out to `gh` — `delegated_merge.py`, `github_metrics.py` without `--from-json` — cannot run here.
+
+## Task state (2026-09-08 ~19:40 UTC) — HISTORY, superseded by the section above
+- **Delegated mode has run a full item end to end.** `work/approve-by-dispatch` (#51), `work/retire-active-pointer`
+  (#53), `work/run-queue` (#55, #57) and `work/run-queue-followups` (#56 intent, #58 implementation) are the
+  record. The queue machinery works: `scripts/next_item.py` orders it, `delegated_merge.py` advances
+  `.sdlc/active` after a merge, and `/sdlc-run` loops on its own pull request.
+- **Local runs need the token unset**, in a container with no `gh` binary: `GH_TOKEN= GITHUB_TOKEN= scripts/verify.sh`
+  and the same prefix on `check_artifact_chain.py`. Without it the dispatch-trailer check crashes. This bit two
+  sessions before it was written down.
+- **Run the chain check after committing, never before.** Since `work/run-queue-followups` the check refuses an
+  empty diff on a dirty tree rather than reporting `CHAIN: PASS` on work it never saw; `verify.sh`'s `--base HEAD`
+  self-check is deliberately exempt, so a green verify still says nothing about whether your commit is complete.
+- Known follow-ups, not yet items: `work/run-queue/log.md:21` cites the wrong sha (the base it was written
+  against, not the commit carrying the change); the `gh`-absent crash in `check_artifact_chain.py` is still
+  unfixed and is why the token prefix is needed.
+
+## Task state (2026-09-06 ~01:20 UTC) — HISTORY, superseded by the section above
 - **`work/delegated-mode` is merged, in four pull requests**: #42 (1a, the vocabulary — `delegation.py`, the
   chain check's `delegated` branch, the decision record; fce28c0), #43 (1b, the act — the hooks,
   `scripts/sign.py`, `approve.py --delegate`; 2e01c12), #44 (1c, the prose — skills, rule fragments, this doc
@@ -58,13 +144,12 @@ timestamp: 2026-09-06T01:20:00Z
   as `human-only-approvals.md` always required; and delegated, where an agent signs the `delegated` status
   under a grant and `.github/workflows/delegated-merge.yml` merges the pull request once every printed
   condition holds, no click needed.
-- **`.sdlc/delegation.yaml` is the one tuning surface for the mode**, and it stays `enabled: false` on
-  `main` — the owner's own commit, 9e405fa — until the owner flips it back. Until then every delegated path
-  stays closed: `sign.py`, the hooks and `delegated_merge.py` all treat the disabled policy the same as a
-  missing one, so every artifact goes through the supervised path regardless. When the owner flips it, the
-  same edit sets `require-checks: [sdlc-gate, pr-review]`: the live file still lists `agent-evals`, whose
-  `paths:` filter means a docs-only pull request has no run for it, and the merge script refuses a missing
-  required run (the template already carries the trimmed list).
+- **`.sdlc/delegation.yaml` is the one tuning surface for the mode**, and on `main` today it reads
+  `enabled: True`, `merge.enabled: true`, `require-checks: [sdlc-gate, pr-review]`, `cool-off-hours: 0`, with
+  `docs/sdlc/handoff` on its `locked-paths` since `d035c6e`. (It stayed `enabled: false` from the owner's
+  9e405fa until the owner flipped it; the note here said so long after it stopped being true.) A disabled
+  policy closes every delegated path: `sign.py`, the hooks and `delegated_merge.py` all treat it the same as a
+  missing one, so every artifact goes through the supervised path regardless.
 - **The owner's routine for a grant**, once the policy is on: `python3 scripts/approve.py <slug> intent.md
   --delegate --activate --as <handle>` from a shell, or the same four keys (`risk-class`, `mode`,
   `delegated-by`, `delegated-on`) plus the ledger note edited in the GitHub web editor — either way, on
@@ -114,12 +199,30 @@ timestamp: 2026-09-06T01:20:00Z
 - Every request to the owner ends with the phone steps. Send one clear list; do not restate a decision already
   made, and do not answer automated stop-hook prompts in the chat (the owner reads only the last message).
 
-## Suggested first prompt for the new session
-"Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Task state'. work/delegated-mode is merged and no
-work item is open, so do not resume it: the next step is the first live delegated item, which needs my grant
-first; until then pick up whichever follow-up that section lists, or wait for me."
+## Seed prompt for the next session (refreshed by the finishing session, read by the next)
+This section is the contract `sdlc-run` step 7 sends. The finishing session rewrites it for the next item at
+(b), pushes it at (c), and passes the same text as the successor's payload at (d); it is refreshed every
+cycle, never accumulated. It must be standalone — the next session has no conversation — and it names where
+to look; it grants nothing. The successor re-reads `.sdlc/active` on `main` and the item's approved artifacts
+before acting, whatever this section says. It is written for the state as of the merge of the pull request
+that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
-(Superseded, kept as a record: the prompt that opened Batch B read "Resume the lifecycle-axis SDLC work.
+"Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'.
+`.sdlc/active` names `ci-budget`; its code is merged and its step 13 (the acceptance numbers, not before
+2026-09-20) has a scheduled session of its own, so do not touch it. `work/session-chaining` is merged and
+retired. Open no new work item until the owner retires `ci-budget` and points `.sdlc/active` at
+the next; if they have, work the item it names from its approved artifacts, under /sdlc-run when its intent
+says `mode: delegated` and under the supervised skills otherwise. Run scripts/verify.sh, the chain check,
+scripts/run_evals.sh and scripts/check_okf.py before asking the owner for anything."
+
+(Superseded, kept as a record: the prompt before it read "Read docs/sdlc/handoff/HANDOFF.md on main, starting
+at the newest 'Task state'. `.sdlc/active` names `ci-budget`: both of its code pull requests are merged, so
+what is left is step 13 of work/ci-budget/plan.md — the seven acceptance numbers of spec R14 on real runs, one
+week after PR-A merged, then the M5 revision over them, then I retire the item." Before that: "Read
+docs/sdlc/handoff/HANDOFF.md on main, starting
+at 'Task state'. work/delegated-mode is merged and no work item is open, so do not resume it: the next step is
+the first live delegated item, which needs my grant first." And before that, the prompt that opened Batch B:
+"Resume the lifecycle-axis SDLC work.
 Read docs/sdlc/handoff/HANDOFF.md on branch claude/session-handoff first, then follow its resume steps.
 Batch A is merged; open Batch B starting with WI-7 band-detector.")
 
@@ -147,16 +250,26 @@ Batch A is merged; open Batch B starting with WI-7 band-detector.")
 - Branches `claude/<slug>`: the prefix makes `scripts/check_control_plane.sh` treat PRs as agent-authored,
   so control-plane diffs need the owner's `control-plane-approved` label. PR body carries
   `Work-Item: <slug>`; title `[<slug>] …`.
-- `.sdlc/active` names the item under implementation; the session sets it after merging `main` into the
-  next branch (the owner cannot run the approval script from a phone) and lists it in the plan's file list
-  with a deviation. `require-plan.sh` blocks every write under `scripts/` (including Bash text that mentions
+- `.sdlc/active` names the item under implementation, and the session never writes it: `.sdlc` is in
+  `PROTECTED_PATHS`, so `protect-paths.sh` refuses the write, and an item's own pull request may not contain it
+  (`ALWAYS_LOCKED`). It moves by the owner's delegation-grant tap (`--delegate --activate`; a supervised tap
+  moves nothing), by the merge workflow's `advance()` on a delegated merge, or by the owner's hand — see
+  "Session protocol".
+  `require-plan.sh` blocks every write under `scripts/` (including Bash text that mentions
   `scripts`) until the active plan is approved by a `tech-lead`.
 - Retiring an item is a human act, from the web editor today (`work/retire-active-pointer`): set
   `status: superseded` on `intent.md`, `spec.md` and `plan.md`, append one `approved -> superseded` (or
   `delegated -> superseded`) ledger line per artifact, and set `.sdlc/active` to the next item or to empty.
   `require-plan.sh` refuses a `superseded` plan; `check_artifact_chain.py` fails every pull request whose base
   already has `.sdlc/active` naming a retired item (the retiring pull request itself gets a note to move the
-  pointer), and notes one whose `Work-Item` differs from the pointer. Nothing *retires* an item on merge
+  pointer), and notes one whose `Work-Item` differs from the pointer. It also fails any pull request whose
+  `Work-Item:` names a **retired** item, since every chain artifact must read `approved`: so a pull request
+  cleaning up *after* a retirement (regenerating the indexes the web-editor route leaves stale, say) must
+  leave the `Work-Item:` line off — `sdlc-gate.yml` then falls back to `.sdlc/active`, which names a live
+  item. Verify such a pull request with the slug the gate will use, not with the default. Fix the body
+  **before** the push: the gate resolves the slug from `github.event.pull_request.body` in the event payload,
+  so a body edited after the push never reaches the run it was meant to fix, and re-running that run replays
+  the same payload. Only the next push carries a corrected body. Nothing *retires* an item on merge
   (`superseded` stays the owner's act; one tap for it is a follow-up item), but since `work/run-queue` the
   merge does *move the pointer*: `delegated_merge.py` advances `.sdlc/active` to the next granted, unstarted
   item (`scripts/next_item.py`: earliest `delegated-on`, ties by slug) and writes a ledger line on both items,

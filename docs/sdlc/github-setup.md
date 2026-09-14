@@ -69,8 +69,14 @@ public or on a paid plan.
 - [ ] Require review from Code Owners: **on** (`.github/CODEOWNERS`, with your handle from step 1).
 - [ ] Require approval of the most recent reviewable push: **off** while there is one human; **on** with a
       second one.
-- [ ] Require status checks: `sdlc-gate / artifact-chain`, `agent-evals`, later `pr-review`; require branches
-      to be up to date: **on**; require conversation resolution: **on**.
+- [ ] Require status checks: `sdlc-gate / artifact-chain`, later `pr-review`. **Never `agent-evals`**: it runs
+      nightly and on demand, not on every pull request, and a required check that never reports blocks every
+      merge forever. Require branches to be up to date: **off**, with "one agent code pull request open at a
+      time" as the compensating control (the queue branches each code pull request from a fresh `main`);
+      require conversation resolution: **on**.
+- [ ] Create the **`triage`** label (Issues → Labels). A red gate does not run the model triage step unless a
+      human applies it; `labeled` is a trigger, so applying it re-runs the gate with triage on. That step was
+      3.6 minutes median and 10.6 at worst, most often on a failure that was not the pull request's own.
 - [ ] Do not allow bypassing the above settings: **off** with one human (the admin-merge escape hatch, logged
       as a `work/<slug>/log.md` line naming the merge); **on** with two.
 - [ ] Restrict who can push: you plus the Claude App; block force pushes and deletions.
@@ -86,7 +92,8 @@ public or on a paid plan.
 - [ ] Secrets: `ANTHROPIC_API_KEY` at repository scope with a spend limit, or `CLAUDE_CODE_OAUTH_TOKEN` from
       `claude setup-token` on a Pro/Max plan. Without one, prompt-based evals are skipped (and counted), the
       `pr-review` workflow does nothing, the `bands` workflow files the raw detector output, and the
-      `sdlc-gate` triage step is skipped. Nothing fails for lack of a key.
+      `sdlc-gate` triage step is skipped (it is also skipped without the `triage` label, whatever the
+      credential). Nothing fails for lack of a key.
 - [ ] Install the Claude GitHub App on the repository so `pr-review.yml` can post its review as `claude[bot]`,
       an identity distinct from yours that can never approve.
 - [ ] `deploy.yml` runs behind a GitHub Environment (`production`); add its required reviewers where the plan
@@ -129,9 +136,13 @@ Off by default; opt in per repo.
 5. **Read the verdicts for any open pull request without a shell.** Actions → `delegated-merge` → Run
    workflow, with the pull request's head sha: the run prints one `CONDITION` line per check and never
    merges (that route is dry-run only). Two rules the conditions imply: `merge.require-checks` lists only
-   workflows that run on every pull request (`agent-evals.yml` has a `paths:` filter, so a diff outside
-   those paths has no run to be green, and the script refuses rather than waits), and the intent's
-   `delegated-by` is the login that made the grant commit.
+   workflows that run on every pull request (`agent-evals.yml` runs nightly and on demand only, so it has no
+   run to be green on a pull request, and the script refuses rather than waits), and the intent's
+   `delegated-by` is the login that made the grant commit. A pull request that spent time as a draft carries
+   a `skipped` run of each required workflow on the same sha as its ready run; the script ignores those, and
+   a `cancelled` run only where a later run of the same workflow on that sha succeeded (work/ci-budget).
+   A pull request on a supervised item ends its merge run green with `not-delegated` rather than red: red
+   there means a human is needed.
 
 ## Related
 

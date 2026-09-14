@@ -20,5 +20,6 @@ Each work item lives in `work/<slug>/` and holds `intent.md`, `spec.md`, `plan.m
 Every artifact has YAML front matter with `status` (`draft` | `in-review` | `approved` | `delegated` |
 `superseded`) and `approved-by`. Only a human sets `status: approved`; a hook refuses it from an agent. An
 agent may set `delegated` only under a human's delegation grant on the intent (`.sdlc/delegation.yaml`). The
-active work item is named in `.sdlc/active`; when an item completes, a human retires it (`superseded` on its
-artifacts, a ledger line each, the pointer cleared or moved to the next item) and a retired plan closes the gate.
+active work item is named in `.sdlc/active`; the session protocol and the seed prompt for the next session are
+in `docs/sdlc/handoff/HANDOFF.md`; when an item completes, a human retires it (`superseded` on its artifacts, a
+ledger line each, the pointer cleared or moved to the next item) and a retired plan closes the gate.

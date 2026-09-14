@@ -35,14 +35,18 @@ class BandsConfig(unittest.TestCase):
         finally:
             os.unlink(path)
 
-    def test_real_file_yields_two_github_metrics(self):
+    def test_real_file_yields_three_github_metrics(self):
         with open(BANDS_YAML) as fh:
             rows = matrix(parse(fh.read()))
-        self.assertEqual([r["metric"] for r in rows], ["ci_test_failure_rate", "pr_cycle_time_hours"])
-        self.assertEqual([r["window"] for r in rows], [14, 14])
+        self.assertEqual([r["metric"] for r in rows],
+                         ["ci_test_failure_rate", "pr_cycle_time_hours", "actions_minutes_per_pr"])
+        self.assertEqual([r["window"] for r in rows], [14, 14, 14])
         self.assertTrue(rows[0]["source"].endswith("--workflow sdlc-gate.yml"), rows[0]["source"])
         self.assertEqual(rows[0]["tools"], "Read,Grep,Bash(gh run view *)")
         self.assertEqual(rows[1]["tools"], "Read,Grep")
+        self.assertEqual(rows[2]["tools"], "Read,Grep,Bash(gh run list *)")
+        # The band's series must be the metric the producer actually implements.
+        self.assertIn("actions_minutes_per_pr", rows[2]["source"])
         # The CLI prints the same rows as one JSON line the workflow can fromJSON().
         proc = subprocess.run([sys.executable, SCRIPT], capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(proc.returncode, 0, proc.stderr)

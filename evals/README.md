@@ -1,8 +1,11 @@
 # Evals
 
 Continuous evaluation of the *agent workflow*, not just the code. Target 20–50 cases drawn from real recent tasks.
-Every production incident adds one case here (see `/sdlc-incident`). Cases run in CI on every change to
-CLAUDE.md, its rule and template sources, skills, hooks, agents, evals or the control plane, and nightly.
+Every production incident adds one case here (see `/sdlc-incident`). The deterministic cases run on every
+gated commit, inside `sdlc-gate`'s verify step, because `VERIFY_CMDS` (`.sdlc/config.env`) runs
+`scripts/run_evals.sh`; the full suite, prompt cases included, runs nightly and on demand through
+`agent-evals.yml` with `--require-claude`. That workflow has no per-commit trigger of its own: it repeated
+what the gate had already run on the same commit (work/ci-budget).
 
 ## Two kinds of case, one runner
 
@@ -60,9 +63,10 @@ counted, not run. With `--require-claude` a skipped prompt case counts as a **fa
 `agent-evals` job runs, so an expired credential is a red run, never a green one that tested nothing.
 
 Prompt cases run **nightly only**, on the default branch, in the one job that holds the credential
-(`.github/workflows/agent-evals.yml`, `full-suite`; also startable by hand from the Actions tab). The PR-time job
-runs `--kind hook` with no secret, because eval cases are shell executed from the PR head. The nightly job trusts
-the checkout (`~/.claude.json`, `hasTrustDialogAccepted`) so the project's hooks and permissions apply to `claude -p`.
+(`.github/workflows/agent-evals.yml`, `full-suite`; also startable by hand from the Actions tab). Per commit only
+the deterministic cases run, inside `sdlc-gate`'s verify step, which holds no secret -- the reason that split
+exists, since eval cases are shell executed from the pull request head. The nightly job trusts the checkout
+(`~/.claude.json`, `hasTrustDialogAccepted`) so the project's hooks and permissions apply to `claude -p`.
 
 Selectors:
 - `--only <glob>` — run only cases whose basename (without `.yaml`) matches `<glob>`.

@@ -28,6 +28,19 @@ Commit, then check. `scripts/verify.sh` runs the chain check with `--base HEAD` 
 code change means the check saw nothing.
 
 ## Where it is enforced
-Nowhere yet. A guard in `check_artifact_chain.py` (refuse, or at least warn, when the diff is empty but
-`git status --porcelain` is not) is a small `scripts/` change that needs a plan; until then this lesson
-is the guard.
+`scripts/check_artifact_chain.py`, since `work/run-queue-followups`. When the diff against `--base` is
+empty, the caller did not pass `--base HEAD`, and `git status --porcelain` reports anything (or cannot be
+read at all), the check refuses with one `  FAIL:` line naming how many paths it could not see and the
+first three of them, then `CHAIN: FAIL`. `scripts/test_check_artifact_chain.py::DirtyTree` and
+`evals/cases/chain-refuses-empty-diff-on-a-dirty-tree.yaml` hold it in place.
+
+The rule above still stands for the one case the guard deliberately does not reach: `--base HEAD`, the
+self-check `scripts/verify.sh` runs, whose diff is empty by construction and whose tree is *expected* to
+be dirty, because the documented order of work is stage, verify, commit
+([stage-new-files-before-verify.md](stage-new-files-before-verify.md)). A green `VERIFY: PASS` therefore
+still says nothing about whether the commit you are about to make is complete.
+
+The guard asks how the caller spelled `--base`, not which commit it resolves to. Those are not the same
+question: in the scenario above the branch has no commits yet, so the base and `HEAD` *are* the same
+commit, and the first design of this guard compared revisions and was therefore inert in the only case it
+existed for. The record is `work/run-queue-followups/revisions/1.md`.
