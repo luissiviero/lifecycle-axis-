@@ -64,7 +64,53 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-14 ~05:00 UTC)
+## Task state (2026-09-14 ~14:10 UTC)
+- **`advance-push` is built and merged, and `.sdlc/active` still names it.** #87 carried the approved
+  intent, spec and plan (merged 12:04 UTC as `25b579d`, before the build commits existed), and #89 the
+  build (merged 14:06 UTC as `c18a9ee`). `advance()` now refuses a dirty checkout before it touches
+  anything, fetches the checkout's branch as `git fetch origin -- <branch>`, refuses unless `FETCH_HEAD`
+  is the merge commit `run()` took from the merge endpoint's response, fast-forwards with `--ff-only`,
+  and only then writes and pushes as before. A `merge_sha` that is not a 7-to-40 hex string is treated as
+  absent at both ends; a detached checkout is a note. Ten cases in two new modules
+  (`scripts/test_delegated_merge_advance.py`, `scripts/test_delegated_merge_advance_review.py`);
+  `scripts/test_delegated_merge.py` is unmodified at 150.
+- **The fix is not observed in production yet, and cannot be until a delegated item merges.** An owner's
+  merge click runs no delegated-merge job, so no advance ran on `c18a9ee` and `git log --grep='Advance
+  .sdlc/active'` on `main` is still empty. The first *delegated* merge is the observation: its job log
+  should print `ADVANCE: .sdlc/active -> <slug>`, and `main` should gain an advance commit whose first
+  parent is the merge commit. Nothing is granted today, so nothing will merge delegated until the owner
+  grants a low-risk item.
+- **Retiring `advance-push` is the owner's next act, and this one retires cleanly.** Its `spec.md` and
+  `plan.md` are `approved-by: luissiviero` (supervised, two taps), not agent-signed, so it does not hit
+  the `retire-delegated-items` defect that made the previous item's retirement red. The web-editor route
+  still leaves the two indexes stale (`knowledge/lessons/human-commits-leave-indexes-stale.md`); run
+  `python3 scripts/gen_index.py --check` on `main` before cutting any branch after it.
+- **Two review rounds on Opus against a Fable writer found two Important security defects in the build,
+  both fixed with the reviewer's own repros pinned as cases.** The branch name reached `git fetch origin
+  <branch>` as an option-capable argument, so a ref named `--upload-pack=<script>` executed the script
+  over a local-path origin: argv closes shell injection, not argument injection, and `--` now ends the
+  options. And a merge response whose `sha` was not a string raised a `TypeError` out of `advance()` past
+  `run()`'s `except`, *after* the merge had happened, which would have failed a job for work that landed.
+- **`protect-tests.sh` locks a new test file the moment it exists on disk**, although its header says the
+  failing reproduction "is a new file and stays writable". That cost this item two things: one fixture
+  line the owner had to commit by hand (`be1c162`), and a second test module for the review round's four
+  cases. #89's body proposes the one-line reading that matches the header (absent from `git ls-files` on
+  the base branch is new). Rule 3 keeps the hook out of an agent's diff, so it needs the owner or an item.
+- **New, unfiled: the delegated-merge workflow goes red on any pull request whose `Work-Item` is not the
+  active slug.** Runs `34846578359` and `34846667149` on #88's check completions both end
+  `CONDITION pull-request: refused — Work-Item is 'retire-delegated-items' but .sdlc/active names
+  'advance-push'` and exit 1. That is the designed refusal, but it bills a red run for a condition that is
+  not an error, exactly the shape `work/ci-budget` R-7 fixed for `not-delegated`.
+- **Open pull requests**: #88 `retire-delegated-items` intent (green, mergeable, `Important: 0 | Nits: 0`
+  on its last two reviews); #60 `risk-detour` and #61 `standing-grant` intents, both merging clean against
+  `c18a9ee` as this is written; #65 and #66 dependabot; #67 `plan-adherence` and #68 `revision` drafts.
+  All three intents still carry unanswered open questions with a proposal under each.
+- Still true: `ci-budget` is un-retired with a scheduled session on 2026-09-20 for its acceptance step;
+  branch protection is absent on `main`; the `triage` label does not exist; local runs need
+  `GH_TOKEN`/`GITHUB_TOKEN` unset and there is no `gh` binary in the container; the approvals hook refuses
+  any Bash text naming the human approval script, so a spec's acceptance command must not name it.
+
+## Task state (2026-09-14 ~05:00 UTC) — HISTORY, superseded by the section above
 - **`approve-tap-regenerates-index` is retired and `.sdlc/active` names `advance-push`.** The owner did
   both from the web editor in five commits (`e7d7ae7`, `f00c002`, `58a5852` set the three artifacts
   `superseded`; `4d9ccd9` the three ledger lines; `5a58b17` the pointer). #84 merged by the owner's click
@@ -339,22 +385,28 @@ before acting, whatever this section says. It is written for the state as of the
 that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
 "Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'
-(2026-09-14 ~05:00 UTC). Your item is `advance-push`: `.sdlc/active` names it, its intent is approved by
-luissiviero with `mode: supervised` and `risk-class: low`, and it has no spec and no plan. Write the spec
-with /sdlc-spec, ask the owner for the tap (Actions -> approve -> Run workflow, naming slug, artifact and
-mode) and wait; then /sdlc-plan and the same tap; then Build. Never write approved, never merge, never
-move `.sdlc/active`. Its Build edits scripts/delegated_merge.py, on the policy's locked-paths, so its
-pull request ends in the owner's click whatever else is true. The defect it fixes: after a delegated
-merge the advance commits on a checkout taken before the merge and pushes non-fast-forward, and the
-rejection is swallowed; `6c7be5f` and `ae69ebc` on main are two live merges where the pointer did not
-move and `git log --grep='Advance .sdlc/active'` is still empty. Before cutting your branch run
-`python3 scripts/gen_index.py --check` on main: a human commit leaves the indexes stale and a branch cut
-inside that window fails verify on a file nobody edited. Do not touch `ci-budget`, which has a scheduled
-session on 2026-09-20, and do not reopen `approve-tap-regenerates-index`, which is retired. Run
-scripts/verify.sh, the chain check with --slug advance-push, scripts/run_evals.sh and scripts/check_okf.py
-before asking the owner for anything."
+(2026-09-14 ~14:10 UTC). Nothing is in flight and no item is yours yet. `.sdlc/active` names
+`advance-push`, which is finished and merged (#87 the chain, #89 the build): do not resume it. Before
+anything else run `python3 scripts/gen_index.py --check` and `scripts/verify.sh` on main — a human
+commit, a retirement or a tap leaves the indexes stale, and a branch cut inside that window fails verify
+on a file nobody edited. Then ask the owner for two things and wait: to retire `advance-push` (its three
+artifacts to `superseded`, one ledger line each, then the pointer moved), and to say which item is next.
+That retirement is clean — its spec and plan are approved-by luissiviero, not agent-signed — so it will
+not repeat the red chain the previous retirement produced. Three intents are open, each with unanswered
+open questions carrying a proposal: #88 `retire-delegated-items` (risk-class medium, supervised, green
+and mergeable), #60 `risk-detour` (low, the only grantable one, and what a queue that does not stop on
+non-low work needs first), #61 `standing-grant` (medium, and it depends on the other two). An intent may
+be merged with its questions still blank, but do not let it be tapped until they are answered: a tap
+starts the spec on unconfirmed proposals. Never write approved, never merge, never move `.sdlc/active`.
+Do not touch `ci-budget`, which has a scheduled session on 2026-09-20. The first delegated merge after
+now is the production observation `advance-push` was built for: read its job log for `ADVANCE:
+.sdlc/active -> <slug>` and check that main gained an advance commit whose first parent is the merge
+commit, then record it in the next Task state. Run scripts/verify.sh, the chain check with --slug
+<your item>, scripts/run_evals.sh and scripts/check_okf.py before asking the owner for anything."
 
-(Superseded, kept as a record: the prompt before it named `approve-tap-regenerates-index` as the active
+(Superseded, kept as a record: the prompt before it named `advance-push` as the item to take from spec to
+Build, with the two live merges `6c7be5f` and `ae69ebc` as the evidence its spec should cite. Before that,
+the prompt named `approve-tap-regenerates-index` as the active
 item with its follow-up #84 open, and told the next session to ask the owner which of that item and
 `advance-push` went first. Before that: "Read docs/sdlc/handoff/HANDOFF.md on main, starting
 at 'Session protocol' and the newest 'Task state' (2026-09-14 ~01:50 UTC). Two work items are approved and
