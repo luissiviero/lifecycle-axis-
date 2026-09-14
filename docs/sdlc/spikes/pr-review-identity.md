@@ -26,6 +26,8 @@ Sources: Context7 `/anthropics/claude-code-action` plus live `raw.githubusercont
 
 Two gotchas for T20: (a) "The base GitHub tools are always included. Use `--allowedTools` to add additional tools ... and `--disallowedTools` to prevent specific tools" - `--allowedTools` only *adds*, so a read-only review also needs `--disallowedTools "Edit,Write,MultiEdit,NotebookEdit"`. (b) On `pull_request` events the action restores `.claude/`, `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `.gitmodules`, `.ripgreprc`, `.husky/` **from the base branch** (PR copies read-only under `.claude-pr/`); `REVIEW.md` is *not* on that list, so a PR can rewrite the file the reviewer follows - pin it with `git show "origin/$GITHUB_BASE_REF:REVIEW.md"`.
 
+**Consequence, seen live on pull request 72:** that restore means the reviewer **cannot review a change under `.claude/`**. It reads the base branch's copy, so a pull request that edits a skill gets a confident "this file never mentions X" finding about a file it was shown rather than the file in the diff — pull request 72 drew two `[Important]` comments saying `--draft` was absent from `sdlc-run` and `sdlc-intent`, while `git show <head>:.claude/skills/sdlc-run/SKILL.md` carried it and `run_evals.sh --only skill-opens-drafts` passed on that exact head. The finding is structural, not a model error, and it will recur on every skill or agent change. The head's copies are available read-only under `.claude-pr/`; until the prompt tells the reviewer to read that path for files under `.claude/`, treat such findings as unverified and check the head yourself. Deciding whether to point the prompt at `.claude-pr/` is its own change: it re-opens exactly the surface the base-branch restore exists to close.
+
 Minimum `permissions:` for a review-only job (README + solutions.md - verified):
 
 ```yaml
@@ -79,8 +81,9 @@ The adopter-facing copy of this list, with the first-hour order, the `control-pl
       ("Upgrade to GitHub Pro or make this repository public") on a private repo under the Free plan. This
       repo runs that way on purpose: see `knowledge/decisions/merge-click-is-the-gate.md`. The items below
       apply once the repo is public or on a paid plan.
-- [ ] Require status checks: `sdlc-gate / artifact-chain`, `agent-evals`, later `pr-review`; require
-      branches up to date - **on**; require conversation resolution - **on**
+- [ ] Require status checks: `sdlc-gate / artifact-chain`, later `pr-review`; never `agent-evals`,
+      which no longer runs per pull request (work/ci-budget); require branches up to date - **off**,
+      with one agent code pull request at a time; require conversation resolution - **on**
 - [ ] Do not allow bypassing the above settings - **off** (the admin-merge escape hatch)
 - [ ] Restrict who can push: `luissiviero` + the Claude App; block force pushes and deletions
 - [ ] Settings -> Actions -> General: workflow token **read-only**; "Allow GitHub Actions to create and

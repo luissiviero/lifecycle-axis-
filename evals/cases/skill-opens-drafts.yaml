@@ -1,0 +1,14 @@
+name: skill-opens-drafts
+kind: hook
+source: work/ci-budget/spec.md R8 (a draft's gate and review runs conclude `skipped`, so the build window is CI-free); work/ci-budget/plan.md step 7
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"
+  # An agent opens every pull request as a draft: the gate and the reviewer skip a draft,
+  # so the build window costs nothing and the ready click is the one that buys CI.
+  grep -q -- '--draft' "$R/.claude/skills/sdlc-run/SKILL.md"
+  grep -q -- '--draft' "$R/.claude/skills/sdlc-intent/SKILL.md"
+  # The review skill is the one place that marks it ready, and says so once.
+  grep -q 'gh pr ready' "$R/.claude/skills/sdlc-review/SKILL.md"
+  # An unexplained red gate asks the owner for the `triage` label; the agent never applies it,
+  # because the label is the owner's spend decision (spec R2).
+  grep -q 'triage' "$R/.claude/skills/sdlc-review/SKILL.md"

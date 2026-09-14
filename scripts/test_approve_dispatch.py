@@ -1,15 +1,21 @@
 """Tests for scripts/approve_dispatch.py: the role gate and the committer of the dispatch route."""
+import contextlib
+import io
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import approve_dispatch  # noqa: E402
+import gen_index  # noqa: E402
+
+GEN_INDEX = os.path.join(HERE, "gen_index.py")
 
 IDENTITY = "luissiviero <69210737+luissiviero@users.noreply.github.com>"
 
@@ -38,6 +44,23 @@ def write(root, rel, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
+
+
+def add_other_item(root, stale_index=True):
+    """A second, committed work item whose index the approval of `demo` may not write by hand.
+
+    Every index is rendered up to date first, then `work/other/index.md` alone is overwritten with
+    stale text, so the tree has exactly one drifted index: the shape of main after a tap
+    (work/approve-tap-regenerates-index, spec R-2). Committed with the fixture's own identity,
+    which make_repo set (knowledge/lessons/tests-carry-their-own-environment.md).
+    """
+    write(root, "work/other/intent.md", "---\nstatus: in-review\ntitle: Other\n---\n# Other\n")
+    for rel, content in gen_index.render_all(root):
+        write(root, rel, content)
+    if stale_index:
+        write(root, "work/other/index.md", "# stale\n")
+    subprocess.run(["git", "-C", root, "add", "-A"], check=True)
+    subprocess.run(["git", "-C", root, "commit", "-q", "-m", "other item"], check=True)
 
 
 class ActorCheck(unittest.TestCase):
@@ -186,8 +209,16 @@ class Commit(unittest.TestCase):
 
     def setUp(self):
         self.root = make_repo()
+        # The route reads the runner's variables when no flags are given; a case that does not set
+        # them must not inherit them from wherever the suite runs
+        # (knowledge/lessons/tests-carry-their-own-environment.md).
+        self._env = mock.patch.dict(os.environ)
+        self._env.start()
+        for var in self.ROUTE_VARS:
+            os.environ.pop(var, None)
 
     def tearDown(self):
+        self._env.stop()
         shutil.rmtree(self.root, ignore_errors=True)
 
     def git(self, *args):
@@ -256,6 +287,280 @@ class Commit(unittest.TestCase):
 
     def test_nothing_to_stage_is_refused(self):
         self.assertEqual(self.run_commit(), 1)
+
+    # --- work/approve-tap-regenerates-index: --commit regenerates the indexes before it judges the tree
+
+    def run_commit_capturing(self, **kw):
+        """run_commit with stdout and stderr captured; returns (rc, stdout, stderr)."""
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = self.run_commit(**kw)
+        return rc, out.getvalue(), err.getvalue()
+
+    def read(self, rel):
+        with open(os.path.join(self.root, *rel.split("/")), "rb") as f:
+            return f.read()
+
+    def committed_names(self):
+        return sorted(self.git("show", "--name-only", "--format=", "HEAD").split())
+
+    def test_commit_regenerates_both_indexes(self):
+        """R-1, R-8: the tap's commit carries both indexes, byte-identical to the generator's render,
+        and the run log says which files were rewritten."""
+        self.approve_something()
+        rc, out, _ = self.run_commit_capturing()
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.committed_names(),
+                         ["work/demo/index.md", "work/demo/intent.md", "work/demo/log.md", "work/index.md"])
+        self.assertEqual(self.git("status", "--porcelain"), "", "the commit left the tree dirty")
+        want = dict(gen_index.render_all(self.root))
+        for rel in ("work/demo/index.md", "work/index.md"):
+            self.assertEqual(self.read(rel), want[rel].encode("utf-8"), rel)
+        r = subprocess.run([sys.executable, GEN_INDEX, "--check", "--root", self.root],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("INDEX: up to date", r.stdout)
+        self.assertIn("approve-dispatch: regenerated 2 index file(s): work/demo/index.md, work/index.md",
+                      out)
+        again = io.StringIO()
+        with contextlib.redirect_stdout(again):
+            self.assertEqual(approve_dispatch.regenerate(self.root), ([], []))
+        self.assertIn("approve-dispatch: indexes already up to date", again.getvalue())
+
+    def test_a_stale_index_of_another_item_is_committed_too(self):
+        """R-2: a tap heals drift it finds; the other item's index is regenerated and committed."""
+        add_other_item(self.root, stale_index=True)
+        self.approve_something()
+        rc, out, _ = self.run_commit_capturing(ref="main", default_branch="main")
+        self.assertEqual(rc, 0)
+        # The generator renders work/index.md last; sorted order puts it before work/other/index.md.
+        self.assertIn("approve-dispatch: regenerated 3 index file(s): work/demo/index.md, "
+                      "work/index.md, work/other/index.md", out)
+        names = self.committed_names()
+        self.assertIn("work/other/index.md", names)
+        for rel in ("work/demo/index.md", "work/demo/intent.md", "work/demo/log.md", "work/index.md"):
+            self.assertIn(rel, names)
+        want = dict(gen_index.render_all(self.root))
+        self.assertEqual(self.read("work/other/index.md"), want["work/other/index.md"].encode("utf-8"))
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
+    def test_generated_indexes_of_any_item_are_allowed(self):
+        """R-3, the positive half: every generated index passes the guard, whichever item it belongs to,
+        including one whose directory name SLUG_RE would refuse as a slug (work/_example on main)."""
+        add_other_item(self.root, stale_index=True)
+        write(self.root, "work/other/index.md", "# regenerated\n")
+        write(self.root, "work/_example/index.md", "# example\n")
+        write(self.root, "work/index.md", "# top\n")
+        self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root, wide=True), [])
+
+    def test_index_lookalikes_are_stray(self):
+        """R-3, the negative half: the widening reaches exactly work/<dir>/index.md and work/index.md."""
+        strays = ["index.md", "work/other/sub/index.md", "work/.hidden/index.md",
+                  "work/other/index.md.orig", "work/other/intent.md"]
+        for rel in strays:
+            write(self.root, rel, "x\n")
+        self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root), sorted(strays))
+        # On the wide route INDEX_RE is live, and these must still be strays: this is the assertion
+        # that pins the pattern's shape (round 2 of the review).
+        self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root, wide=True),
+                         sorted(strays))
+        # A plain file whose name contains the rename arrow is one path, not two phantoms: git does
+        # not quote that sequence (security pass, round 2).
+        arrow = "work/demo/spec.md -> work/demo/plan.md"
+        write(self.root, arrow, "x\n")
+        judged, staged = approve_dispatch.changed_paths(self.root)
+        self.assertIn(arrow, judged)
+        self.assertIn(arrow, staged)
+        self.assertNotIn("work/demo/plan.md", judged)
+        self.assertIn(arrow, approve_dispatch.unexpected_paths("demo", root=self.root, wide=True))
+        # A tracked file whose name contains the arrow, renamed onto an allowed path: the source must
+        # come through whole and be named as the stray (automated review on #83).
+        os.remove(os.path.join(self.root, *arrow.split("/")))
+        write(self.root, "a -> b", "x\n")
+        subprocess.run(["git", "-C", self.root, "add", "a -> b"], check=True)
+        subprocess.run(["git", "-C", self.root, "commit", "-q", "-m", "arrow"], check=True)
+        subprocess.run(["git", "-C", self.root, "mv", "a -> b", "work/demo/index.md"], check=True)
+        judged, staged = approve_dispatch.changed_paths(self.root)
+        self.assertIn("a -> b", judged)
+        self.assertIn("work/demo/index.md", judged)
+        self.assertIn("work/demo/index.md", staged)
+        self.assertNotIn("a -> b", staged)
+        self.assertIn("a -> b", approve_dispatch.unexpected_paths("demo", root=self.root, wide=True))
+
+    def test_a_stray_beside_regenerated_indexes_still_aborts(self):
+        """R-4: regeneration does not mask a stray; the refusal names the stray and no index."""
+        self.approve_something()
+        write(self.root, "scripts/sneaky.py", "print('hi')\n")
+        before = self.git("rev-parse", "HEAD")
+        rc, _, err = self.run_commit_capturing()
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.git("rev-parse", "HEAD"), before)
+        self.assertIn("scripts/sneaky.py", err)
+        self.assertNotIn("index.md", err)
+
+    def test_index_only_changes_do_not_make_a_commit(self):
+        """R-5, R-8: when the approval wrote nothing, a regenerated index alone is not a commit under
+        approval trailers; the run log still says what was regenerated."""
+        add_other_item(self.root, stale_index=True)
+        before = self.git("rev-parse", "HEAD")
+        rc, out, err = self.run_commit_capturing(ref="main", default_branch="main")
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.git("rev-parse", "HEAD"), before)
+        self.assertEqual(self.git("diff", "--cached", "--name-only"), "")
+        self.assertIn("nothing staged", err)
+        self.assertIn("only generated indexes changed: work/other/index.md", err)
+        self.assertIn("approve-dispatch: regenerated 1 index file(s): work/other/index.md", out)
+
+    # --- revision 1: the heal is scoped to the default branch, a rename is judged at both ends
+
+    ROUTE_VARS = ("GITHUB_REF", "GITHUB_REF_NAME", "GITHUB_REF_TYPE", "GITHUB_EVENT_PATH")
+
+    def test_on_another_ref_only_the_items_indexes_are_written(self):
+        """R-2 narrow route, R-8: on a work branch the tap writes its own two indexes, leaves a
+        foreign stale one untouched and unstaged, and says so."""
+        add_other_item(self.root, stale_index=True)
+        self.approve_something()
+        rc, out, _ = self.run_commit_capturing(ref="work/demo", default_branch="main")
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.committed_names(),
+                         ["work/demo/index.md", "work/demo/intent.md", "work/demo/log.md", "work/index.md"])
+        self.assertEqual(self.read("work/other/index.md"), b"# stale\n")
+        self.assertEqual(self.git("status", "--porcelain"), "", "the foreign index was staged or changed")
+        self.assertIn("approve-dispatch: left 1 stale index file(s) unwritten on this ref: "
+                      "work/other/index.md", out)
+
+    def test_a_foreign_index_is_a_stray_on_the_narrow_route(self):
+        """R-3, spec D7: off the default branch a foreign index is a stray however it got dirty."""
+        add_other_item(self.root, stale_index=True)
+        write(self.root, "work/other/index.md", "# regenerated\n")
+        write(self.root, "work/_example/index.md", "# example\n")
+        write(self.root, "work/index.md", "# top\n")
+        self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root),
+                         ["work/_example/index.md", "work/other/index.md"])
+
+    def test_a_traversing_slug_is_refused_on_a_clean_tree(self):
+        """R-3: the slug is validated before any path is judged, so a clean tree changes nothing.
+        Green since f8b0e1d; mutation-tested red by removing the up-front allowed_paths call."""
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        for bad in ("..", ".", ".git", "../x"):
+            with self.assertRaises(SystemExit, msg=bad):
+                approve_dispatch.unexpected_paths(bad, root=self.root)
+
+    def test_unknown_ref_takes_the_narrow_route(self):
+        """R-11: with no ref given and none of the runner's variables set, the tap is narrow."""
+        add_other_item(self.root, stale_index=True)
+        self.approve_something()
+        with mock.patch.dict(os.environ):
+            for var in self.ROUTE_VARS:
+                os.environ.pop(var, None)
+            rc, out, _ = self.run_commit_capturing()
+        self.assertEqual(rc, 0)
+        self.assertNotIn("work/other/index.md", self.committed_names())
+        self.assertIn("left 1 stale index file(s) unwritten on this ref: work/other/index.md", out)
+
+    def test_a_malformed_event_payload_takes_the_narrow_route(self):
+        """R-11: a missing, unparsable, wrong-shaped or null payload never raises; each is narrow."""
+        payloads = {"missing": None, "not-json": "not json", "list": "[]",
+                    "repo-not-object": '{"repository": 7}',
+                    "null": '{"repository": {"default_branch": null}}',
+                    "empty": '{"repository": {"default_branch": ""}}',
+                    # nests past the recursion limit: json raises RecursionError, not ValueError
+                    "deep": "[" * 200000 + "]" * 200000}
+        for label, payload in payloads.items():
+            with self.subTest(payload=label):
+                root = make_repo()
+                outside = tempfile.mkdtemp()  # the payload lives outside the repo, as the runner's does
+                try:
+                    add_other_item(root, stale_index=True)
+                    write(root, "work/demo/intent.md", "---\nstatus: approved\n---\n# Demo\n")
+                    write(root, "work/demo/log.md", "- ts | intent.md | in-review -> approved\n")
+                    event = os.path.join(outside, "event.json")
+                    if payload is not None:
+                        with open(event, "w", encoding="utf-8") as f:
+                            f.write(payload)
+                    with mock.patch.dict(os.environ, {"GITHUB_REF_NAME": "main",
+                                                      "GITHUB_REF_TYPE": "branch",
+                                                      "GITHUB_EVENT_PATH": event}):
+                        out, err = io.StringIO(), io.StringIO()
+                        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                            rc = approve_dispatch.commit("demo", "luissiviero", "12345", root=root,
+                                                         identity=IDENTITY, artifact="intent.md")
+                    self.assertEqual(rc, 0, err.getvalue())
+                    names = subprocess.run(["git", "-C", root, "show", "--name-only", "--format=", "HEAD"],
+                                           capture_output=True, text=True).stdout.split()
+                    self.assertNotIn("work/other/index.md", names)
+                    self.assertIn("left 1 stale index file(s) unwritten", out.getvalue())
+                finally:
+                    shutil.rmtree(root, ignore_errors=True)
+                    shutil.rmtree(outside, ignore_errors=True)
+
+    def test_a_rename_source_is_judged_too(self):
+        """R-10: a staged rename whose source is outside the allowlist is a stray, even when its
+        destination is a generated index the route allows."""
+        subprocess.run(["git", "-C", self.root, "mv", ".sdlc/approvers.yaml", "work/demo/index.md"],
+                       check=True)
+        self.approve_something()
+        before = self.git("rev-parse", "HEAD")
+        rc, _, err = self.run_commit_capturing()
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.git("rev-parse", "HEAD"), before)
+        self.assertIn(".sdlc/approvers.yaml", err)
+
+    def test_the_runner_variables_take_the_wide_route(self):
+        """R-11, D6: the inputs production uses -- no flags; GITHUB_REF_NAME, GITHUB_REF_TYPE and the
+        event payload -- take the wide route on the default branch, and a tag named like it is narrow."""
+        outside = tempfile.mkdtemp()
+        event = os.path.join(outside, "event.json")
+        with open(event, "w", encoding="utf-8") as f:
+            f.write('{"repository": {"default_branch": "main"}}')
+        try:
+            add_other_item(self.root, stale_index=True)
+            self.approve_something()
+            runner = {"GITHUB_REF": "refs/heads/main", "GITHUB_REF_NAME": "main",
+                      "GITHUB_REF_TYPE": "branch", "GITHUB_EVENT_PATH": event}
+            with mock.patch.dict(os.environ, dict(runner, GITHUB_REF_TYPE="tag")):
+                self.assertFalse(approve_dispatch.route())
+            # A branch literally named refs/heads/main: its short name spells the default branch's
+            # second form, its full ref does not (security pass, round 2).
+            with mock.patch.dict(os.environ, dict(runner, GITHUB_REF="refs/heads/refs/heads/main",
+                                                  GITHUB_REF_NAME="refs/heads/main")):
+                self.assertFalse(approve_dispatch.route())
+            with mock.patch.dict(os.environ, dict(runner, GITHUB_REF_NAME="work/x")):
+                self.assertTrue(approve_dispatch.route(), "the full ref decides, not the short name")
+            with mock.patch.dict(os.environ, runner):
+                self.assertTrue(approve_dispatch.route())
+                rc, out, err = self.run_commit_capturing()
+            self.assertEqual(rc, 0, err)
+            self.assertIn("work/other/index.md", self.committed_names())
+            self.assertIn("regenerated 3 index file(s)", out)
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    def test_a_rename_within_the_allowlist_stages_its_destination(self):
+        """R-10, D5: a staged rename whose both ends are allowed stages the destination only; staging
+        the vanished source would make git add exit 128 (revision 1, reproduced by the reviewer)."""
+        subprocess.run(["git", "-C", self.root, "mv", "work/demo/intent.md", "work/demo/plan.md"],
+                       check=True)
+        write(self.root, "work/demo/log.md", "- ts | plan.md | in-review -> approved\n")
+        rc, _, err = self.run_commit_capturing(artifact="plan.md")
+        self.assertEqual(rc, 0, err)
+        tracked = self.git("ls-files", "work/demo").split()
+        self.assertIn("work/demo/plan.md", tracked)
+        self.assertIn("work/demo/log.md", tracked)
+        self.assertNotIn("work/demo/intent.md", tracked)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
+    def test_cli_threads_ref_and_default_branch_into_commit(self):
+        """R-7: --commit has one spelling of "which ref": the parsed flags reach commit()."""
+        with mock.patch.object(approve_dispatch, "commit", return_value=0) as m:
+            rc = approve_dispatch.main(["--commit", "--actor", "luissiviero", "--run-id", "1",
+                                        "--slug", "demo", "--artifact", "intent.md",
+                                        "--ref", "work/x", "--default-branch", "main",
+                                        "--root", self.root])
+        self.assertEqual(rc, 0)
+        kw = m.call_args.kwargs
+        self.assertEqual(kw.get("ref"), "work/x")
+        self.assertEqual(kw.get("default_branch"), "main")
 
 
 if __name__ == "__main__":

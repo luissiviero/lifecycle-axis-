@@ -1,0 +1,26 @@
+name: chain-refuses-empty-diff-on-a-dirty-tree
+kind: hook
+source: scripts/check_artifact_chain.py (work/run-queue-followups R-1, R-2, R-3: an empty diff on a tree with uncommitted work is refused; the --base HEAD self-check and a genuinely clean tree still pass)
+check: |
+  R="$(git rev-parse --show-toplevel)"; d="$(mktemp -d)"; o="$(mktemp)"
+  git init -q "$d" && ( cd "$d" && git checkout -q -b main )
+  mkdir -p "$d/.sdlc"
+  cp "$R/.sdlc/config.env" "$R/.sdlc/approvers.yaml" "$d/.sdlc/"
+  printf 'new\n' > "$d/.sdlc/active"
+  mkdir -p "$d/work/new"
+  printf -- '---\nstatus: draft\napproved-by:\n---\n# intent\n' > "$d/work/new/intent.md"
+  printf -- '- 2026-01-01T00:00:00Z | intent.md | (none) -> draft | claude[bot] | abc1234 | drafted\n' > "$d/work/new/log.md"
+  ( cd "$d" && git add -A && git -c user.email=t@t -c user.name=t commit -q -m base ) >/dev/null 2>&1
+  printf 'x = 1\n' > "$d/src.py"
+  ( cd "$d" && git add src.py ) >/dev/null 2>&1
+  ( cd "$d" && python3 "$R/scripts/check_artifact_chain.py" --slug new --base main ) > "$o" 2>&1
+  rc_dirty=$?
+  grep -q "is empty but the working tree is not" "$o"; said_why=$?
+  grep -q "src.py" "$o"; named_it=$?
+  ( cd "$d" && python3 "$R/scripts/check_artifact_chain.py" --slug new --base HEAD ) >/dev/null 2>&1
+  rc_self=$?
+  ( cd "$d" && git -c user.email=t@t -c user.name=t commit -q -m "commit the work" ) >/dev/null 2>&1
+  ( cd "$d" && python3 "$R/scripts/check_artifact_chain.py" --slug new --base main ) >/dev/null 2>&1
+  rc_clean=$?
+  rm -rf "$d" "$o"
+  [ "$rc_dirty" -eq 1 ] && [ "$said_why" -eq 0 ] && [ "$named_it" -eq 0 ] && [ "$rc_self" -eq 0 ] && [ "$rc_clean" -eq 0 ]
