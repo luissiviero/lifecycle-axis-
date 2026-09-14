@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -313,13 +314,20 @@ class Commit(unittest.TestCase):
         self.assertIn("INDEX: up to date", r.stdout)
         self.assertIn("approve-dispatch: regenerated 2 index file(s): work/demo/index.md, work/index.md",
                       out)
+        again = io.StringIO()
+        with contextlib.redirect_stdout(again):
+            self.assertEqual(approve_dispatch.regenerate(self.root), ([], []))
+        self.assertIn("approve-dispatch: indexes already up to date", again.getvalue())
 
     def test_a_stale_index_of_another_item_is_committed_too(self):
         """R-2: a tap heals drift it finds; the other item's index is regenerated and committed."""
         add_other_item(self.root, stale_index=True)
         self.approve_something()
-        rc, _, _ = self.run_commit_capturing()
+        rc, out, _ = self.run_commit_capturing(ref="main", default_branch="main")
         self.assertEqual(rc, 0)
+        # The generator renders work/index.md last; sorted order puts it before work/other/index.md.
+        self.assertIn("approve-dispatch: regenerated 3 index file(s): work/demo/index.md, "
+                      "work/index.md, work/other/index.md", out)
         names = self.committed_names()
         self.assertIn("work/other/index.md", names)
         for rel in ("work/demo/index.md", "work/demo/intent.md", "work/demo/log.md", "work/index.md"):
@@ -335,7 +343,7 @@ class Commit(unittest.TestCase):
         write(self.root, "work/other/index.md", "# regenerated\n")
         write(self.root, "work/_example/index.md", "# example\n")
         write(self.root, "work/index.md", "# top\n")
-        self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root), [])
+        self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root, wide=True), [])
 
     def test_index_lookalikes_are_stray(self):
         """R-3, the negative half: the widening reaches exactly work/<dir>/index.md and work/index.md."""
@@ -361,12 +369,118 @@ class Commit(unittest.TestCase):
         approval trailers; the run log still says what was regenerated."""
         add_other_item(self.root, stale_index=True)
         before = self.git("rev-parse", "HEAD")
-        rc, out, err = self.run_commit_capturing()
+        rc, out, err = self.run_commit_capturing(ref="main", default_branch="main")
         self.assertEqual(rc, 1)
         self.assertEqual(self.git("rev-parse", "HEAD"), before)
         self.assertEqual(self.git("diff", "--cached", "--name-only"), "")
         self.assertIn("nothing staged", err)
+        self.assertIn("only generated indexes changed: work/other/index.md", err)
         self.assertIn("approve-dispatch: regenerated 1 index file(s): work/other/index.md", out)
+
+    # --- revision 1: the heal is scoped to the default branch, a rename is judged at both ends
+
+    ROUTE_VARS = ("GITHUB_REF_NAME", "GITHUB_REF_TYPE", "GITHUB_EVENT_PATH")
+
+    def test_on_another_ref_only_the_items_indexes_are_written(self):
+        """R-2 narrow route, R-8: on a work branch the tap writes its own two indexes, leaves a
+        foreign stale one untouched and unstaged, and says so."""
+        add_other_item(self.root, stale_index=True)
+        self.approve_something()
+        rc, out, _ = self.run_commit_capturing(ref="work/demo", default_branch="main")
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.committed_names(),
+                         ["work/demo/index.md", "work/demo/intent.md", "work/demo/log.md", "work/index.md"])
+        self.assertEqual(self.read("work/other/index.md"), b"# stale\n")
+        self.assertEqual(self.git("status", "--porcelain"), "", "the foreign index was staged or changed")
+        self.assertIn("approve-dispatch: left 1 stale index file(s) unwritten on this ref: "
+                      "work/other/index.md", out)
+
+    def test_a_foreign_index_is_a_stray_on_the_narrow_route(self):
+        """R-3, spec D7: off the default branch a foreign index is a stray however it got dirty."""
+        add_other_item(self.root, stale_index=True)
+        write(self.root, "work/other/index.md", "# regenerated\n")
+        write(self.root, "work/_example/index.md", "# example\n")
+        write(self.root, "work/index.md", "# top\n")
+        self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root),
+                         ["work/_example/index.md", "work/other/index.md"])
+
+    def test_a_traversing_slug_is_refused_on_a_clean_tree(self):
+        """R-3: the slug is validated before any path is judged, so a clean tree changes nothing.
+        Green since f8b0e1d; mutation-tested red by removing the up-front allowed_paths call."""
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        for bad in ("..", ".", ".git", "../x"):
+            with self.assertRaises(SystemExit, msg=bad):
+                approve_dispatch.unexpected_paths(bad, root=self.root)
+
+    def test_unknown_ref_takes_the_narrow_route(self):
+        """R-11: with no ref given and none of the runner's variables set, the tap is narrow."""
+        add_other_item(self.root, stale_index=True)
+        self.approve_something()
+        with mock.patch.dict(os.environ):
+            for var in self.ROUTE_VARS:
+                os.environ.pop(var, None)
+            rc, out, _ = self.run_commit_capturing()
+        self.assertEqual(rc, 0)
+        self.assertNotIn("work/other/index.md", self.committed_names())
+        self.assertIn("left 1 stale index file(s) unwritten on this ref: work/other/index.md", out)
+
+    def test_a_malformed_event_payload_takes_the_narrow_route(self):
+        """R-11: a missing, unparsable, wrong-shaped or null payload never raises; each is narrow."""
+        payloads = {"missing": None, "not-json": "not json", "list": "[]",
+                    "repo-not-object": '{"repository": 7}',
+                    "null": '{"repository": {"default_branch": null}}',
+                    "empty": '{"repository": {"default_branch": ""}}'}
+        for label, payload in payloads.items():
+            with self.subTest(payload=label):
+                root = make_repo()
+                outside = tempfile.mkdtemp()  # the payload lives outside the repo, as the runner's does
+                try:
+                    add_other_item(root, stale_index=True)
+                    write(root, "work/demo/intent.md", "---\nstatus: approved\n---\n# Demo\n")
+                    write(root, "work/demo/log.md", "- ts | intent.md | in-review -> approved\n")
+                    event = os.path.join(outside, "event.json")
+                    if payload is not None:
+                        with open(event, "w", encoding="utf-8") as f:
+                            f.write(payload)
+                    with mock.patch.dict(os.environ, {"GITHUB_REF_NAME": "main",
+                                                      "GITHUB_REF_TYPE": "branch",
+                                                      "GITHUB_EVENT_PATH": event}):
+                        out, err = io.StringIO(), io.StringIO()
+                        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                            rc = approve_dispatch.commit("demo", "luissiviero", "12345", root=root,
+                                                         identity=IDENTITY, artifact="intent.md")
+                    self.assertEqual(rc, 0, err.getvalue())
+                    names = subprocess.run(["git", "-C", root, "show", "--name-only", "--format=", "HEAD"],
+                                           capture_output=True, text=True).stdout.split()
+                    self.assertNotIn("work/other/index.md", names)
+                    self.assertIn("left 1 stale index file(s) unwritten", out.getvalue())
+                finally:
+                    shutil.rmtree(root, ignore_errors=True)
+                    shutil.rmtree(outside, ignore_errors=True)
+
+    def test_a_rename_source_is_judged_too(self):
+        """R-10: a staged rename whose source is outside the allowlist is a stray, even when its
+        destination is a generated index the route allows."""
+        subprocess.run(["git", "-C", self.root, "mv", ".sdlc/approvers.yaml", "work/demo/index.md"],
+                       check=True)
+        self.approve_something()
+        before = self.git("rev-parse", "HEAD")
+        rc, _, err = self.run_commit_capturing()
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.git("rev-parse", "HEAD"), before)
+        self.assertIn(".sdlc/approvers.yaml", err)
+
+    def test_cli_threads_ref_and_default_branch_into_commit(self):
+        """R-7: --commit has one spelling of "which ref": the parsed flags reach commit()."""
+        with mock.patch.object(approve_dispatch, "commit", return_value=0) as m:
+            rc = approve_dispatch.main(["--commit", "--actor", "luissiviero", "--run-id", "1",
+                                        "--slug", "demo", "--artifact", "intent.md",
+                                        "--ref", "work/x", "--default-branch", "main",
+                                        "--root", self.root])
+        self.assertEqual(rc, 0)
+        kw = m.call_args.kwargs
+        self.assertEqual(kw.get("ref"), "work/x")
+        self.assertEqual(kw.get("default_branch"), "main")
 
 
 if __name__ == "__main__":
