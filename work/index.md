@@ -2,7 +2,7 @@
 type: sdlc/index
 title: Work items
 description: Generated index of every work/<slug> item; run scripts/gen_index.py to refresh.
-timestamp: 2026-09-14T03:20:00Z
+timestamp: 2026-09-14T05:45:00Z
 ---
 # Work items
 
@@ -10,7 +10,7 @@ timestamp: 2026-09-14T03:20:00Z
 |---|---|---|---|---|---|---|
 | [_example](_example/index.md) | Example work item | plan | approved | approved | approved | plan.md -> approved by luissiviero |
 | [adopter-first-hour](adopter-first-hour/index.md) | A fresh install of the kit breaks in the first hour; the adopter path must work end to end | plan | approved | approved | approved | PR #33 -> in-review by claude |
-| [advance-push](advance-push/index.md) | The post-merge advance never lands, because it pushes from a checkout older than the merge it follows | intent | approved | — | — | intent.md -> approved by luissiviero |
+| [advance-push](advance-push/index.md) | The post-merge advance never lands, because it pushes from a checkout older than the merge it follows | plan | approved | approved | approved | PR #89 -> in-review by claude |
 | [agent-evals](agent-evals/index.md) | Evals test the agent, and can go red | plan | approved | approved | approved | PR #34 -> in-review by claude |
 | [approval-gate](approval-gate/index.md) | Only a human can flip an artifact to approved | plan | approved | approved | approved | PR #25 -> in-review by claude |
 | [approve-by-dispatch](approve-by-dispatch/index.md) | Give permission for the AI to change from one mode to the other when I request, without doing everything manually | plan | approved | approved | delegated | plan.md -> delegated by claude |
@@ -27,6 +27,7 @@ timestamp: 2026-09-14T03:20:00Z
 | [front-matter](front-matter/index.md) | Templates and artifact parsers must agree; approve.py must not misfire | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [loop-protection](loop-protection/index.md) | The agent must not be able to weaken the check on its own work | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [retire-active-pointer](retire-active-pointer/index.md) | Retire `.sdlc/active` when a work item completes, so the plan gate stops opening on finished work | plan | approved | delegated | delegated | PR #53 -> in-review by claude |
+| [retire-delegated-items](retire-delegated-items/index.md) | A delegated item cannot be retired into a green chain, and its retirement leaves the indexes stale | intent | in-review | — | — | intent.md -> in-review by claude |
 | [run-queue](run-queue/index.md) | Grant several items up front and let one delegated run work through them, so I can be away for hours | plan | approved | delegated | delegated | plan.md -> delegated by claude |
 | [run-queue-followups](run-queue-followups/index.md) | The chain check reports PASS on work it never saw; make it say so instead | plan | approved | delegated | delegated | PR #58 -> in-review by claude |
 | [sdlc-kit-phase-1](sdlc-kit-phase-1/index.md) | Make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
