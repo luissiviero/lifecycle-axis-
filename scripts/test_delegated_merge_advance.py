@@ -58,8 +58,9 @@ class MovingRemote(unittest.TestCase):
         self._commit(self.root, "fixture")
         self._git("push", "-q", "origin", "main")
         # The second clone is "GitHub": it moves the remote after the checkout above was taken.
-        subprocess.run(["git", "clone", "-q", self.remote, self.other], check=True,
+        subprocess.run(["git", "clone", "-q", "-b", "main", self.remote, self.other], check=True,
                        capture_output=True)
+        
         self.policy = delegation.load(path=os.path.join(self.root, ".sdlc", "delegation.yaml"))
         self.out = dm.Run(dry_run=False, stream=io.StringIO())
 
