@@ -10,11 +10,11 @@ timestamp: 2026-09-13T22:40:00Z
 |---|---|---|---|---|---|---|
 | [_example](_example/index.md) | Example work item | plan | approved | approved | approved | plan.md -> approved by luissiviero |
 | [adopter-first-hour](adopter-first-hour/index.md) | A fresh install of the kit breaks in the first hour; the adopter path must work end to end | plan | approved | approved | approved | PR #33 -> in-review by claude |
-| [advance-push](advance-push/index.md) | The post-merge advance never lands, because it pushes from a checkout older than the merge it follows | intent | in-review | — | — | intent.md -> in-review by claude |
+| [advance-push](advance-push/index.md) | The post-merge advance never lands, because it pushes from a checkout older than the merge it follows | intent | approved | — | — | intent.md -> approved by luissiviero |
 | [agent-evals](agent-evals/index.md) | Evals test the agent, and can go red | plan | approved | approved | approved | PR #34 -> in-review by claude |
 | [approval-gate](approval-gate/index.md) | Only a human can flip an artifact to approved | plan | approved | approved | approved | PR #25 -> in-review by claude |
 | [approve-by-dispatch](approve-by-dispatch/index.md) | Give permission for the AI to change from one mode to the other when I request, without doing everything manually | plan | approved | approved | delegated | plan.md -> delegated by claude |
-| [approve-tap-regenerates-index](approve-tap-regenerates-index/index.md) | The approval tap commits an approval whose indexes are stale; make the tap regenerate what it changes | intent | in-review | — | — | intent.md -> in-review by claude |
+| [approve-tap-regenerates-index](approve-tap-regenerates-index/index.md) | The approval tap commits an approval whose indexes are stale; make the tap regenerate what it changes | intent | approved | — | — | intent.md -> approved by luissiviero |
 | [band-detector](band-detector/index.md) | The band detector cannot see the breach it exists for | plan | approved | approved | approved | PR #31 -> in-review by claude |
 | [bash-guard-hardening](bash-guard-hardening/index.md) | The Bash write guard silently allows deletes, glued commands, stderr redirects and two-step cd into the control plane | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [batch-b-followups](batch-b-followups/index.md) | Close the three leftovers Batch B surfaced | plan | approved | approved | approved | PR #39 -> in-review by claude |
