@@ -4,14 +4,17 @@ before anything is written, and the commit that records who pressed Run.
 
 Usage:
   scripts/approve_dispatch.py --check-actor LOGIN --artifact NAME [--mode MODE] [--ref REF]
-                              [--default-branch NAME] [--root DIR]
+                              [--default-branch NAME] [--slug S] [--root DIR]
   scripts/approve_dispatch.py --commit --actor LOGIN --run-id N --slug S [--artifact NAME]
-                              [--note TEXT] [--activated] [--root DIR]
+                              [--mode MODE] [--note TEXT] [--root DIR]
 
 --check-actor prints `ok` and exits 0 when LOGIN holds the artifact's role in .sdlc/approvers.yaml;
 otherwise it prints the reason from approvers.Approvers.is_valid on stderr and exits 1, before the
 approval step runs, so a refusal leaves the tree untouched (R-2, D5). With `--mode delegated` it
-also requires --ref to be the default branch: a grant lands on main or nowhere (R-8).
+also requires --ref to be the default branch: a grant lands on main or nowhere (R-8). With `--mode
+retire` the artifact input is ignored and --slug is required: a retirement supersedes every chain
+artifact present under work/<slug>/, so LOGIN must hold every one of their roles
+(work/retire-delegated-items R-7).
 
 --commit first regenerates the indexes with gen_index.render_all: on the default branch every
 work/<slug>/index.md and work/index.md whose bytes changed, so a tap on main heals drift it finds
@@ -67,6 +70,8 @@ SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*$")
 # (work/approve-tap-regenerates-index). Anything else is a bug in the caller, not something to commit
 # quietly.
 CHAIN_FILES = ("intent.md", "spec.md", "plan.md", "incident.md", "log.md", "index.md")
+# The artifacts a retirement supersedes, in chain order: the ones approve.py --retire writes.
+ARTIFACTS = ("intent.md", "spec.md", "plan.md", "incident.md")
 
 # A generated index of any item. The segment class is the generator's, not SLUG_RE's: gen_index
 # renders every directory under work/ (gen_index._work_items), and main tracks work/_example/index.md,
@@ -99,6 +104,21 @@ def check_actor(login, artifact, mode=None, ref=None, default_branch=None, root=
                        "work/<slug>/" % (slug,))
     path = os.path.join(root, ".sdlc", "approvers.yaml") if root else None
     av = approvers.load(path)
+    if mode == "retire":
+        # Every present artifact is written, so every role is required; the `artifact` input is
+        # what the form showed and means nothing here (spec D4). Read from the checkout, like the
+        # retirement itself.
+        if not slug:
+            return False, "a retirement must name its slug; the artifact input is ignored"
+        wd = os.path.join(root or ".", "work", slug)
+        present = [n for n in ARTIFACTS if os.path.exists(os.path.join(wd, n))]
+        if not present:
+            return False, f"work/{slug} has no chain artifact to retire"
+        for name in present:
+            ok, reason = av.is_valid(name, login)
+            if not ok:
+                return False, f"{name}: {reason}"
+        return True, "ok"
     ok, reason = av.is_valid(artifact, login)
     if not ok:
         return False, reason
@@ -289,7 +309,7 @@ def regenerate(root=None, writable=None):
 
 
 def commit(slug, actor, run_id, artifact=None, note="", root=None, identity=None, ref=None,
-           default_branch=None):
+           default_branch=None, mode=None):
     # The route first: on the default branch the tap may write and stage any generated index; on any
     # other ref only the item's own two, so a work branch's diff never carries a foreign index that
     # would flip check_artifact_chain.py out of in-progress mode (spec R-2, R-11, D6, D7).
@@ -316,7 +336,12 @@ def commit(slug, actor, run_id, artifact=None, note="", root=None, identity=None
     if not git("diff", "--cached", "--name-only", root=root):
         print("approve-dispatch: nothing staged; approve.py wrote no change", file=sys.stderr)
         return 1
-    subject = f"[{slug}] Approve {artifact or 'artifact'} as {actor}"
+    # A retirement writes every present artifact, so the subject names the act, not one file
+    # (work/retire-delegated-items R-8); the trailers below are the same either way.
+    if mode == "retire":
+        subject = f"[{slug}] Retire as {actor}"
+    else:
+        subject = f"[{slug}] Approve {artifact or 'artifact'} as {actor}"
     body = f"{note}\n\n" if note else ""
     message = f"{subject}\n\n{body}Approved-Run: {run_id}\nApproved-Actor: {actor}\n"
     author = identity or actor_identity(actor)
@@ -365,7 +390,7 @@ def main(argv=None):
                   file=sys.stderr)
             return 1
         return commit(a.slug, a.actor, a.run_id, artifact=a.artifact, note=a.note, root=a.root,
-                      ref=a.ref, default_branch=a.default_branch)
+                      ref=a.ref, default_branch=a.default_branch, mode=a.mode)
 
     ap.print_usage(sys.stderr)
     return 1
