@@ -5,7 +5,7 @@ title: One session per work item, its state in git, its successor scheduled afte
 description: "One pull request of instructions and documentation: the chaining act in sdlc-run, the protocol and seed prompt in the handoff, the two skill corrections, one rendered pointer line paid for by re-flow, and a hook-kind eval case that is red on main today."
 stage: build
 # status: draft | in-review | approved | delegated | superseded  (require-plan.sh refuses code edits until approved)
-status: approved
+status: superseded
 # kind: feature | fix  (fix: protect-tests.sh refuses edits to existing test files)
 kind: feature
 reads: spec.md
