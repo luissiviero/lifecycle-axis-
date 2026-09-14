@@ -53,9 +53,11 @@ It becomes:
    list now includes the generated indexes wherever they sit. (Today's `present` list stages only the
    item's own files and `.sdlc/active`, which is why a regenerated `work/other/index.md` could never have
    been committed even if something had rendered it.)
-4. **Nothing-staged check.** `git diff --cached --name-only`, minus every path the index predicate accepts.
-   Empty means the approval wrote nothing: print the existing refusal, return 1 (D3). The regenerated
-   indexes are left staged in a tree the run discards; no commit is made.
+4. **Nothing-staged check.** The reported paths, minus every path the index predicate accepts. Empty
+   means the approval wrote nothing: print the existing refusal and return 1 before anything is staged
+   (D3), so `git diff --cached` is empty as R-5 requires; the regenerated indexes stay unstaged in a
+   tree the run discards, and no commit is made. (Build corrected this step: it first said the indexes
+   were left staged, which R-5's own acceptance test contradicts.)
 5. **Commit** exactly as today: subject `[<slug>] Approve <artifact> as <actor>`, optional note, the
    `Approved-Run` and `Approved-Actor` trailers, author the actor, committer the bot.
 

@@ -126,4 +126,9 @@ no data, format or workflow changes persist, and no other file imports the new f
 `scripts/approve_dispatch.py` is not a locked path, so the revert could itself be a delegated item.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- 2026-09-14 — step 1 predicted exactly three red cases before the code and found four:
+  `test_index_only_changes_do_not_make_a_commit` is red too, because the spec's R-8 acceptance puts the
+  "regenerated 1 index file(s)" stdout assertion inside it, and no line is printed before the code
+  exists. The plan miscounted; the spec did not change, no case was edited, and the direction is the
+  safe one (one more case proven to exercise the change). The other two new cases were green as
+  predicted, for the reason predicted. 1 of 5.

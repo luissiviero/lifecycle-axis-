@@ -13,8 +13,10 @@ otherwise it prints the reason from approvers.Approvers.is_valid on stderr and e
 approval step runs, so a refusal leaves the tree untouched (R-2, D5). With `--mode delegated` it
 also requires --ref to be the default branch: a grant lands on main or nowhere (R-8).
 
---commit stages exactly the item's chain files plus .sdlc/active, refuses (exit 1) when
-`git status --porcelain` lists anything else, and commits with
+--commit first regenerates every index with gen_index.render_all -- work/<slug>/index.md for every
+item and work/index.md, so a tap heals drift it finds on the ref -- then stages exactly the item's
+chain files, .sdlc/active and the generated indexes, refuses (exit 1) when `git status --porcelain`
+lists anything else or when nothing but an index changed, and commits with
 
     author    = the run's actor, as <id>+<login>@users.noreply.github.com from the users API
     committer = github-actions[bot]
@@ -40,6 +42,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import approvers  # noqa: E402
+import gen_index  # noqa: E402
 
 BOT_NAME = "github-actions[bot]"
 BOT_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
@@ -54,9 +57,19 @@ BOT_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
 SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*$")
 
 # Exactly what an approval may touch. approve.py writes the artifact, log.md and (with --activate)
-# .sdlc/active; gen_index.py's index.md is regenerated in the same tree. Anything else is a bug in
-# the caller, not something to commit quietly.
+# .sdlc/active; --commit itself regenerates work/*/index.md and work/index.md with
+# gen_index.render_all before it judges the tree, and commits every index it changed, other items'
+# included (work/approve-tap-regenerates-index). Anything else is a bug in the caller, not something
+# to commit quietly.
 CHAIN_FILES = ("intent.md", "spec.md", "plan.md", "incident.md", "log.md", "index.md")
+
+# A generated index of any item. The segment class is the generator's, not SLUG_RE's: gen_index
+# renders every directory under work/ (gen_index._work_items), and main tracks work/_example/index.md,
+# whose name SLUG_RE refuses as a slug -- a predicate built on SLUG_RE would fail every tap the moment
+# that one index drifted, naming a file no tap wrote. A leading dot is excluded so `.`, `..` and
+# `.git` never match, the same containment SLUG_RE gives the slug (spec D4, G-2).
+INDEX_RE = re.compile(r"work/([A-Za-z0-9_][A-Za-z0-9._-]*)/index\.md")
+TOP_INDEX = "work/index.md"
 
 
 def git(*args, root=None, check=True):
@@ -111,21 +124,30 @@ def actor_identity(login):
     return f"{login} <{r.stdout.strip()}+{login}@users.noreply.github.com>"
 
 
-def unexpected_paths(slug, root=None):
-    """Paths git reports as changed that an approval is not allowed to touch.
+def is_generated_index(path):
+    return path == TOP_INDEX or INDEX_RE.fullmatch(path) is not None
 
-    Two details of `git status --porcelain` decide whether this guard works at all, and both were
-    found by its own tests. The status field is two columns wide and unstaged changes leave the
-    first blank, so the output must not be stripped before the lines are split -- stripping eats
-    that leading space and shifts every path by one character. And untracked content is reported
-    one directory at a time unless --untracked-files=all is asked for, which would let a whole new
-    directory of stray files past as a single entry that never matches an allowed path.
+
+def is_allowed(path, slug):
+    """May an approval of `slug` commit `path`: one of its own chain files, .sdlc/active, or any
+    generated index (spec R-3)."""
+    return path in allowed_paths(slug) or is_generated_index(path)
+
+
+def changed_paths(root=None):
+    """Every path `git status` reports as changed, one per entry, sorted.
+
+    Two details of `git status --porcelain` decide whether the guard built on this works at all,
+    and both were found by its own tests. The status field is two columns wide and unstaged changes
+    leave the first blank, so the output must not be stripped before the lines are split --
+    stripping eats that leading space and shifts every path by one character. And untracked content
+    is reported one directory at a time unless --untracked-files=all is asked for, which would let a
+    whole new directory of stray files past as a single entry that never matches an allowed path.
     """
     r = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all"],
                        cwd=root, capture_output=True, text=True)
     if r.returncode != 0:
         raise SystemExit(f"approve-dispatch: git status failed: {r.stderr.strip()}")
-    allowed = allowed_paths(slug)
     out = []
     for line in r.stdout.split("\n"):
         if not line.strip():
@@ -133,20 +155,68 @@ def unexpected_paths(slug, root=None):
         path = line[3:].strip().strip('"')
         if " -> " in path:  # a rename: judge the destination
             path = path.split(" -> ", 1)[1]
-        if path not in allowed:
-            out.append(path)
+        out.append(path)
     return sorted(out)
 
 
+def unexpected_paths(slug, root=None):
+    """Paths git reports as changed that an approval is not allowed to touch."""
+    return [p for p in changed_paths(root) if not is_allowed(p, slug)]
+
+
+def regenerate(root=None):
+    """Render every index with gen_index's own renderer and write the ones whose bytes differ.
+
+    Returns the repository-relative paths written, sorted, and prints them so the workflow's run
+    log says what the tap rewrote (spec R-8). The write is the generator's own call (utf-8, LF) and
+    CRLF on disk is folded before comparing, as gen_index.py --check does; the committer's test runs
+    that --check on the committed tree, which is what proves the two write routes agree (spec D1).
+    Content never makes the generator fail (spec G-1); an unwritable tree raises, and commit() lets
+    that propagate before anything is staged, so the run fails before its push and nothing lands.
+    """
+    top = gen_index.resolve_root(root)
+    written = []
+    for rel, content in gen_index.render_all(top):
+        full = os.path.join(top, *rel.split("/"))
+        want = content.encode("utf-8")
+        try:
+            with open(full, "rb") as f:
+                have = f.read().replace(b"\r\n", b"\n")
+        except FileNotFoundError:
+            have = None
+        if have == want:
+            continue
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w", encoding="utf-8", newline="\n") as f:
+            f.write(content)
+        written.append(rel)
+    written.sort()
+    if written:
+        print(f"approve-dispatch: regenerated {len(written)} index file(s): {', '.join(written)}")
+    else:
+        print("approve-dispatch: indexes already up to date")
+    return written
+
+
 def commit(slug, actor, run_id, artifact=None, note="", root=None, identity=None):
+    # Regenerate first, then judge the whole tree: a regenerated index of any item is allowed, a
+    # stray path is still refused, and the regenerated files go with the discarded tree (spec D2).
+    regenerate(root)
     stray = unexpected_paths(slug, root=root)
     if stray:
         print("approve-dispatch: refusing to commit; an approval may not touch: "
               + ", ".join(stray), file=sys.stderr)
         return 1
-    present = [p for p in sorted(allowed_paths(slug))
-               if os.path.exists(os.path.join(root or "", *p.split("/")))]
-    git("add", "--", *present, root=root)
+    # Everything git reported passed the guard, so stage exactly that: one list drives both the
+    # guard and the staging, and a regenerated index of another item is reachable (spec D5).
+    changed = changed_paths(root)
+    # A diff of generated indexes alone is not an approval: the trailers below vouch for a decision,
+    # and there was none. Refuse before staging, so the index is empty and the regenerated files
+    # stay unstaged in a tree the run discards (spec D3, R-5).
+    if not [p for p in changed if not is_generated_index(p)]:
+        print("approve-dispatch: nothing staged; approve.py wrote no change", file=sys.stderr)
+        return 1
+    git("add", "--", *changed, root=root)
     if not git("diff", "--cached", "--name-only", root=root):
         print("approve-dispatch: nothing staged; approve.py wrote no change", file=sys.stderr)
         return 1

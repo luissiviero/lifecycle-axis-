@@ -1,4 +1,6 @@
 """Tests for scripts/approve_dispatch.py: the role gate and the committer of the dispatch route."""
+import contextlib
+import io
 import os
 import shutil
 import subprocess
@@ -10,6 +12,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import approve_dispatch  # noqa: E402
+import gen_index  # noqa: E402
+
+GEN_INDEX = os.path.join(HERE, "gen_index.py")
 
 IDENTITY = "luissiviero <69210737+luissiviero@users.noreply.github.com>"
 
@@ -38,6 +43,23 @@ def write(root, rel, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
+
+
+def add_other_item(root, stale_index=True):
+    """A second, committed work item whose index the approval of `demo` may not write by hand.
+
+    Every index is rendered up to date first, then `work/other/index.md` alone is overwritten with
+    stale text, so the tree has exactly one drifted index: the shape of main after a tap
+    (work/approve-tap-regenerates-index, spec R-2). Committed with the fixture's own identity,
+    which make_repo set (knowledge/lessons/tests-carry-their-own-environment.md).
+    """
+    write(root, "work/other/intent.md", "---\nstatus: in-review\ntitle: Other\n---\n# Other\n")
+    for rel, content in gen_index.render_all(root):
+        write(root, rel, content)
+    if stale_index:
+        write(root, "work/other/index.md", "# stale\n")
+    subprocess.run(["git", "-C", root, "add", "-A"], check=True)
+    subprocess.run(["git", "-C", root, "commit", "-q", "-m", "other item"], check=True)
 
 
 class ActorCheck(unittest.TestCase):
@@ -256,6 +278,95 @@ class Commit(unittest.TestCase):
 
     def test_nothing_to_stage_is_refused(self):
         self.assertEqual(self.run_commit(), 1)
+
+    # --- work/approve-tap-regenerates-index: --commit regenerates the indexes before it judges the tree
+
+    def run_commit_capturing(self, **kw):
+        """run_commit with stdout and stderr captured; returns (rc, stdout, stderr)."""
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = self.run_commit(**kw)
+        return rc, out.getvalue(), err.getvalue()
+
+    def read(self, rel):
+        with open(os.path.join(self.root, *rel.split("/")), "rb") as f:
+            return f.read()
+
+    def committed_names(self):
+        return sorted(self.git("show", "--name-only", "--format=", "HEAD").split())
+
+    def test_commit_regenerates_both_indexes(self):
+        """R-1, R-8: the tap's commit carries both indexes, byte-identical to the generator's render,
+        and the run log says which files were rewritten."""
+        self.approve_something()
+        rc, out, _ = self.run_commit_capturing()
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.committed_names(),
+                         ["work/demo/index.md", "work/demo/intent.md", "work/demo/log.md", "work/index.md"])
+        self.assertEqual(self.git("status", "--porcelain"), "", "the commit left the tree dirty")
+        want = dict(gen_index.render_all(self.root))
+        for rel in ("work/demo/index.md", "work/index.md"):
+            self.assertEqual(self.read(rel), want[rel].encode("utf-8"), rel)
+        r = subprocess.run([sys.executable, GEN_INDEX, "--check", "--root", self.root],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("INDEX: up to date", r.stdout)
+        self.assertIn("approve-dispatch: regenerated 2 index file(s): work/demo/index.md, work/index.md",
+                      out)
+
+    def test_a_stale_index_of_another_item_is_committed_too(self):
+        """R-2: a tap heals drift it finds; the other item's index is regenerated and committed."""
+        add_other_item(self.root, stale_index=True)
+        self.approve_something()
+        rc, _, _ = self.run_commit_capturing()
+        self.assertEqual(rc, 0)
+        names = self.committed_names()
+        self.assertIn("work/other/index.md", names)
+        for rel in ("work/demo/index.md", "work/demo/intent.md", "work/demo/log.md", "work/index.md"):
+            self.assertIn(rel, names)
+        want = dict(gen_index.render_all(self.root))
+        self.assertEqual(self.read("work/other/index.md"), want["work/other/index.md"].encode("utf-8"))
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
+    def test_generated_indexes_of_any_item_are_allowed(self):
+        """R-3, the positive half: every generated index passes the guard, whichever item it belongs to,
+        including one whose directory name SLUG_RE would refuse as a slug (work/_example on main)."""
+        add_other_item(self.root, stale_index=True)
+        write(self.root, "work/other/index.md", "# regenerated\n")
+        write(self.root, "work/_example/index.md", "# example\n")
+        write(self.root, "work/index.md", "# top\n")
+        self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root), [])
+
+    def test_index_lookalikes_are_stray(self):
+        """R-3, the negative half: the widening reaches exactly work/<dir>/index.md and work/index.md."""
+        strays = ["index.md", "work/other/sub/index.md", "work/.hidden/index.md",
+                  "work/other/index.md.orig", "work/other/intent.md"]
+        for rel in strays:
+            write(self.root, rel, "x\n")
+        self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root), sorted(strays))
+
+    def test_a_stray_beside_regenerated_indexes_still_aborts(self):
+        """R-4: regeneration does not mask a stray; the refusal names the stray and no index."""
+        self.approve_something()
+        write(self.root, "scripts/sneaky.py", "print('hi')\n")
+        before = self.git("rev-parse", "HEAD")
+        rc, _, err = self.run_commit_capturing()
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.git("rev-parse", "HEAD"), before)
+        self.assertIn("scripts/sneaky.py", err)
+        self.assertNotIn("index.md", err)
+
+    def test_index_only_changes_do_not_make_a_commit(self):
+        """R-5, R-8: when the approval wrote nothing, a regenerated index alone is not a commit under
+        approval trailers; the run log still says what was regenerated."""
+        add_other_item(self.root, stale_index=True)
+        before = self.git("rev-parse", "HEAD")
+        rc, out, err = self.run_commit_capturing()
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.git("rev-parse", "HEAD"), before)
+        self.assertEqual(self.git("diff", "--cached", "--name-only"), "")
+        self.assertIn("nothing staged", err)
+        self.assertIn("approve-dispatch: regenerated 1 index file(s): work/other/index.md", out)
 
 
 if __name__ == "__main__":
