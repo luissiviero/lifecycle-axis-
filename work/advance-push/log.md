@@ -14,3 +14,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 - 2026-09-08T21:35:51Z | intent.md | in-review -> in-review | claude | cf8ce1c | open questions answered by the owner: every proposal accepted as written
 - 2026-09-14T01:32:13Z | intent.md | in-review -> approved | luissiviero | e7b23a1
 - 2026-09-14T05:18:42Z | spec.md | (none) -> in-review | claude | 7513ff5 | drafted on the owner direction from the three answered questions: fetch the checkout branch, refuse unless the fetched tip is the merge commit the API returned, fast-forward, then the existing write and non-forced push; the merge sha threaded from run() through a new merge_sha keyword; six cases in a new module because the plan is kind: fix and the hook locks the existing test file, four to be seen red before the code; writer Fable, reviewers to run on Opus
+- 2026-09-14T05:39:58Z | spec.md | in-review -> approved | luissiviero | 7ef97ab
