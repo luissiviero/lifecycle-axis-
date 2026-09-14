@@ -34,7 +34,7 @@ stood in for it (`CLAUDE.md` conventions, the lessons named under Risks, the spe
 the three owner answers on the intent).
 
 ## Files that change
-- scripts/check_artifact_chain.py — the per-artifact block under "Approving and superseding are both human acts" splits by status: `approved` unchanged; `superseded` skips `av.is_valid(name, approved_by)`, keeps the existing `-> superseded` ledger rule (actor holds the artifact's role) and records that line's actor as the retirer; the author/trailer check on the `-G '^status: superseded$'` commit compares `Approved-Actor` to the retirer, not to `approved-by`, and calls `verify_dispatch_run(..., retired=True)` (R-1, R-2, R-3). `verify_dispatch_run` gains `retired=False`: with `retired=True` the title must parse under `RUN_NAME_RE` with `mode == "retire"` (else the existing `does not name` refusal, naming the mode) and the `artifact in title` line is skipped; the slug binding, the four-field check and the no-token fallback untouched (R-3, G-2). The comment above the block rewritten to say who is judged on each status
+- scripts/check_artifact_chain.py — the per-artifact block under "Approving and superseding are both human acts" splits by status: `approved` unchanged; `superseded` skips `av.is_valid(name, approved_by)` only where the ledger holds a `-> delegated` line for the artifact whose actor is that handle (revision 1, deviations 3 and 6), keeps the existing `-> superseded` ledger rule (actor holds the artifact's role) and records that line's actor as the retirer; the author/trailer check on the `-G '^status: superseded$'` commit compares `Approved-Actor` to the retirer, not to `approved-by`, and calls `verify_dispatch_run(..., retired=True)` (R-1, R-2, R-3). `verify_dispatch_run` gains `retired=False`: with `retired=True` the title must parse under `RUN_NAME_RE` with `mode == "retire"` (else the existing `does not name` refusal, naming the mode) and the `artifact in title` line is skipped; the slug binding, the four-field check and the no-token fallback untouched (R-3, G-2). The comment above the block rewritten to say who is judged on each status
 - scripts/test_check_artifact_chain.py — additions only: `class RetiredDelegatedItem` with a helper `_retire_agent_signed(root, wd, actor, trailers=None)` (on `_base_delegated_repo`, cut `work/demo`, set the three artifacts `superseded` with `approved-by` kept, append `<old> -> superseded | <actor>` lines, commit by the human identity or, with trailers, as `_reapprove_with_trailers` shapes it: actor author, bot committer, both trailers) and five cases: `test_human_retirement_of_an_agent_signed_item_passes` (R-1), `test_agent_actor_on_the_retiring_line_fails_naming_the_line` (R-2, counts `FAIL:` lines naming spec.md), `test_tap_retirement_with_trailers_passes` (R-3), `test_tap_retirement_by_a_handle_outside_the_role_fails` (R-3, a pin), `test_strict_mode_still_refuses_a_superseded_artifact` (R-4, a pin); `DispatchAttestation.test_a_retire_run_verifies_any_artifact_and_an_approval_run_does_not` (R-3: `_verify(run, slug="demo", artifact="spec.md", retired=True)` with title `approve intent.md (retire) on demo by @luissiviero` is `True`; the same title with `(supervised)` is `False` with `does not name` in the detail)
 - scripts/approve.py — `artifacts` becomes `nargs="*"` with an explicit usage error when empty and `--retire` is absent (G-4); new `--retire` and `--next SLUG` (default `None`; `--next ""` is blank); `--retire` refuses `--delegate` and `--activate` with the spec's wordings; validation before any write: every present artifact of `ARTIFACTS` (or the ones named) is `approved`, `delegated` or `superseded` (the last skipped as a no-op), the handle holds each one's role, `--next` matches `check_artifact_chain.SLUG_RE`, differs from the slug, names an on-disk `work/<next>/intent.md` not `superseded`; writes `status: superseded` only, a `<old> -> superseded` ledger line each, and the pointer per spec D3 (repoint; clear when it names the retired slug; otherwise leave with a note); `--from-dispatch` writes `retired=`, `run-id=`, `actor=` to `$GITHUB_OUTPUT`; the human-commit hint names `.sdlc/active` when it changed; the module docstring gains the mode (R-5, R-6). The import line becomes `from check_artifact_chain import ROOT, SLUG_RE, front_matter` (G-5)
 - scripts/test_approve.py — new `class Retire` on `make_repo()` (its three artifacts are `approved`; a helper flips one to `delegated`/`claude` or to `in-review` as a case needs) with the fifteen cases spec R-5 and R-6 name: `test_retires_every_present_artifact_and_keeps_approved_by` (then `check_artifact_chain.py --slug demo --base main` from a retiring branch ends `CHAIN: PASS`), `test_a_delegated_artifact_is_retired_from_delegated`, `test_refuses_an_in_review_artifact_and_writes_nothing`, `test_a_handle_without_a_role_is_refused_before_writing`, `test_already_superseded_is_a_noop`, `test_refuses_delegate_and_activate`, `test_agent_session_is_refused`, `test_from_dispatch_writes_retired_to_github_output`, `test_dry_run_writes_nothing`, `test_next_repoints_the_pointer`, `test_blank_next_clears_a_pointer_naming_the_item`, `test_a_pointer_at_another_item_is_left_alone`, `test_next_naming_no_item_is_refused`, `test_next_naming_a_retired_item_is_refused`, `test_next_with_a_traversing_slug_is_refused`
@@ -45,13 +45,18 @@ the three owner answers on the intent).
 - docs/sdlc/github-setup.md — the "Or approve from the Actions tab" paragraph gains the retirement: `mode` `retire` with an explicit `slug` and a `next` input, one commit that supersedes every present artifact, writes the ledger lines, moves the pointer and regenerates the indexes; the web-editor route still valid and still stale (R-12)
 - docs/sdlc/handoff/HANDOFF.md — the bullet beginning "Retiring an item is a human act, from the web editor today" rewritten: the tap first, the web editor second, and the clean-up advice corrected (an in-progress pull request may name a retired item once this lands; a pull request carrying code may not); a new Task state section and seed prompt on completion, per the session protocol (R-12)
 - knowledge/lessons/human-commits-leave-indexes-stale.md — "Where it is enforced": the tap route is closed for approvals (`approve-tap-regenerates-index`) and retirements (this item); the web-editor route stays open and the pointer stays (R-12)
+- work/retire-delegated-items/spec.md — R-1 and D1 amended under deviation 3 and revision 1 (added to this list by deviation 5: the plan review on #92 found it changed and unlisted)
+- work/retire-delegated-items/revisions/1.md — the consensus record for the R-1 amendment (deviation 5)
+- docs/sdlc/rules/60-lessons.md, CLAUDE.md, GEMINI.md, AGENTS.md — the indexes lesson's pointer line corrected to what the code does since `approve-tap-regenerates-index` (a tap regenerates; the web editor does not), and the three renders regenerated (deviation 5; the plan review found the lesson contradicting the code two paragraphs above the line this item added)
 - work/retire-delegated-items/plan.md — this plan; its deviations log
 - work/retire-delegated-items/log.md — one ledger line per gate
 - work/retire-delegated-items/index.md — regenerated
 - work/index.md — regenerated
 
-Not in the list, on purpose: `.sdlc/`, `.claude/hooks/`, `scripts/checks/`, `scripts/sign.py`, `scripts/delegated_merge.py`,
-`scripts/log_ledger.py`, `CLAUDE.md`/`GEMINI.md`/`AGENTS.md` and `docs/sdlc/rules/` (spec R-11 and Not doing).
+Not in the list, on purpose: `.sdlc/`, `.claude/hooks/`, `scripts/checks/`, `scripts/sign.py`, `scripts/delegated_merge.py`
+and `scripts/log_ledger.py` (spec R-11). No *new* rules-fragment line either (spec Not doing, the adopter cap):
+the one line under `docs/sdlc/rules/` that changes is an existing pointer reworded in place, and the
+adopter's render measured 120 lines before and after (deviation 5).
 
 ## Release-gated
 (none)
@@ -155,6 +160,32 @@ Not in the list, on purpose: `.sdlc/`, `.claude/hooks/`, `scripts/checks/`, `scr
   rule is narrowed rather than the case changed: `approved-by` is skipped only when the ledger shows the
   artifact signed under a grant (a `-> delegated` line for it, or a retiring line from `delegated`); with
   no signature line the approver check stays. The signature is read from the whole ledger, not from the
-  retiring line alone, so an agent-actored retiring line on a signed artifact is still one ledger fault (R-2). The spec's R-1 row and D1 are amended to say so, in this commit; the owner is told on the pull
+  retiring line alone, so an agent-actored retiring line on a signed artifact is still one ledger fault (R-2).
+- 2026-09-14 step 3, deviation 4 (logged after the plan review on #92 named it): `approve.py` gained one
+  refusal the spec's list does not name, `--next applies to --retire only` (a `--next` outside `--retire`
+  would otherwise be silently ignored), now with an assertion in `Retire.test_refuses_delegate_and_activate`;
+  and the approval path's ledger writing moved into `append_ledger()`, shared with `retire()`, so the two
+  routes cannot drift in the header they create. Behaviour on the approval path is unchanged (the three
+  pre-existing classes green unmodified).
+- 2026-09-14 step 7, deviation 5, from the plan review on #92 (plan-reviewer on Opus, three Important):
+  (a) `work/retire-delegated-items/spec.md` was changed by step 2 and not on this list; listed now.
+  (b) The amendment of an approved spec's requirement is outside the deviation rule ("a spec requirement
+  touched" needs a consensus record, `.claude/skills/sdlc-run/SKILL.md` "The revision rule"); the record is
+  `work/retire-delegated-items/revisions/1.md` with the trigger, the proposal and both reviewers' sections,
+  and on a supervised item the human's acceptance is a ledger line the owner writes, asked for on #92.
+  (c) `knowledge/lessons/human-commits-leave-indexes-stale.md` still said "nothing in that path runs
+  gen_index.py" two paragraphs above the line this item added, and its title and pointer line said a tap
+  commits no index; all three now say what the code does (the tap regenerates, the web editor does not), so
+  `docs/sdlc/rules/60-lessons.md` and the three renders change and are listed. The review's two bug nits are
+  taken: the trailer route no longer reports a missing retirer twice (a new R-2 case on that route), and the
+  seed prompt in the handoff is refreshed to this item's state.
+- 2026-09-14 step 7, deviation 6, from the security review on #92 (security-reviewer on Opus, no Important,
+  four nits, all taken with a case each): the signature that spares `approved-by` is the `-> delegated` line
+  whose actor is that handle, not any such line (spec R-1, D1 and revision 1 amended again); a partial
+  retirement leaves the pointer and refuses `--next` (spec Interfaces and Failure modes); the chain check's
+  `append:` hint never names the agent's handle; and `mode: retire` is dispatched from the default branch
+  only, like a grant, because a retirement moves the pointer and a branch whose diff moves it is strict
+  (spec R-7). No file joins or leaves the list. Two pre-existing defects the reviews named are out of this
+  plan and filed in the handoff: `EXEMPT` and the `gh`-less crash on a token. The spec's R-1 row and D1 are amended to say so, in this commit; the owner is told on the pull
   request, since the spec was approved before the amendment. This spec read the case and did not see it
   (gotcha missed).

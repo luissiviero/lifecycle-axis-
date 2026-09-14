@@ -746,10 +746,12 @@ def main():
         # `-> superseded` ledger line, who must hold the artifact's role, and the commit that set
         # the status, by author or by verified trailer (work/retire-delegated-items R-1 to R-3).
         # approved-by is still checked against the list on a retired artifact a human approved;
-        # on one the ledger shows signed under a grant (a `-> delegated` line, or a retiring line
-        # from `delegated`) it is the agent's signature, which the approver list must never be
-        # asked about -- there the retiring line alone is judged, so a missing or agent-actored one
-        # is reported once, as the ledger fault it is (R-2).
+        # on one the ledger shows signed under a grant (a `-> delegated` line for it whose actor is
+        # the handle in approved-by, the line sign.py writes) it is the agent's signature, which the
+        # approver list must never be asked about -- there the retiring line alone is judged, so a
+        # missing or agent-actored one is reported once, as the ledger fault it is (R-2). The line
+        # is bound to approved-by so a `-> delegated` line by some other handle switches nothing off
+        # (security pass on pull request 92).
         if status in ("approved", "superseded") and not a.no_approvers:
             any_approved = True
             approved_by = fm.get("approved-by", "")
@@ -764,8 +766,8 @@ def main():
                 )
                 signed = any(
                     e.artifact == name
-                    and (e.to_status == "delegated"
-                         or (e.to_status == "superseded" and e.from_status == "delegated"))
+                    and e.to_status == "delegated"
+                    and log_ledger.normalize(e.actor) == av.normalize(approved_by)
                     for e in entries
                 )
             ok, reason = (True, "") if signed else av.is_valid(name, approved_by)
@@ -793,13 +795,17 @@ def main():
                         capture_output=True, text=True, cwd=ROOT,
                     ).stdout.strip()
                     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    # The hint's actor is approved-by when that handle may retire the artifact; on a
+                    # signed artifact it is the agent's handle, which the hint must not tell a human
+                    # to write (security pass on pull request 92).
+                    hinted = approved_by if av.is_valid(name, approved_by)[0] else "<a handle holding the role in .sdlc/approvers.yaml>"
                     line = log_ledger.render(
                         log_ledger.Entry(
                             ts=ts,
                             artifact=name,
-                            from_status="in-review" if status == "approved" else "approved",
+                            from_status="in-review" if status == "approved" else ("delegated" if signed else "approved"),
                             to_status=status,
-                            actor=approved_by,
+                            actor=hinted,
                             sha=sha,
                             note="",
                             lineno=0,
@@ -842,13 +848,15 @@ def main():
                     # For an approval the deciding handle is approved-by; for a retirement it is
                     # the retiring ledger line's actor, never approved-by (R-3).
                     deciding = approved_by if status == "approved" else retirer
-                    if deciding is None or av.normalize(actor) != av.normalize(deciding):
+                    if deciding is None:
+                        # No valid retiring line: the ledger rule above has already reported it, and
+                        # one cause is one FAIL line (R-2); there is no handle to bind the run to.
+                        pass
+                    elif av.normalize(actor) != av.normalize(deciding):
                         if status == "approved":
                             says = f"the artifact says approved-by: {approved_by}"
-                        elif deciding:
-                            says = f"the retiring ledger line names {deciding}"
                         else:
-                            says = "no -> superseded ledger line by a valid approver names a retirer"
+                            says = f"the retiring ledger line names {deciding}"
                         errors.append(
                             f"work/{slug}/{name}: the commit that set status: {status} carries "
                             f"Approved-Actor: {actor}, but {says}; the run's actor is the deciding handle"

@@ -124,13 +124,26 @@ def retire(a, av, wd, handle):
         todo.append((name, path, old, set_front_matter(text, {"status": "superseded"})))
 
     # The pointer (spec D3): a slug repoints it, blank clears it when it names the retired item, and a
-    # pointer at any other item is left alone. Judged before any write, like everything above.
+    # pointer at any other item is left alone. Judged before any write, like everything above. A
+    # partial retirement (some named artifacts, others still live) moves nothing: the item is not
+    # retired, and an empty pointer would fail every later pull request without a Work-Item line
+    # (security pass on pull request 92).
     active_path = os.path.join(ROOT, ".sdlc", "active")
     current = ""
     if os.path.exists(active_path):
         with open(active_path, encoding="utf-8") as f:
             current = f.read().strip()
+    present = [n for n in ARTIFACTS if os.path.exists(os.path.join(wd, n))]
+    whole = all(
+        n in names or (front_matter(os.path.join(wd, n)) or {}).get("status") == "superseded"
+        for n in present
+    )
     nxt = a.next_slug or ""
+    if nxt and not whole:
+        live = ", ".join(n for n in present if n not in names)
+        print(f"approve: --next moves the pointer off an item that is still live ({live} not retired); "
+              f"retire every artifact, or omit --next", file=sys.stderr)
+        return 1
     if nxt:
         if not SLUG_RE.match(nxt):
             print(f"approve: --next '{nxt}' is not a work-item slug (letters, digits, '_' and '-', "
@@ -147,6 +160,8 @@ def retire(a, av, wd, handle):
             print(f"approve: --next '{nxt}' is retired (work/{nxt}/intent.md is superseded)", file=sys.stderr)
             return 1
         pointer, said = nxt, f"pointer: .sdlc/active -> {nxt}"
+    elif current == a.slug and not whole:
+        pointer, said = None, "pointer: .sdlc/active still names the item, which is not fully retired; left as it is"
     elif current == a.slug:
         pointer, said = "", "pointer: .sdlc/active cleared"
     elif current:

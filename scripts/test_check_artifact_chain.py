@@ -1501,6 +1501,45 @@ class RetiredDelegatedItem(unittest.TestCase):
             self.assertNotIn("the run's actor is the deciding handle", result.stdout)
             self.assertIn("accepted on the author rule alone", result.stdout)
 
+    def test_agent_actor_on_the_retiring_line_is_one_fail_on_the_trailer_route_too(self):
+        """R-2 on the trailer route (plan review on pull request 92): with no valid retiring line
+        there is no handle to bind the run to, and the ledger rule's line is the one report."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            self._retire_agent_signed(root, wd, "claude", trailers=HUMAN_NAME)
+            result = self._check(root)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
+            fails = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:") and "spec.md" in l]
+            self.assertEqual(len(fails), 1, result.stdout)
+            self.assertIn("no entry recording spec.md superseded by a valid approver", fails[0])
+
+    def test_a_delegated_line_by_another_handle_switches_nothing_off(self):
+        """Security pass on pull request 92: the signature that spares approved-by from the approver
+        list is the `-> delegated` line whose actor is that very handle; a fabricated line by some
+        other handle on a human-approved, bot-attributed plan leaves the approver check in place."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _git(root, "checkout", "-q", "-b", "work/demo")
+            _write(os.path.join(wd, "plan.md"), _plan("claude[bot]", status="superseded"))
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-01-02T00:00:00Z | plan.md | in-review -> delegated | someone | abc1234 |\n")
+                f.write("- 2026-01-02T00:00:00Z | plan.md | approved -> superseded | luissiviero | abc1234 | retired\n")
+            _commit_as(root, HUMAN_NAME, HUMAN_EMAIL, "retire with a bot approver and a stray signature line")
+            result = self._check(root)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
+            self.assertIn("approved-by 'claude[bot]' is not valid", result.stdout)
+
+    def test_the_append_hint_never_names_the_agent(self):
+        """Security pass on pull request 92: on a signed artifact the hint's actor is not approved-by."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            self._retire_agent_signed(root, wd, "claude")
+            result = self._check(root)
+            hints = [l for l in result.stdout.splitlines() if "spec.md" in l and "append:" in l]
+            self.assertEqual(len(hints), 1, result.stdout)
+            self.assertNotIn("| claude |", hints[0])
+            self.assertIn("delegated -> superseded", hints[0])
+
     def test_tap_retirement_by_a_handle_outside_the_role_fails(self):
         """R-3, a pin: loosening the approver rule on approved-by opens nothing for a retirer
         outside the role, on either route."""

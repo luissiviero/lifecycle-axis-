@@ -432,26 +432,31 @@ before acting, whatever this section says. It is written for the state as of the
 that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
 "Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'
-(2026-09-14 ~14:10 UTC). Nothing is in flight and no item is yours yet. `.sdlc/active` names
-`advance-push`, which is finished and merged (#87 the chain, #89 the build): do not resume it. Before
-anything else run `python3 scripts/gen_index.py --check` and `scripts/verify.sh` on main — a human
-commit, a retirement or a tap leaves the indexes stale, and a branch cut inside that window fails verify
-on a file nobody edited. Then ask the owner for two things and wait: to retire `advance-push` (its three
-artifacts to `superseded`, one ledger line each, then the pointer moved), and to say which item is next.
-That retirement is clean — its spec and plan are approved-by luissiviero, not agent-signed — so it will
-not repeat the red chain the previous retirement produced. Three intents are open, each with unanswered
-open questions carrying a proposal: #88 `retire-delegated-items` (risk-class medium, supervised, green
-and mergeable), #60 `risk-detour` (low, the only grantable one, and what a queue that does not stop on
-non-low work needs first), #61 `standing-grant` (medium, and it depends on the other two). An intent may
-be merged with its questions still blank, but do not let it be tapped until they are answered: a tap
-starts the spec on unconfirmed proposals. Never write approved, never merge, never move `.sdlc/active`.
-Do not touch `ci-budget`, which has a scheduled session on 2026-09-20. The first delegated merge after
-now is the production observation `advance-push` was built for: read its job log for `ADVANCE:
-.sdlc/active -> <slug>` and check that main gained an advance commit whose first parent is the merge
-commit, then record it in the next Task state. Run scripts/verify.sh, the chain check with --slug
-<your item>, scripts/run_evals.sh and scripts/check_okf.py before asking the owner for anything."
+(2026-09-14 ~17:30 UTC). `.sdlc/active` names `retire-delegated-items`. If #92 is merged and the item's
+`intent.md` on main is `superseded`, it is finished: do not resume it. If #92 is merged and not retired,
+ask the owner to retire it by the tap it built (Actions -> approve -> Run workflow on main, `mode`
+`retire`, `slug` `retire-delegated-items`, `next` the slug they want active or blank) and read the run's
+summary and commit as the production observation of that tap; record both in the next Task state. If #92
+is still open, it is that session's pull request: read its review threads and CI before touching it, and
+touch it only if the owner asks. Before anything else run `python3 scripts/gen_index.py --check` and
+`scripts/verify.sh` on main — a web-editor commit leaves the indexes stale (a tap no longer does), and a
+branch cut inside that window fails verify on a file nobody edited. Then ask the owner which item is
+next and wait. Two intents are open with unanswered open questions carrying a proposal: #60 `risk-detour`
+(low, the only grantable one, and what a queue that does not stop on non-low work needs first) and #61
+`standing-grant` (medium, and it depends on the other two). An intent may be merged with its questions
+still blank, but do not let it be tapped until they are answered: a tap starts the spec on unconfirmed
+proposals. Never write approved, never merge, never move `.sdlc/active`. Do not touch `ci-budget`, which
+has a scheduled session on 2026-09-20. The first delegated merge after now is the production observation
+`advance-push` was built for: read its job log for `ADVANCE: .sdlc/active -> <slug>` and check that main
+gained an advance commit whose first parent is the merge commit, then record it in the next Task state.
+Two defects are filed in the Task state and need an intent each: `EXEMPT` in the chain check lists
+`CLAUDE.md` but not `GEMINI.md` or `AGENTS.md`, and the chain check crashes on a token with no `gh` binary
+instead of returning the no-token note. Run scripts/verify.sh, the chain check with --slug <your item>,
+scripts/run_evals.sh and scripts/check_okf.py before asking the owner for anything."
 
-(Superseded, kept as a record: the prompt before it named `advance-push` as the item to take from spec to
+(Superseded, kept as a record: the prompt before it said nothing was in flight, `.sdlc/active` named
+`advance-push`, finished and merged, and told the next session to ask the owner to retire it and say
+which item was next. Before that, the prompt named `advance-push` as the item to take from spec to
 Build, with the two live merges `6c7be5f` and `ae69ebc` as the evidence its spec should cite. Before that,
 the prompt named `approve-tap-regenerates-index` as the active
 item with its follow-up #84 open, and told the next session to ask the owner which of that item and
@@ -523,7 +528,7 @@ Batch A is merged; open Batch B starting with WI-7 band-detector.")
   indexes, nothing else): so a clean-up after a retirement carries the retired slug's line, and a pull
   request carrying code never does. A retirement on a branch that *moves* the pointer is strict, because
   `.sdlc/active` counts as the item's own file only while it names the item; that is why the tap runs on
-  `main`. Verify such a pull request with the slug the gate will use, not with the default. Fix the body
+  `main` and its role gate refuses any other branch. Verify such a pull request with the slug the gate will use, not with the default. Fix the body
   **before** the push: the gate resolves the slug from `github.event.pull_request.body` in the event payload,
   so a body edited after the push never reaches the run it was meant to fix, and re-running that run replays
   the same payload. Only the next push carries a corrected body. Nothing *retires* an item on merge

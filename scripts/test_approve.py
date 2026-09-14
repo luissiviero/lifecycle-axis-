@@ -491,7 +491,12 @@ class Retire(unittest.TestCase):
         # No artifact and no --retire is a usage error, not an approval of nothing (plan risk 3).
         r = run(self.root, "demo", "--as", "luissiviero")
         self.assertNotEqual(r.returncode, 0)
+        # --next belongs to --retire (plan deviation 4).
+        r = run(self.root, "demo", "intent.md", "--next", "other", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--retire", r.stderr)
         self.assertEqual(set(self.statuses().values()), {"approved"})
+        self.assertEqual(self.read(".sdlc/active"), "demo\n")
 
     def test_agent_session_is_refused(self):
         r = self.retire(agent=True)
@@ -541,6 +546,27 @@ class Retire(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(self.read(".sdlc/active"), "other\n")
         self.assertIn("left as it is", r.stdout)
+
+    def test_a_partial_retirement_leaves_the_pointer(self):
+        """Security pass on pull request 92: retiring one artifact of a live item must not empty the
+        pointer (every later pull request without a Work-Item line would fail), nor move it."""
+        self.write("work/other/intent.md", "---\nstatus: in-review\n---\n# Other\n")
+        r = run(self.root, "demo", "spec.md", "--retire", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.statuses(), {"intent.md": "approved", "spec.md": "superseded", "plan.md": "approved"})
+        self.assertEqual(self.read(".sdlc/active"), "demo\n")
+        self.assertIn("not fully retired", r.stdout)
+        r = run(self.root, "demo", "plan.md", "--retire", "--next", "other", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("still live", r.stderr)
+        self.assertIn("intent.md", r.stderr)
+        self.assertEqual(self.read(".sdlc/active"), "demo\n")
+        self.assertIn("status: approved", self.read("work/demo/plan.md"))
+        # Finishing the retirement artifact by artifact clears it on the last one.
+        self.assertEqual(run(self.root, "demo", "plan.md", "--retire", "--as", "luissiviero").returncode, 0)
+        r = run(self.root, "demo", "intent.md", "--retire", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.read(".sdlc/active"), "")
 
     def test_next_naming_no_item_is_refused(self):
         r = self.retire("--next", "ghost")

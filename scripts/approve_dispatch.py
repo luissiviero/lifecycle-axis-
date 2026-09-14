@@ -107,9 +107,16 @@ def check_actor(login, artifact, mode=None, ref=None, default_branch=None, root=
     if mode == "retire":
         # Every present artifact is written, so every role is required; the `artifact` input is
         # what the form showed and means nothing here (spec D4). Read from the checkout, like the
-        # retirement itself.
+        # retirement itself. And on the default branch only, like a grant: a retirement moves
+        # .sdlc/active, and a work branch whose diff moves the pointer is strict for the chain
+        # check, so its pull request could never merge (security pass on pull request 92).
         if not slug:
             return False, "a retirement must name its slug; the artifact input is ignored"
+        if not default_branch:
+            return False, "cannot verify the ref: no default branch given"
+        if not is_default_branch(ref, default_branch):
+            return False, (f"a retirement must be dispatched from the default branch "
+                           f"({default_branch}), not '{ref}'")
         wd = os.path.join(root or ".", "work", slug)
         present = [n for n in ARTIFACTS if os.path.exists(os.path.join(wd, n))]
         if not present:

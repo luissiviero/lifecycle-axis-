@@ -600,6 +600,8 @@ class Retire(unittest.TestCase):
                               capture_output=True, text=True).stdout.strip()
 
     def check(self, login="luissiviero", **kw):
+        kw.setdefault("ref", "main")
+        kw.setdefault("default_branch", "main")
         return approve_dispatch.check_actor(login, "intent.md", mode="retire", root=self.root, **kw)
 
     def retire_on_disk(self, pointer=None):
@@ -637,6 +639,20 @@ class Retire(unittest.TestCase):
         ok, reason = self.check(slug="empty")
         self.assertFalse(ok)
         self.assertIn("no chain artifact", reason)
+
+    def test_retire_on_a_side_branch_is_refused_naming_the_ref(self):
+        """Security pass on pull request 92: a retirement moves the pointer, and a branch whose diff
+        moves the pointer is strict for the chain check, so the tap lands on the default branch or
+        nowhere, like a grant."""
+        ok, reason = self.check(slug="demo", ref="work/demo")
+        self.assertFalse(ok)
+        self.assertIn("default branch", reason)
+        self.assertIn("work/demo", reason)
+        ok, reason = self.check(slug="demo", ref="refs/heads/main")
+        self.assertTrue(ok, reason)
+        ok, reason = self.check(slug="demo", default_branch=None)
+        self.assertFalse(ok)
+        self.assertIn("no default branch", reason)
 
     # --- R-8: the commit ----------------------------------------------------------------------
 

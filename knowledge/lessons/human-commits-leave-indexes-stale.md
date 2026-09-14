@@ -1,12 +1,12 @@
 ---
 type: lesson
-title: A tap or a web-editor retirement commits no index; check main for drift before you cut a branch
-description: "approve.yml and a web-editor retirement each commit the artifact, the ledger and the pointer and never run gen_index.py, so main is VERIFY: FAIL on work/index.md and work/<slug>/index.md until someone regenerates them. Seen three times in one day, each time paid for by a pull request on files nobody edited; the regeneration must ride under the item whose index it is, because the chain check reads one work item at a time."
+title: A web-editor commit leaves the indexes stale; check main for drift before you cut a branch
+description: "A web-editor approval or retirement commits the artifact, the ledger and the pointer and never runs gen_index.py, so main is VERIFY: FAIL on work/index.md and work/<slug>/index.md until someone regenerates them. The tap did the same until approve-tap-regenerates-index put the regeneration inside its committer, for approvals and, since retire-delegated-items, retirements. Seen three times in one day, each time paid for by a pull request on files nobody edited; the regeneration must ride under the item whose index it is, because the chain check reads one work item at a time."
 tags: [lesson, gen-index, approvals, retirement, verify, chain-check]
 resource: ../../work/approve-tap-regenerates-index/
 timestamp: 2026-09-14T02:30:00Z
 ---
-# A tap or a web-editor retirement commits no index; check `main` for drift before you cut a branch
+# A web-editor commit leaves the indexes stale; check `main` for drift before you cut a branch
 
 ## What happened
 Three times on 2026-09-14, each on `main` and each on files no pull request had touched:
@@ -21,9 +21,10 @@ Three times on 2026-09-14, each on `main` and each on files no pull request had 
 
 The second incident was the tap approving the very item whose intent describes the defect.
 
-The mechanism is the same on both routes: `.github/workflows/approve.yml` runs the approval script and
-`scripts/approve_dispatch.py --commit`, and nothing in that path runs `gen_index.py`; the web editor runs
-nothing at all. `sdlc-gate` runs on pull requests only, never on a push to `main`, so the drift is invisible
+The mechanism was the same on both routes at the time: `.github/workflows/approve.yml` ran the approval
+script and `scripts/approve_dispatch.py --commit`, and nothing in that path ran `gen_index.py`; the web
+editor runs nothing at all. The tap route has since been fixed (see "Where it is enforced"); the web-editor
+route has not. `sdlc-gate` runs on pull requests only, never on a push to `main`, so the drift is invisible
 until the next branch is cut — and then it is that branch's red gate.
 
 ## Rule

@@ -38,8 +38,9 @@ keeps every check green from the first pull request.
    the default branch. This is the same script with the run's actor as the handle, and it is the routine an
    agent will ask you for, because it is one gesture rather than a shell. The run refuses before writing
    anything if the actor does not hold the artifact's role, so a wrong tap changes nothing.
-   **Retiring is the same tap with `mode` `retire`**: name the `slug` (required), and `next` (the slug to
-   point `.sdlc/active` at; blank clears a pointer naming the retired item and leaves any other alone). One
+   **Retiring is the same tap with `mode` `retire`, from the default branch**: name the `slug` (required),
+   and `next` (the slug to point `.sdlc/active` at; blank clears a pointer naming the retired item and leaves
+   any other alone). One
    commit sets `superseded` on every present artifact with its `approved-by` untouched, appends a ledger
    line each, moves the pointer and regenerates the indexes; the `artifact` choice is ignored. The run refuses
    unless the actor holds every present artifact's role. Retiring from the web editor stays valid, and stays
