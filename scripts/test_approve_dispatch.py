@@ -364,6 +364,15 @@ class Commit(unittest.TestCase):
         # that pins the pattern's shape (round 2 of the review).
         self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root, wide=True),
                          sorted(strays))
+        # A plain file whose name contains the rename arrow is one path, not two phantoms: git does
+        # not quote that sequence (security pass, round 2).
+        arrow = "work/demo/spec.md -> work/demo/plan.md"
+        write(self.root, arrow, "x\n")
+        judged, staged = approve_dispatch.changed_paths(self.root)
+        self.assertIn(arrow, judged)
+        self.assertIn(arrow, staged)
+        self.assertNotIn("work/demo/plan.md", judged)
+        self.assertIn(arrow, approve_dispatch.unexpected_paths("demo", root=self.root, wide=True))
 
     def test_a_stray_beside_regenerated_indexes_still_aborts(self):
         """R-4: regeneration does not mask a stray; the refusal names the stray and no index."""
@@ -391,7 +400,7 @@ class Commit(unittest.TestCase):
 
     # --- revision 1: the heal is scoped to the default branch, a rename is judged at both ends
 
-    ROUTE_VARS = ("GITHUB_REF_NAME", "GITHUB_REF_TYPE", "GITHUB_EVENT_PATH")
+    ROUTE_VARS = ("GITHUB_REF", "GITHUB_REF_NAME", "GITHUB_REF_TYPE", "GITHUB_EVENT_PATH")
 
     def test_on_another_ref_only_the_items_indexes_are_written(self):
         """R-2 narrow route, R-8: on a work branch the tap writes its own two indexes, leaves a
@@ -441,7 +450,9 @@ class Commit(unittest.TestCase):
         payloads = {"missing": None, "not-json": "not json", "list": "[]",
                     "repo-not-object": '{"repository": 7}',
                     "null": '{"repository": {"default_branch": null}}',
-                    "empty": '{"repository": {"default_branch": ""}}'}
+                    "empty": '{"repository": {"default_branch": ""}}',
+                    # nests past the recursion limit: json raises RecursionError, not ValueError
+                    "deep": "[" * 200000 + "]" * 200000}
         for label, payload in payloads.items():
             with self.subTest(payload=label):
                 root = make_repo()
@@ -492,11 +503,17 @@ class Commit(unittest.TestCase):
         try:
             add_other_item(self.root, stale_index=True)
             self.approve_something()
-            runner = {"GITHUB_REF_NAME": "main", "GITHUB_REF_TYPE": "branch", "GITHUB_EVENT_PATH": event}
+            runner = {"GITHUB_REF": "refs/heads/main", "GITHUB_REF_NAME": "main",
+                      "GITHUB_REF_TYPE": "branch", "GITHUB_EVENT_PATH": event}
             with mock.patch.dict(os.environ, dict(runner, GITHUB_REF_TYPE="tag")):
                 self.assertFalse(approve_dispatch.route())
-            with mock.patch.dict(os.environ, dict(runner, GITHUB_REF_NAME="refs/heads/main")):
-                self.assertTrue(approve_dispatch.route())
+            # A branch literally named refs/heads/main: its short name spells the default branch's
+            # second form, its full ref does not (security pass, round 2).
+            with mock.patch.dict(os.environ, dict(runner, GITHUB_REF="refs/heads/refs/heads/main",
+                                                  GITHUB_REF_NAME="refs/heads/main")):
+                self.assertFalse(approve_dispatch.route())
+            with mock.patch.dict(os.environ, dict(runner, GITHUB_REF_NAME="work/x")):
+                self.assertTrue(approve_dispatch.route(), "the full ref decides, not the short name")
             with mock.patch.dict(os.environ, runner):
                 self.assertTrue(approve_dispatch.route())
                 rc, out, err = self.run_commit_capturing()

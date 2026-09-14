@@ -126,8 +126,9 @@ def event_default_branch(path=None):
 
     The same field the workflow's role gate reads as github.event.repository.default_branch, and the
     one delegated_merge.py reads from the same file. Never raises: a missing or empty path, an
-    unreadable file, JSON that does not parse, a top level or `repository` that is not an object, or a
-    value that is not a non-empty string all return None, and None takes the narrow route (spec R-11).
+    unreadable file, JSON that does not parse or nests past the interpreter's recursion limit, a top
+    level or `repository` that is not an object, or a value that is not a non-empty string all return
+    None, and None takes the narrow route (spec R-11).
     """
     path = path or os.environ.get("GITHUB_EVENT_PATH")
     if not path:
@@ -135,7 +136,7 @@ def event_default_branch(path=None):
     try:
         with open(path, encoding="utf-8") as f:
             event = json.load(f)
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return None
     repo = event.get("repository") if isinstance(event, dict) else None
     value = repo.get("default_branch") if isinstance(repo, dict) else None
@@ -147,11 +148,13 @@ def route(ref=None, default_branch=None):
     and False for the narrow route, the item's own two indexes only (spec R-11, D6).
 
     `ref` and `default_branch` are the caller's when given (main() threads the parsed --ref and
-    --default-branch through), else the runner's: GITHUB_REF_NAME and the event payload. GITHUB_REF_TYPE,
-    when set, must say `branch`, so a tag named like the branch is narrow. Every unknown value is
-    narrow: a spoofed or missing input can only stop a heal, never cause one.
+    --default-branch through), else the runner's: GITHUB_REF, the full `refs/heads/<name>`, whose
+    prefix disambiguates a branch literally named `refs/heads/main` (its full ref is
+    `refs/heads/refs/heads/main`), then GITHUB_REF_NAME, and the event payload. GITHUB_REF_TYPE, when
+    set, must say `branch`, so a tag named like the branch is narrow. Every unknown value is narrow: a
+    spoofed or missing input can only stop a heal, never cause one.
     """
-    ref = ref or os.environ.get("GITHUB_REF_NAME")
+    ref = ref or os.environ.get("GITHUB_REF") or os.environ.get("GITHUB_REF_NAME")
     default_branch = default_branch or event_default_branch()
     ref_type = os.environ.get("GITHUB_REF_TYPE")
     if ref_type and ref_type != "branch":
@@ -219,8 +222,10 @@ def changed_paths(root=None):
     for line in r.stdout.split("\n"):
         if not line.strip():
             continue
-        path = _unquote(line[3:])
-        if " -> " in path:
+        code, path = line[:2], _unquote(line[3:])
+        # Only a rename or copy entry carries ` -> `; git does not quote that sequence, so a plain
+        # file whose name contains it must stay one path (round 2 of the review).
+        if (" -> " in path) and ("R" in code or "C" in code):
             old, new = (_unquote(p) for p in path.split(" -> ", 1))
             judged.extend((old, new))
             staged.append(new)
