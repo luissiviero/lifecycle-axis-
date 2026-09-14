@@ -3,7 +3,7 @@ type: doc
 title: Session handoff (2026-09-14)
 description: "How to resume in a new session: the session protocol, the task state, the owner's routine, and the seed prompt the finishing session leaves for the next one."
 tags: [sdlc, handoff, playbook-comparison, delegated-mode]
-timestamp: 2026-09-14T05:00:00Z
+timestamp: 2026-09-14T14:20:00Z
 ---
 
 # Session handoff (read this first after any context reset)
