@@ -195,40 +195,42 @@ def is_allowed(path, slug, allowed=None, wide=False):
     return wide and is_generated_index(path)
 
 
-def _unquote(path):
-    return path.strip().strip('"')
-
-
 def changed_paths(root=None):
-    """Two sorted lists from one `git status --porcelain`: the paths to judge, and the paths to stage.
+    """Two sorted lists from one `git status --porcelain -z`: the paths to judge, and the paths to stage.
 
-    A rename or copy entry (`R  old -> new`) contributes both ends to the judged list, so a source
-    outside the allowlist is a stray like any other, and its destination alone to the staged list,
-    because git already holds the source's deletion in the index and `git add` on the vanished path
-    exits 128 (spec D5, R-10). Every other entry contributes its path to both.
+    A rename or copy entry contributes both ends to the judged list, so a source outside the
+    allowlist is a stray like any other, and its destination alone to the staged list, because git
+    already holds the source's deletion in the index and `git add` on the vanished path exits 128
+    (spec D5, R-10). Every other entry contributes its path to both.
 
-    Two details of the porcelain format decide whether the guard built on this works at all, and both
-    were found by its own tests. The status field is two columns wide and unstaged changes leave the
-    first blank, so the output must not be stripped before the lines are split -- stripping eats that
-    leading space and shifts every path by one character. And untracked content is reported one
-    directory at a time unless --untracked-files=all is asked for, which would let a whole new
-    directory of stray files past as a single entry that never matches an allowed path.
+    The output is NUL-delimited (-z): no path is quoted or escaped, and a rename is two fields, the
+    destination then the source, so a filename that itself contains ` -> ` cannot be mistaken for a
+    rename or split in the wrong place (the second review round and the automated review on #83 each
+    found one such case in the line-oriented format). Two details still decide whether the guard
+    built on this works at all, and both were found by its own tests: the status field is two columns
+    wide and unstaged changes leave the first blank, so an entry must not be stripped before the path
+    is cut from it; and untracked content is reported one directory at a time unless
+    --untracked-files=all is asked for, which would let a whole new directory of stray files past as
+    a single entry that never matches an allowed path.
     """
-    r = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all"],
+    r = subprocess.run(["git", "status", "--porcelain", "-z", "--untracked-files=all"],
                        cwd=root, capture_output=True, text=True)
     if r.returncode != 0:
         raise SystemExit(f"approve-dispatch: git status failed: {r.stderr.strip()}")
+    fields = r.stdout.split("\0")
     judged, staged = [], []
-    for line in r.stdout.split("\n"):
-        if not line.strip():
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if not entry:
             continue
-        code, path = line[:2], _unquote(line[3:])
-        # Only a rename or copy entry carries ` -> `; git does not quote that sequence, so a plain
-        # file whose name contains it must stay one path (round 2 of the review).
-        if (" -> " in path) and ("R" in code or "C" in code):
-            old, new = (_unquote(p) for p in path.split(" -> ", 1))
-            judged.extend((old, new))
-            staged.append(new)
+        code, path = entry[:2], entry[3:]
+        if "R" in code or "C" in code:
+            old = fields[i] if i < len(fields) else ""
+            i += 1
+            judged.extend((old, path))
+            staged.append(path)
         else:
             judged.append(path)
             staged.append(path)

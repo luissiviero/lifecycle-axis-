@@ -24,3 +24,4 @@ A mistake made twice becomes a file there and a pointer line here, in the same P
 - Commit before `check_artifact_chain.py --base origin/main`: staged work is invisible to it, and an empty diff passes as in-progress — knowledge/lessons/commit-before-the-chain-check.md
 - Watch a new test, eval case or `Verifiable:` clause fail before the change; one only ever seen green proves nothing — knowledge/lessons/a-verifiable-command-fails-before-the-change.md
 - A tap or a web-editor retirement commits no index: run `gen_index.py --check` on `main` before cutting a branch, and carry the regeneration under the item whose index it is — knowledge/lessons/human-commits-leave-indexes-stale.md
+- Never split tool output on a text delimiter a filename can contain; use NUL-terminated output (`git status --porcelain -z`) — knowledge/lessons/nul-terminated-git-output.md

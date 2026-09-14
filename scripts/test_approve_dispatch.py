@@ -373,6 +373,19 @@ class Commit(unittest.TestCase):
         self.assertIn(arrow, staged)
         self.assertNotIn("work/demo/plan.md", judged)
         self.assertIn(arrow, approve_dispatch.unexpected_paths("demo", root=self.root, wide=True))
+        # A tracked file whose name contains the arrow, renamed onto an allowed path: the source must
+        # come through whole and be named as the stray (automated review on #83).
+        os.remove(os.path.join(self.root, *arrow.split("/")))
+        write(self.root, "a -> b", "x\n")
+        subprocess.run(["git", "-C", self.root, "add", "a -> b"], check=True)
+        subprocess.run(["git", "-C", self.root, "commit", "-q", "-m", "arrow"], check=True)
+        subprocess.run(["git", "-C", self.root, "mv", "a -> b", "work/demo/index.md"], check=True)
+        judged, staged = approve_dispatch.changed_paths(self.root)
+        self.assertIn("a -> b", judged)
+        self.assertIn("work/demo/index.md", judged)
+        self.assertIn("work/demo/index.md", staged)
+        self.assertNotIn("a -> b", staged)
+        self.assertIn("a -> b", approve_dispatch.unexpected_paths("demo", root=self.root, wide=True))
 
     def test_a_stray_beside_regenerated_indexes_still_aborts(self):
         """R-4: regeneration does not mask a stray; the refusal names the stray and no index."""

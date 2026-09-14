@@ -44,6 +44,13 @@ under the first signed plan (commits 98daa7c and f8b0e1d); this revision adds se
 - work/approve-tap-regenerates-index/log.md — one ledger line per gate
 - work/approve-tap-regenerates-index/index.md — regenerated
 - work/index.md — regenerated
+- knowledge/lessons/nul-terminated-git-output.md — new; the lesson rule 7 requires once the rename-arrow misparse was found twice (deviation 5)
+- knowledge/lessons/index.md — its entry (deviation 5)
+- docs/sdlc/rules/60-lessons.md — its pointer line (deviation 5)
+- docs/sdlc/rules/40-claude-only.md — the hooks bullet re-flowed from three lines to two, paying for the pointer line at the adopter's render, which sits at the cap (deviation 5)
+- CLAUDE.md — regenerated (deviation 5)
+- GEMINI.md — regenerated (deviation 5)
+- AGENTS.md — regenerated (deviation 5)
 
 ## Release-gated
 (none) — no path under `RELEASE_GATED_PATHS` (`migrations infra terraform helm`) is touched. `scripts/approve_dispatch.py`
@@ -173,3 +180,11 @@ no data, format or workflow changes persist, and no other file imports the new f
   `test_a_rename_within_the_allowlist_stages_its_destination`; `test_index_lookalikes_are_stray` gains
   its wide-route assertion, which is what pins `INDEX_RE`'s shape; `Commit.setUp` clears the route's
   three variables so no case reads the ambient environment. 39 cases become 41. 4 of 5.
+- 2026-09-14 — the automated review on #84 found rule 7 unmet: the rename-arrow misparse in `changed_paths`
+  was found twice (a plain filename by the second review round, a renamed source by the automated review
+  on #83) and the pull request carried no lesson. `knowledge/lessons/nul-terminated-git-output.md`, its
+  index entry and its pointer line in `docs/sdlc/rules/60-lessons.md` are added; the adopter's render of
+  `CLAUDE.md` sits at exactly the cap, so the hooks bullet in `docs/sdlc/rules/40-claude-only.md` is
+  re-flowed from three lines to two to pay for it, and the three context files are regenerated. Touching
+  `CLAUDE.md` is one of the two diffs the delegated-merge workflow refuses by design, so #84 becomes the
+  owner's click. This is the cap: 5 of 5.

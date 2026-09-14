@@ -92,10 +92,12 @@ workflow's `git push origin HEAD:$REF` follows it as before.
 - `own_index(path, slug) -> bool`: `path in {f"work/{slug}/index.md", "work/index.md"}`.
 - `is_allowed(path, slug, allowed=None, wide=False) -> bool`: `path in allowed_paths(slug)`, or
   `own_index`, or, when `wide`, `is_generated_index`.
-- `changed_paths(root=None) -> (judged, staged)`: two sorted lists from one `git status --porcelain
-  --untracked-files=all`; a rename or copy entry (status code carrying `R` or `C`) contributes both ends
-  to `judged` and its destination to `staged`; every other entry contributes its path to both, a literal
-  ` -> ` in a plain filename included (git does not quote that sequence; the second review round).
+- `changed_paths(root=None) -> (judged, staged)`: two sorted lists from one `git status --porcelain -z
+  --untracked-files=all`, NUL-delimited so no path is quoted or escaped and a rename's two fields are
+  unambiguous whatever their names contain; a rename or copy entry (status code carrying `R` or `C`)
+  contributes both ends to `judged` and its destination to `staged`; every other entry contributes its
+  path to both, a literal ` -> ` in a filename included (the second review round found the plain-file
+  case, the automated review on #83 the renamed-source case).
 - `unexpected_paths(slug, root=None, changed=None, wide=False) -> list[str]`: `allowed_paths(slug)`
   first (its `SystemExit` for a traversing slug), then the judged paths (from `changed`, else a fresh
   `changed_paths(root)[0]`) that `is_allowed` rejects, sorted.
