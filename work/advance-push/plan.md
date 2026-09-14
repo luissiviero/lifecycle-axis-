@@ -32,7 +32,9 @@ three owner answers on the intent).
 ## Files that change
 - scripts/delegated_merge.py — `advance(root, out, merged_slug, number, policy, now=None, merge_sha=None)`: `branch` computed first, then `git fetch origin <branch>` (failure: the `advance commit not pushed (fetch of origin/<branch> failed: <err>); the next merge will advance` note, return `None`), `tip = rev-parse FETCH_HEAD` compared to `merge_sha` when given (mismatch: the `origin/<branch> is at <sha12>, not the merge commit <sha12>; not advancing` note, return `None`), `git merge --ff-only FETCH_HEAD` (failure: the `the checkout could not fast-forward to origin/<branch> (<err>); not advancing` note, return `None`), every new git call `check=False`; the existing flow from the dirty check to the non-forced push unchanged (R-1 to R-4). `run()`: `merged = gh_api("PUT", ...)` kept, `advance(..., now=now, merge_sha=(merged or {}).get("sha"))` (R-6). The docstring of `advance()` gains the three steps; the comment at the rejected push no longer blames a third party for what was the checkout's own age
 - scripts/test_delegated_merge_advance.py — new; `import test_delegated_merge as base` for `FIXTURE_POLICY`, `ADVANCE_INTENT`, `ADVANCE_LOG`, `_write`; `class MovingRemote(unittest.TestCase)` with a bare remote, the checkout clone, and a second clone that moves the remote after the checkout was taken; helpers `_git`, `_commit`, `_move_remote(subject) -> sha`, `_remote_tip()`; six cases: `test_the_advance_lands_on_top_of_the_merge` (R-1), `test_a_tip_that_is_not_the_merge_commit_is_a_note` (R-2), `test_a_diverged_checkout_is_a_note_not_a_reset` (R-3), `test_a_push_rejected_after_the_fast_forward_is_a_note` (R-4, a `pre-receive` hook on the bare remote that exits 1 and appends one line to a counter file per attempt), `test_run_passes_the_merge_sha_to_advance` (R-6, `base.Checkout(...).happy_path()`, `dm.main(checkout.argv())` with `dm.advance` replaced by a recorder for the call's duration), `test_no_merge_sha_still_fast_forwards` (R-6)
+- scripts/test_delegated_merge_advance_review.py — new (deviation 3); `class ReviewFindings` composing the first module's fixture; four cases from the security pass on pull request 89: `test_an_option_like_branch_name_is_a_refspec_not_a_flag`, `test_a_non_string_merge_sha_is_treated_as_absent`, `test_run_drops_a_malformed_sha_before_advance`, `test_a_detached_checkout_is_a_note_not_a_move`
 - knowledge/decisions/run-queue.md — one sentence under `## Consequences`: the advance shipped with a fixture whose remote never moved between the checkout and the push, the one case production never produces, and `advance-push` added the fixture that moves (R-7)
+- work/advance-push/spec.md — the R-8 count corrected under step 1 (deviation 1); the R-5 file list and the Interfaces notes amended under deviation 3 (missing from this list until the plan review on pull request 89 found it)
 - work/advance-push/plan.md — this plan; its deviations log
 - work/advance-push/log.md — one ledger line per gate
 - work/advance-push/index.md — regenerated
@@ -151,3 +153,17 @@ owner's click too.
   outside the tree, and the tree's own module is run green in step 5 once the owner's line lands. Not a
   hook change (rule 3): the hook's header and its check disagree, which the pull request description
   proposes to reconcile. 2 of 5.
+- 2026-09-14 — the review round on pull request 89 (security-reviewer and plan-reviewer on Opus against a
+  Fable writer) found two Important defects in the code and one in this plan. The branch name reached
+  `git fetch` as an option-capable argument: a ref named `--upload-pack=<script>` ran the script over a
+  local-path origin, argv closing shell injection but not argument injection; `--` now ends the options.
+  A merge response whose `sha` is not a string raised a `TypeError` out of `advance()` past `run()`'s
+  `except`, after the merge had happened; a sha that is not a 7-to-40 hex string is now treated as absent
+  at the call site and inside `advance()`, so the `(merged or {}).get("sha")` this plan and spec D2 spelled
+  is `HEAD_SHA_ARG_RE`-validated instead. Three nits carried: a detached checkout is a note, not a silent
+  fast-forward; an unreadable `FETCH_HEAD` is named in the R-2 note; and the file list above gains
+  `spec.md`, which step 1 edited and the list omitted. The four regression cases live in a second new
+  module because the first is locked (deviation 2); all four seen red on the pre-fix code from a copy
+  outside the tree, then green. The spec's R-5 file list and its Interfaces notes are amended in the same
+  commit; the ledger's two deviation lines had named the owner as their actor and now name the agent, as
+  the supervised precedent does. 3 of 5.

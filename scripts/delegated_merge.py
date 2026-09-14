@@ -1007,8 +1007,9 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
     # refuses if the branch has moved past it (work/advance-push).
     if root:
         try:
+            sha = (merged if isinstance(merged, dict) else {}).get("sha")
             advance(root, out, slug, number, policy, now=now,
-                    merge_sha=(merged if isinstance(merged, dict) else {}).get("sha"))
+                    merge_sha=sha if isinstance(sha, str) and HEAD_SHA_ARG_RE.match(sha) else None)
         except (OSError, ValueError, MergeError) as exc:
             # ValueError covers UnicodeDecodeError from a non-UTF-8 intent.md in the queue: the
             # merge already succeeded, so a crash here would report a failed job for work that
@@ -1079,8 +1080,20 @@ def advance(root, out, merged_slug, number, policy, now=None, merge_sha=None):
     """
     now = now or datetime.now(timezone.utc)
     ts = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # A sha that is not a string, or not a sha, is treated as absent: the comparison is skipped
+    # (R-6) rather than raised out of a job whose merge already happened (security pass on pull
+    # request 89, finding 2).
+    if not (isinstance(merge_sha, str) and HEAD_SHA_ARG_RE.match(merge_sha)):
+        merge_sha = None
     branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
-    fetch = subprocess.run(["git", "-C", root, "fetch", "origin", branch],
+    if branch == "HEAD":
+        # Detached: the fetch below would take the remote's default and the fast-forward would
+        # move this checkout onto it silently before the push failed on the refname.
+        out.stream.write("note: the checkout is detached, not on a branch; not advancing\n")
+        return None
+    # `--` ends the options: a ref named like `--upload-pack=...` is a refspec here, never a flag
+    # (argv closes shell injection, not argument injection; security pass on pull request 89).
+    fetch = subprocess.run(["git", "-C", root, "fetch", "origin", "--", branch],
                            capture_output=True, text=True)
     if fetch.returncode != 0:
         # The same "not pushed" shape as the rejected push below: the advance was indeed not
@@ -1095,7 +1108,7 @@ def advance(root, out, merged_slug, number, policy, now=None, merge_sha=None):
         # named something the fetch did not see. The record must say "merged as <the merge
         # commit>", so nothing is written; the next merge advances from a fresh checkout.
         out.stream.write("note: origin/%s is at %s, not the merge commit %s; not advancing\n"
-                         % (branch, tip[:12], merge_sha[:12]))
+                         % (branch, tip[:12] or "(unreadable FETCH_HEAD)", merge_sha[:12]))
         return None
     ff = subprocess.run(["git", "-C", root, "merge", "--ff-only", "FETCH_HEAD"],
                         capture_output=True, text=True)
