@@ -29,11 +29,14 @@ later reader can trust it without re-deriving anything.
 
 ## Rule
 Cite what you read, in this shape: the quoted text, verbatim, and the file it is in. A requirement id
-(`R7`) is stable and safe to name; a heading is not, because it is the part most easily supplied from
-memory while the quote is being copied. If a heading genuinely helps the reader, open the file and read
-the nearest one above the quote first — `grep -n "^#" <file>` next to the quote's line number answers it
-in one command. When the same fact appears in several files, quote each one's own words rather than
-declaring them the same sentence: near-identical wording in two places is usually two different claims.
+(`R7`) is stable and safe to name. A heading is not, and neither is a position — "a few lines above",
+"just below", "in the same section" — because those are the parts most easily supplied from memory
+while the quote itself is being copied correctly. This lesson's own pull request proves it: round four
+put the sentence under the wrong heading, and round five, on the text written to fix that, said "a few
+lines above" about a sentence fifty-seven lines below. If a heading or a distance genuinely helps the
+reader, read it first — `grep -n "^#" <file>` beside the two line numbers answers both in one command.
+When the same fact appears in several files, quote each one's own words rather than declaring them the
+same sentence: near-identical wording in two places is usually two different claims.
 
 ## Where it is enforced
 Nothing enforces it. The automated reviewer catches it when it reads the cited file, which is what
