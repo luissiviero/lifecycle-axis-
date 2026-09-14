@@ -176,9 +176,15 @@ def dispatch_attestation(commit_sha):
     return run.group(1), actor.group(1)
 
 
-def verify_dispatch_run(run_id, actor, slug=None, artifact=None, commit_sha=None):
+def verify_dispatch_run(run_id, actor, slug=None, artifact=None, commit_sha=None, retired=False):
     """(True, detail) when the Actions API confirms the run; (False, reason) when it contradicts it;
     (None, reason) when there is no token to ask with.
+
+    `retired` is the retirement's binding (work/retire-delegated-items R-3): one `mode: retire` run
+    supersedes every present artifact of the item, so the title's artifact segment is whatever the
+    ignored `artifact` input showed and is not required to name this one; the mode segment must read
+    `retire` instead, because an approval run can never have set `status: superseded`. The slug
+    binding and the four fields hold as for an approval.
 
     The run record is the anchor of the whole dispatch route: `actor.login` is set by GitHub when
     the run starts and nothing inside the run can change it, so a commit trailer that matches a
@@ -216,7 +222,12 @@ def verify_dispatch_run(run_id, actor, slug=None, artifact=None, commit_sha=None
         if (got or "").casefold() != (want or "").casefold():
             return False, f"run {run_id} {field} is {got!r}, expected {want!r}"
     title = run.get("display_title") or run.get("name") or ""
-    if artifact and artifact not in title:
+    if retired:
+        named = RUN_NAME_RE.match(title)
+        if not named or named.group("mode") != "retire":
+            return False, (f"run {run_id} run-name {title!r} does not name mode 'retire'; an approval "
+                           f"run cannot have set status: superseded")
+    elif artifact and artifact not in title:
         return False, f"run {run_id} run-name {title!r} does not name {artifact!r}"
     if slug:
         named = RUN_NAME_RE.match(title)
@@ -728,12 +739,38 @@ def main():
             if not fm.get("approved-by"):
                 errors.append(f"work/{slug}/{name} has no approved-by")
 
-        # Approving and superseding are both human acts: the same approver, ledger and
-        # commit-author checks apply to either status.
+        # Approving and superseding are both human acts, judged on different evidence. An approved
+        # artifact names its approver in approved-by, so that handle is checked against the role,
+        # the `-> approved` ledger line and the commit that set the status. A superseded one keeps
+        # the approved-by it earned as history and is judged by who retired it: the actor of its
+        # `-> superseded` ledger line, who must hold the artifact's role, and the commit that set
+        # the status, by author or by verified trailer (work/retire-delegated-items R-1 to R-3).
+        # approved-by is still checked against the list on a retired artifact a human approved;
+        # on one the ledger shows signed under a grant (a `-> delegated` line for it whose actor is
+        # the handle in approved-by, the line sign.py writes) it is the agent's signature, which the
+        # approver list must never be asked about -- there the retiring line alone is judged, so a
+        # missing or agent-actored one is reported once, as the ledger fault it is (R-2). The line
+        # is bound to approved-by so a `-> delegated` line by some other handle switches nothing off
+        # (security pass on pull request 92).
         if status in ("approved", "superseded") and not a.no_approvers:
             any_approved = True
             approved_by = fm.get("approved-by", "")
-            ok, reason = av.is_valid(name, approved_by)
+            retirer = None
+            signed = False
+            if status == "superseded" and log_exists:
+                retirer = next(
+                    (e.actor for e in entries
+                     if e.artifact == name and e.to_status == "superseded"
+                     and av.is_valid(name, e.actor)[0]),
+                    None,
+                )
+                signed = any(
+                    e.artifact == name
+                    and e.to_status == "delegated"
+                    and log_ledger.normalize(e.actor) == av.normalize(approved_by)
+                    for e in entries
+                )
+            ok, reason = (True, "") if signed else av.is_valid(name, approved_by)
             if not ok:
                 errors.append(
                     f"work/{slug}/{name} approved-by '{approved_by}' is not valid: {reason}"
@@ -749,26 +786,26 @@ def main():
                     )
                 else:
                     # Whoever superseded it must hold the artifact's role; it need not be the
-                    # original approver, whose handle stays in approved-by as history.
-                    match = any(
-                        e.artifact == name
-                        and e.to_status == "superseded"
-                        and av.is_valid(name, e.actor)[0]
-                        for e in entries
-                    )
+                    # original approver, whose handle stays in approved-by as history. That
+                    # line's actor, found above, is the retirer the trailer route is bound to.
+                    match = retirer is not None
                 if not match:
                     sha = subprocess.run(
                         ["git", "rev-parse", "--short", "HEAD"],
                         capture_output=True, text=True, cwd=ROOT,
                     ).stdout.strip()
                     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    # The hint's actor is approved-by when that handle may retire the artifact; on a
+                    # signed artifact it is the agent's handle, which the hint must not tell a human
+                    # to write (security pass on pull request 92).
+                    hinted = approved_by if av.is_valid(name, approved_by)[0] else "<a handle holding the role in .sdlc/approvers.yaml>"
                     line = log_ledger.render(
                         log_ledger.Entry(
                             ts=ts,
                             artifact=name,
-                            from_status="in-review" if status == "approved" else "approved",
+                            from_status="in-review" if status == "approved" else ("delegated" if signed else "approved"),
                             to_status=status,
-                            actor=approved_by,
+                            actor=hinted,
                             sha=sha,
                             note="",
                             lineno=0,
@@ -808,15 +845,26 @@ def main():
                     # actor, which must be the handle the artifact names; then the run itself is
                     # checked, when there is a token to check it with (R-5, R-6).
                     run_id, actor = attested
-                    if av.normalize(actor) != av.normalize(approved_by):
+                    # For an approval the deciding handle is approved-by; for a retirement it is
+                    # the retiring ledger line's actor, never approved-by (R-3).
+                    deciding = approved_by if status == "approved" else retirer
+                    if deciding is None:
+                        # No valid retiring line: the ledger rule above has already reported it, and
+                        # one cause is one FAIL line (R-2); there is no handle to bind the run to.
+                        pass
+                    elif av.normalize(actor) != av.normalize(deciding):
+                        if status == "approved":
+                            says = f"the artifact says approved-by: {approved_by}"
+                        else:
+                            says = f"the retiring ledger line names {deciding}"
                         errors.append(
                             f"work/{slug}/{name}: the commit that set status: {status} carries "
-                            f"Approved-Actor: {actor}, but the artifact says approved-by: "
-                            f"{approved_by}; the run's actor is the deciding handle"
+                            f"Approved-Actor: {actor}, but {says}; the run's actor is the deciding handle"
                         )
                     else:
                         ok, detail = verify_dispatch_run(run_id, actor, slug=slug, artifact=name,
-                                                         commit_sha=sha)
+                                                         commit_sha=sha,
+                                                         retired=(status == "superseded"))
                         notes.append(f"work/{slug}/{name}: {detail}")
                         if ok is False:
                             errors.append(f"work/{slug}/{name}: dispatch attestation failed: {detail}")

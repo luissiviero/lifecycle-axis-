@@ -358,5 +358,241 @@ class ApproveFromDispatch(unittest.TestCase):
         self.assertNotIn("commit as yourself", r.stdout)
 
 
+class Retire(unittest.TestCase):
+    """work/retire-delegated-items R-5, R-6: --retire supersedes every present artifact as a human,
+    keeps approved-by as the signature's record, and --next moves the pointer so a retired slug
+    never stays in it. The fixture is make_repo's item approved by the script itself and committed,
+    so the retirement has a base to be checked against."""
+
+    ACTIONS = {"GITHUB_ACTIONS": "true", "GITHUB_RUN_ID": "12345"}
+
+    def setUp(self):
+        self.root = make_repo()
+        r = run(self.root, "demo", "intent.md", "spec.md", "plan.md", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.commit("approve the item")
+        self.base = self.git("rev-parse", "HEAD")
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def git(self, *args):
+        return subprocess.run(["git", "-C", self.root, *args],
+                              capture_output=True, text=True).stdout.strip()
+
+    def commit(self, message):
+        subprocess.run(["git", "-C", self.root, "add", "-A"], check=True)
+        subprocess.run(["git", "-C", self.root, "commit", "-q", "-m", message], check=True)
+
+    def read(self, rel):
+        with open(os.path.join(self.root, rel), encoding="utf-8") as f:
+            return f.read()
+
+    def write(self, rel, text):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+    def set_front(self, name, **fields):
+        """Rewrite front-matter keys on work/demo/<name> in place (a signature, a demotion)."""
+        text = self.read(f"work/demo/{name}")
+        for key, value in fields.items():
+            text = re.sub(rf"^{key}:.*$", f"{key}: {value}", text, count=1, flags=re.M)
+        self.write(f"work/demo/{name}", text)
+
+    def retire(self, *args, **kw):
+        return run(self.root, "demo", "--retire", "--as", "luissiviero", *args, **kw)
+
+    def statuses(self):
+        return {name: re.search(r"^status: (\S+)", self.read(f"work/demo/{name}"), re.M).group(1)
+                for name in ("intent.md", "spec.md", "plan.md")}
+
+    # --- R-5: the retirement ------------------------------------------------------------------
+
+    def test_retires_every_present_artifact_and_keeps_approved_by(self):
+        before = {name: self.read(f"work/demo/{name}") for name in ("intent.md", "spec.md", "plan.md")}
+        r = self.retire("--note", "done")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(set(self.statuses().values()), {"superseded"})
+        for name, text in before.items():
+            self.assertEqual(self.read(f"work/demo/{name}"),
+                             text.replace("status: approved", "status: superseded"), name)
+        log = self.read("work/demo/log.md")
+        self.assertEqual(log.count("| approved -> superseded | luissiviero |"), 3)
+        self.assertIn("| done", log)
+        self.assertIn("retired: work/demo/intent.md (approved -> superseded) by luissiviero", r.stdout)
+        # The pointer named the item and no --next was given: cleared (spec D3), and the hint says so.
+        self.assertEqual(self.read(".sdlc/active"), "")
+        self.assertIn(".sdlc/active", r.stdout)
+        # A pull request carrying exactly this retirement is green: the pointer is put back on
+        # another live item first, because a moved pointer takes the check out of in-progress mode.
+        self.write("work/other/intent.md", "---\nstatus: in-review\n---\n# Other\n")
+        self.git("checkout", "-q", self.base)
+        self.write(".sdlc/active", "other\n")
+        self.write("work/other/intent.md", "---\nstatus: in-review\n---\n# Other\n")
+        self.commit("point at the next item")
+        base = self.git("rev-parse", "HEAD")
+        self.git("checkout", "-q", "-b", "work/demo")
+        for name in ("intent.md", "spec.md", "plan.md"):
+            self.set_front(name, status="superseded")
+        with open(os.path.join(self.root, "work", "demo", "log.md"), "a", encoding="utf-8") as f:
+            f.write("".join(l + "\n" for l in log.splitlines() if "-> superseded" in l))
+        self.commit("retire the item")
+        env = {k: v for k, v in os.environ.items() if k not in ("GH_TOKEN", "GITHUB_TOKEN")}
+        chain = subprocess.run([sys.executable, "scripts/check_artifact_chain.py", "--slug", "demo", "--base", base],
+                               cwd=self.root, capture_output=True, text=True, env=env)
+        self.assertTrue(chain.stdout.strip().endswith("CHAIN: PASS"), chain.stdout)
+
+    def test_a_delegated_artifact_is_retired_from_delegated(self):
+        self.set_front("spec.md", status="delegated", **{"approved-by": "claude"})
+        self.commit("signed under a grant")
+        r = self.retire()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("approved-by: claude", self.read("work/demo/spec.md"))
+        self.assertIn("status: superseded", self.read("work/demo/spec.md"))
+        self.assertIn("| spec.md | delegated -> superseded | luissiviero |", self.read("work/demo/log.md"))
+
+    def test_refuses_an_in_review_artifact_and_writes_nothing(self):
+        self.set_front("plan.md", status="in-review", **{"approved-by": ""})
+        self.commit("plan back to review")
+        log = self.read("work/demo/log.md")
+        r = self.retire()
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("work/demo/plan.md is 'in-review'", r.stderr)
+        self.assertEqual(self.statuses(), {"intent.md": "approved", "spec.md": "approved", "plan.md": "in-review"})
+        self.assertEqual(self.read("work/demo/log.md"), log)
+
+    def test_a_handle_without_a_role_is_refused_before_writing(self):
+        log = self.read("work/demo/log.md")
+        for handle in ("someone-else", "claude[bot]"):
+            r = run(self.root, "demo", "--retire", "--as", handle)
+            self.assertEqual(r.returncode, 1, handle)
+            self.assertIn("may not retire", r.stderr)
+        self.assertEqual(set(self.statuses().values()), {"approved"})
+        self.assertEqual(self.read("work/demo/log.md"), log)
+
+    def test_already_superseded_is_a_noop(self):
+        self.assertEqual(self.retire().returncode, 0)
+        self.commit("retired")
+        r = self.retire()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("already superseded", r.stdout)
+        self.assertEqual(self.read("work/demo/log.md").count("-> superseded"), 3)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
+    def test_refuses_delegate_and_activate(self):
+        r = self.retire("--activate")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--next", r.stderr)
+        r = self.retire("--delegate")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--delegate", r.stderr)
+        # No artifact and no --retire is a usage error, not an approval of nothing (plan risk 3).
+        r = run(self.root, "demo", "--as", "luissiviero")
+        self.assertNotEqual(r.returncode, 0)
+        # --next belongs to --retire (plan deviation 4).
+        r = run(self.root, "demo", "intent.md", "--next", "other", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--retire", r.stderr)
+        self.assertEqual(set(self.statuses().values()), {"approved"})
+        self.assertEqual(self.read(".sdlc/active"), "demo\n")
+
+    def test_agent_session_is_refused(self):
+        r = self.retire(agent=True)
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+        self.assertIn("refused", r.stderr)
+        self.assertEqual(set(self.statuses().values()), {"approved"})
+
+    def test_from_dispatch_writes_retired_to_github_output(self):
+        out = os.path.join(self.root, "gh_output")
+        r = self.retire("--from-dispatch", "12345", env_extra=dict(self.ACTIONS, GITHUB_OUTPUT=out))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        with open(out, encoding="utf-8") as f:
+            written = f.read()
+        self.assertIn("retired=intent.md spec.md plan.md", written)
+        self.assertIn("run-id=12345", written)
+        self.assertIn("actor=luissiviero", written)
+        self.assertNotIn("commit as yourself", r.stdout)
+
+    def test_dry_run_writes_nothing(self):
+        r = self.retire("--dry-run", "--next", "")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("would retire", r.stdout)
+        self.assertEqual(set(self.statuses().values()), {"approved"})
+        self.assertEqual(self.read(".sdlc/active"), "demo\n")
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
+    # --- R-6: the pointer ---------------------------------------------------------------------
+
+    def test_next_repoints_the_pointer(self):
+        self.write("work/other/intent.md", "---\nstatus: in-review\n---\n# Other\n")
+        r = self.retire("--next", "other")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.read(".sdlc/active"), "other\n")
+        self.assertIn("pointer: .sdlc/active -> other", r.stdout)
+
+    def test_blank_next_clears_a_pointer_naming_the_item(self):
+        r = self.retire("--next", "")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.read(".sdlc/active"), "")
+        self.assertIn("pointer: .sdlc/active cleared", r.stdout)
+
+    def test_a_pointer_at_another_item_is_left_alone(self):
+        self.write("work/other/intent.md", "---\nstatus: in-review\n---\n# Other\n")
+        self.write(".sdlc/active", "other\n")
+        self.commit("other item active")
+        r = self.retire("--next", "")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.read(".sdlc/active"), "other\n")
+        self.assertIn("left as it is", r.stdout)
+
+    def test_a_partial_retirement_leaves_the_pointer(self):
+        """Security pass on pull request 92: retiring one artifact of a live item must not empty the
+        pointer (every later pull request without a Work-Item line would fail), nor move it."""
+        self.write("work/other/intent.md", "---\nstatus: in-review\n---\n# Other\n")
+        r = run(self.root, "demo", "spec.md", "--retire", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.statuses(), {"intent.md": "approved", "spec.md": "superseded", "plan.md": "approved"})
+        self.assertEqual(self.read(".sdlc/active"), "demo\n")
+        self.assertIn("not fully retired", r.stdout)
+        r = run(self.root, "demo", "plan.md", "--retire", "--next", "other", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("still live", r.stderr)
+        self.assertIn("intent.md", r.stderr)
+        self.assertEqual(self.read(".sdlc/active"), "demo\n")
+        self.assertIn("status: approved", self.read("work/demo/plan.md"))
+        # Finishing the retirement artifact by artifact clears it on the last one.
+        self.assertEqual(run(self.root, "demo", "plan.md", "--retire", "--as", "luissiviero").returncode, 0)
+        r = run(self.root, "demo", "intent.md", "--retire", "--as", "luissiviero")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.read(".sdlc/active"), "")
+
+    def test_next_naming_no_item_is_refused(self):
+        r = self.retire("--next", "ghost")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("names no work/ghost/intent.md", r.stderr)
+        self.assertEqual(set(self.statuses().values()), {"approved"})
+        self.assertEqual(self.read(".sdlc/active"), "demo\n")
+
+    def test_next_naming_a_retired_item_is_refused(self):
+        self.write("work/old/intent.md", "---\nstatus: superseded\napproved-by: luissiviero\n---\n# Old\n")
+        r = self.retire("--next", "old")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("is retired", r.stderr)
+        self.assertEqual(set(self.statuses().values()), {"approved"})
+        r = self.retire("--next", "demo")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("the item being retired", r.stderr)
+
+    def test_next_with_a_traversing_slug_is_refused(self):
+        for bad in ("../x", "a/b", ".."):
+            r = self.retire("--next", bad)
+            self.assertEqual(r.returncode, 1, bad)
+            self.assertIn("is not a work-item slug", r.stderr)
+        self.assertEqual(set(self.statuses().values()), {"approved"})
+        self.assertEqual(self.read(".sdlc/active"), "demo\n")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -38,6 +38,13 @@ keeps every check green from the first pull request.
    the default branch. This is the same script with the run's actor as the handle, and it is the routine an
    agent will ask you for, because it is one gesture rather than a shell. The run refuses before writing
    anything if the actor does not hold the artifact's role, so a wrong tap changes nothing.
+   **Retiring is the same tap with `mode` `retire`, from the default branch**: name the `slug` (required),
+   and `next` (the slug to point `.sdlc/active` at; blank clears a pointer naming the retired item and leaves
+   any other alone). One
+   commit sets `superseded` on every present artifact with its `approved-by` untouched, appends a ledger
+   line each, moves the pointer and regenerates the indexes; the `artifact` choice is ignored. The run refuses
+   unless the actor holds every present artifact's role. Retiring from the web editor stays valid, and stays
+   stale (`knowledge/lessons/human-commits-leave-indexes-stale.md`).
 4. **Commit as yourself** and open the install pull request. `sdlc-gate` runs `check_artifact_chain.py`
    against the base branch; with the approvals in the same PR it ends `CHAIN: PASS`.
 5. **Fill the top of `CLAUDE.md`.** `adopt.sh` seeded `## Commands`, `## Architecture` and `## Lessons

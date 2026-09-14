@@ -396,12 +396,15 @@ class ApproveWorkflow(unittest.TestCase):
     def test_is_dispatch_only(self):
         self.assertEqual(list(self.triggers), ["workflow_dispatch"])
 
-    def test_offers_the_four_inputs(self):
+    def test_offers_the_five_inputs(self):
+        # `next` and the `retire` mode are work/retire-delegated-items R-9: a retirement is one
+        # tap, and the pointer moves with it.
         inputs = self.triggers["workflow_dispatch"]["inputs"]
-        self.assertEqual(sorted(inputs), ["artifact", "mode", "note", "slug"])
+        self.assertEqual(sorted(inputs), ["artifact", "mode", "next", "note", "slug"])
         self.assertEqual(inputs["artifact"]["options"],
                          ["intent.md", "spec.md", "plan.md", "incident.md"])
-        self.assertEqual(inputs["mode"]["options"], ["supervised", "delegated"])
+        self.assertEqual(inputs["mode"]["options"], ["supervised", "delegated", "retire"])
+        self.assertFalse(inputs["next"].get("required", False))
 
     def test_run_name_carries_actor_slug_artifact_and_mode(self):
         run_name = self.doc["run-name"]
