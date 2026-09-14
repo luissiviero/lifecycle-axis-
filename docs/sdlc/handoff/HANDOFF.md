@@ -103,8 +103,9 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   on the proposal, and their sections appended verbatim. The writer's first draft of that record had the
   two reviewer sections written by the writer itself, in the reviewers' voice, and was corrected before
   anything was signed; a record is only a consensus record when the sections come from the reviewers. Once
-  is a note here; twice is a lesson. Four deviations of five were logged; three were counting or timing
-  mispredictions in the plan's step 1, which is where plans in this repository keep being wrong.
+  is a note here; twice is a lesson. Five deviations of five were logged, the cap: two were
+  mispredictions in the plan's step 1 (a count, a timing), one a missing entry for a spec correction, and two
+  were what the review rounds asked for (two cases; a lesson). Step 1 is where plans here keep being wrong.
 - Live items now: `approve-tap-regenerates-index` (merged, #84 open, un-retired, still the pointer);
   `advance-push` (intent `approved`, `mode: supervised`, `b30feff`; no spec or plan; its Build edits
   `scripts/delegated_merge.py`, a locked path, and `require-plan.sh` opens only for the item the pointer
