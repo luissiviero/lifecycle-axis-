@@ -209,8 +209,16 @@ class Commit(unittest.TestCase):
 
     def setUp(self):
         self.root = make_repo()
+        # The route reads the runner's variables when no flags are given; a case that does not set
+        # them must not inherit them from wherever the suite runs
+        # (knowledge/lessons/tests-carry-their-own-environment.md).
+        self._env = mock.patch.dict(os.environ)
+        self._env.start()
+        for var in self.ROUTE_VARS:
+            os.environ.pop(var, None)
 
     def tearDown(self):
+        self._env.stop()
         shutil.rmtree(self.root, ignore_errors=True)
 
     def git(self, *args):
@@ -352,6 +360,10 @@ class Commit(unittest.TestCase):
         for rel in strays:
             write(self.root, rel, "x\n")
         self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root), sorted(strays))
+        # On the wide route INDEX_RE is live, and these must still be strays: this is the assertion
+        # that pins the pattern's shape (round 2 of the review).
+        self.assertEqual(approve_dispatch.unexpected_paths("demo", root=self.root, wide=True),
+                         sorted(strays))
 
     def test_a_stray_beside_regenerated_indexes_still_aborts(self):
         """R-4: regeneration does not mask a stray; the refusal names the stray and no index."""
@@ -469,6 +481,44 @@ class Commit(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertEqual(self.git("rev-parse", "HEAD"), before)
         self.assertIn(".sdlc/approvers.yaml", err)
+
+    def test_the_runner_variables_take_the_wide_route(self):
+        """R-11, D6: the inputs production uses -- no flags; GITHUB_REF_NAME, GITHUB_REF_TYPE and the
+        event payload -- take the wide route on the default branch, and a tag named like it is narrow."""
+        outside = tempfile.mkdtemp()
+        event = os.path.join(outside, "event.json")
+        with open(event, "w", encoding="utf-8") as f:
+            f.write('{"repository": {"default_branch": "main"}}')
+        try:
+            add_other_item(self.root, stale_index=True)
+            self.approve_something()
+            runner = {"GITHUB_REF_NAME": "main", "GITHUB_REF_TYPE": "branch", "GITHUB_EVENT_PATH": event}
+            with mock.patch.dict(os.environ, dict(runner, GITHUB_REF_TYPE="tag")):
+                self.assertFalse(approve_dispatch.route())
+            with mock.patch.dict(os.environ, dict(runner, GITHUB_REF_NAME="refs/heads/main")):
+                self.assertTrue(approve_dispatch.route())
+            with mock.patch.dict(os.environ, runner):
+                self.assertTrue(approve_dispatch.route())
+                rc, out, err = self.run_commit_capturing()
+            self.assertEqual(rc, 0, err)
+            self.assertIn("work/other/index.md", self.committed_names())
+            self.assertIn("regenerated 3 index file(s)", out)
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    def test_a_rename_within_the_allowlist_stages_its_destination(self):
+        """R-10, D5: a staged rename whose both ends are allowed stages the destination only; staging
+        the vanished source would make git add exit 128 (revision 1, reproduced by the reviewer)."""
+        subprocess.run(["git", "-C", self.root, "mv", "work/demo/intent.md", "work/demo/plan.md"],
+                       check=True)
+        write(self.root, "work/demo/log.md", "- ts | plan.md | in-review -> approved\n")
+        rc, _, err = self.run_commit_capturing(artifact="plan.md")
+        self.assertEqual(rc, 0, err)
+        tracked = self.git("ls-files", "work/demo").split()
+        self.assertIn("work/demo/plan.md", tracked)
+        self.assertIn("work/demo/log.md", tracked)
+        self.assertNotIn("work/demo/intent.md", tracked)
+        self.assertEqual(self.git("status", "--porcelain"), "")
 
     def test_cli_threads_ref_and_default_branch_into_commit(self):
         """R-7: --commit has one spelling of "which ref": the parsed flags reach commit()."""

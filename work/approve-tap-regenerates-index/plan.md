@@ -36,7 +36,7 @@ under the first signed plan (commits 98daa7c and f8b0e1d); this revision adds se
 
 ## Files that change
 - scripts/approve_dispatch.py — `is_default_branch` shared by `check_actor` and the route (R-7, R-11); `event_default_branch` and `route` reading `GITHUB_REF_NAME`, `GITHUB_REF_TYPE` and the event payload, failing narrow (R-11); `INDEX_RE`, `own_index`, `is_generated_index` and `is_allowed(path, slug, allowed, wide)` (R-3); `changed_paths` returning the judged and staged lists from one status run (R-10, spec D5); `unexpected_paths(slug, root, changed, wide)` validating the slug first (R-3); `regenerate(root, writable)` writing only what the route allows and printing the three R-8 lines; `commit(..., ref, default_branch)` ordered route → regenerate → stray check → index-only refusal → stage → commit (R-1, R-2, R-4, R-5); `main()` threading `--ref` and `--default-branch` into `commit()` (R-7); the docstring's `--commit` paragraph and the `CHAIN_FILES` comment rewritten (R-6)
-- scripts/test_approve_dispatch.py — fixture helper `add_other_item`, a stdout/stderr-capturing `run_commit_capturing`, and thirteen new `Commit` cases: `test_commit_regenerates_both_indexes`, `test_a_stale_index_of_another_item_is_committed_too`, `test_on_another_ref_only_the_items_indexes_are_written`, `test_generated_indexes_of_any_item_are_allowed`, `test_a_foreign_index_is_a_stray_on_the_narrow_route`, `test_index_lookalikes_are_stray`, `test_a_traversing_slug_is_refused_on_a_clean_tree`, `test_a_stray_beside_regenerated_indexes_still_aborts`, `test_index_only_changes_do_not_make_a_commit`, `test_unknown_ref_takes_the_narrow_route`, `test_a_malformed_event_payload_takes_the_narrow_route`, `test_a_rename_source_is_judged_too`, `test_cli_threads_ref_and_default_branch_into_commit` (R-1 to R-5, R-7, R-8, R-10, R-11); no existing case edited
+- scripts/test_approve_dispatch.py — fixture helper `add_other_item`, a stdout/stderr-capturing `run_commit_capturing`, and thirteen new `Commit` cases: `test_commit_regenerates_both_indexes`, `test_a_stale_index_of_another_item_is_committed_too`, `test_on_another_ref_only_the_items_indexes_are_written`, `test_generated_indexes_of_any_item_are_allowed`, `test_a_foreign_index_is_a_stray_on_the_narrow_route`, `test_index_lookalikes_are_stray`, `test_a_traversing_slug_is_refused_on_a_clean_tree`, `test_a_stray_beside_regenerated_indexes_still_aborts`, `test_index_only_changes_do_not_make_a_commit`, `test_unknown_ref_takes_the_narrow_route`, `test_a_malformed_event_payload_takes_the_narrow_route`, `test_a_rename_source_is_judged_too`, `test_cli_threads_ref_and_default_branch_into_commit`, and from the second review round `test_the_runner_variables_take_the_wide_route` and `test_a_rename_within_the_allowlist_stages_its_destination` (deviation 4) (R-1 to R-5, R-7, R-8, R-10, R-11); `Commit.setUp`/`tearDown` clear the route's three variables (deviation 4); no existing case edited
 - work/approve-tap-regenerates-index/spec.md — signed under the grant, re-signed under revision 1
 - work/approve-tap-regenerates-index/plan.md — this plan; its deviations log; re-signed under revision 1
 - work/approve-tap-regenerates-index/revisions/1.md — new; the consensus record, two `verdict: revise` sections on Opus against a Fable writer
@@ -75,7 +75,7 @@ lets the merge workflow merge this pull request without a click.
    `git add`. Verify: `test_a_rename_source_is_judged_too` green; the existing stray cases green.
 4. **Regenerate by route, refuse index-only before staging, thread the CLI.** `regenerate(root, writable)`
    with the three stdout lines; `commit()` in the spec's order with `ref` and `default_branch`; `main()`
-   passes `a.ref` and `a.default_branch`. Verify: the whole module green, 39 cases;
+   passes `a.ref` and `a.default_branch`. Verify: the whole module green, 39 cases (41 after deviation 4);
    `test_nothing_to_stage_is_refused` and `test_active_and_index_are_allowed` green without edits.
 5. **The text.** Rewrite the docstring's `--commit` paragraph and the `CHAIN_FILES` comment so both name the
    regeneration, the two generated paths and the two routes. Verify: the three R-6 greps.
@@ -136,9 +136,9 @@ lets the merge workflow merge this pull request without a click.
   R-6 → the three greps on `scripts/approve_dispatch.py`;
   R-7 → `git diff origin/main --name-only`, the pull request's file list, `ActorCheck`/`Mode`/`SlugContainment` unmodified, `Commit::test_cli_threads_ref_and_default_branch_into_commit`, `CHAIN: PASS` with `--slug approve-tap-regenerates-index`;
   R-8 → the verbatim stdout assertions inside the R-1, R-2 and R-5 cases;
-  R-9 → the four last lines pasted in the pull request, case count 26 before and 39 after;
-  R-10 → `Commit::test_a_rename_source_is_judged_too`;
-  R-11 → `Commit::test_unknown_ref_takes_the_narrow_route`, `Commit::test_a_malformed_event_payload_takes_the_narrow_route`, and `Mode` unmodified for the shared predicate.
+  R-9 → the four last lines pasted in the pull request, case count 26 before and 41 after;
+  R-10 → `Commit::test_a_rename_source_is_judged_too` and `Commit::test_a_rename_within_the_allowlist_stages_its_destination`;
+  R-11 → `Commit::test_unknown_ref_takes_the_narrow_route`, `Commit::test_a_malformed_event_payload_takes_the_narrow_route`, `Commit::test_the_runner_variables_take_the_wide_route`, and `Mode` unmodified for the shared predicate.
 - Manual / browser / screenshot / eval: none new; the next real tap on `main` after the merge is the
   production observation the intent names (its commit touches both indexes and `gen_index.py --check`
   on it is up to date), and the handoff's task state should record it when it happens.
@@ -161,3 +161,15 @@ no data, format or workflow changes persist, and no other file imports the new f
   The file list allows a spec body edit "only if the review finds a line the code proves wrong", and the
   code proved it before the review did; the deviation entry written in that commit said "the spec did not
   change", which was wrong about this sentence. Logged here as the plan pass asked. 2 of 5.
+- 2026-09-14 — step 1 said the three wide-route cases "gain their explicit route argument in this step
+  and stay green"; they could not, because `commit()` had no such parameters until step 4, so the
+  arguments landed in the code commit (ba6b1cd) instead. The red set of six was observed as predicted;
+  only the timing of that edit differs. The second review round asked for the entry. 3 of 5.
+- 2026-09-14 — the second review round found the wide route never exercised through the inputs
+  production uses (both wide cases passed the flags explicitly) and the within-allowlist half of R-10
+  unpinned (replacing the staged list with the judged list left the suite green, which is the exit-128
+  case revision 1 reproduced). Two cases added, `test_the_runner_variables_take_the_wide_route` (also
+  pinning the `GITHUB_REF_TYPE` clause and the `refs/heads/` spelling) and
+  `test_a_rename_within_the_allowlist_stages_its_destination`; `test_index_lookalikes_are_stray` gains
+  its wide-route assertion, which is what pins `INDEX_RE`'s shape; `Commit.setUp` clears the route's
+  three variables so no case reads the ambient environment. 39 cases become 41. 4 of 5.
