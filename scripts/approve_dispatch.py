@@ -128,10 +128,12 @@ def is_generated_index(path):
     return path == TOP_INDEX or INDEX_RE.fullmatch(path) is not None
 
 
-def is_allowed(path, slug):
+def is_allowed(path, slug, allowed=None):
     """May an approval of `slug` commit `path`: one of its own chain files, .sdlc/active, or any
-    generated index (spec R-3)."""
-    return path in allowed_paths(slug) or is_generated_index(path)
+    generated index (spec R-3). `allowed` is allowed_paths(slug), precomputed by a caller judging
+    many paths."""
+    allowed = allowed_paths(slug) if allowed is None else allowed
+    return path in allowed or is_generated_index(path)
 
 
 def changed_paths(root=None):
@@ -161,7 +163,8 @@ def changed_paths(root=None):
 
 def unexpected_paths(slug, root=None):
     """Paths git reports as changed that an approval is not allowed to touch."""
-    return [p for p in changed_paths(root) if not is_allowed(p, slug)]
+    allowed = allowed_paths(slug)  # a traversing slug is refused up front, whatever the tree holds
+    return [p for p in changed_paths(root) if not is_allowed(p, slug, allowed)]
 
 
 def regenerate(root=None):
