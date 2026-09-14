@@ -5,11 +5,11 @@ title: A retired item is judged by who retired it, and a retirement is one tap t
 description: "check_artifact_chain.py stops validating approved-by against the approver list on a superseded artifact and reads who retired it from the -> superseded ledger line and the commit that set the status (the author rule, or the Approved-Actor trailer when a tap did it); approve.py gains --retire and --next, approve_dispatch.py and approve.yml gain mode: retire with a next input, so a retirement is one tap whose commit goes through the committer that already regenerates the indexes. Nothing an agent can do becomes wider: superseded stays a word the hook, sign.py and the chain check refuse from an agent."
 stage: design
 # status: draft | in-review | approved | delegated | superseded
-status: in-review
+status: approved
 reads: intent.md
 # approved-by: product owner; tech lead consulted for medium/high risk; set only by a human
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-14
 # skills-applied: skills loaded as hard constraints while writing this spec
 skills-applied: [security-standards]
 skills-version: e879ca8
