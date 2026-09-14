@@ -102,8 +102,9 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   names 'advance-push'` and exit 1. That is `work/ci-budget` R-7's deliberate choice, not a gap it left:
   R-7 made `not-delegated` exit 0 and in the same breath kept this one red: "a locked path or a refused
   pull request on a supervised item stays a red run with its own `CONDITION` line"
-  (`work/ci-budget/spec.md` R7, verbatim; its Decisions section gives the reason, that a
-  `not-delegated` verdict must not hide a refusal about the pull request rather than the grant). Two
+  (`work/ci-budget/spec.md`, the R7 row, verbatim). The reason is a few lines above, in the same
+  file: "A `not-delegated` verdict must not hide a refusal that is about the pull request rather than
+  the grant." Two
   comments in `delegated_merge.py` say as much in their own words, and neither is that sentence: the
   one above `NOT_DELEGATED`, "a refusal about the pull request itself stays red beside it", and the one
   in the supervised branch beside the `locked-paths` call, "stays a red run with its own condition line
