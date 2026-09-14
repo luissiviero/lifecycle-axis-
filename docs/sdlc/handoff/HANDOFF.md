@@ -111,6 +111,15 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   whatever its item's mode".
   It costs a run per event, which is the price R-7 weighed and paid. Changing it needs an intent that
   argues the case R-7 already decided, not a bug report.
+- **New, unfiled: `EXEMPT` in `check_artifact_chain.py` lists `CLAUDE.md` but not `GEMINI.md` or
+  `AGENTS.md`**, its two sibling renders of the same fragments. So a pull request that adds one line to
+  `docs/sdlc/rules/` outside the active item's own plan is red by construction: `docs/` and `knowledge/`
+  are exempt, `CLAUDE.md` is exempt by name, and the other two renders are not, so the check demands
+  they be listed in a plan that is already merged and approved. #90 is the live case — rule 7 asked for
+  a lesson pointer in the same pull request, and there was no green route to it. Either all three
+  renders are exempt or none is; `CLAUDE.md` alone is the accident of it having once been the only one.
+  Needs an intent, and until then a rules-fragment line either rides the active item's plan or merges
+  with the check red (`knowledge/decisions/merge-click-is-the-gate.md`).
 - **Open pull requests**: #88 `retire-delegated-items` intent (green, mergeable, `Important: 0 | Nits: 0`
   on its last two reviews); #60 `risk-detour` and #61 `standing-grant` intents, both merging clean against
   `c18a9ee` as this is written; #65 and #66 dependabot; #67 `plan-adherence` and #68 `revision` drafts.
