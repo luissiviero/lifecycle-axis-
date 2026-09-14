@@ -266,7 +266,10 @@ Batch A is merged; open Batch B starting with WI-7 band-detector.")
   `Work-Item:` names a **retired** item, since every chain artifact must read `approved`: so a pull request
   cleaning up *after* a retirement (regenerating the indexes the web-editor route leaves stale, say) must
   leave the `Work-Item:` line off — `sdlc-gate.yml` then falls back to `.sdlc/active`, which names a live
-  item. Verify such a pull request with the slug the gate will use, not with the default. Nothing *retires* an item on merge
+  item. Verify such a pull request with the slug the gate will use, not with the default. Fix the body
+  **before** the push: the gate resolves the slug from `github.event.pull_request.body` in the event payload,
+  so a body edited after the push never reaches the run it was meant to fix, and re-running that run replays
+  the same payload. Only the next push carries a corrected body. Nothing *retires* an item on merge
   (`superseded` stays the owner's act; one tap for it is a follow-up item), but since `work/run-queue` the
   merge does *move the pointer*: `delegated_merge.py` advances `.sdlc/active` to the next granted, unstarted
   item (`scripts/next_item.py`: earliest `delegated-on`, ties by slug) and writes a ledger line on both items,
