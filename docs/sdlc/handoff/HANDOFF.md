@@ -3,7 +3,7 @@ type: doc
 title: Session handoff (2026-09-14)
 description: "How to resume in a new session: the session protocol, the task state, the owner's routine, and the seed prompt the finishing session leaves for the next one."
 tags: [sdlc, handoff, playbook-comparison, delegated-mode]
-timestamp: 2026-09-14T02:30:00Z
+timestamp: 2026-09-14T03:55:00Z
 ---
 
 # Session handoff (read this first after any context reset)
@@ -64,7 +64,61 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-14 ~01:50 UTC)
+## Task state (2026-09-14 ~03:55 UTC)
+- **`.sdlc/active` still names `approve-tap-regenerates-index`, and that item is merged.** PR #83 was
+  merged by the delegated-merge workflow at 03:45:28 UTC as `ae69ebc` ("Merge pull request #83 (delegated)",
+  `github-actions[bot]`), the second delegated merge in this repository's history, with no click: the
+  session drove it grant to merge under `/sdlc-run` in one context. **The advance did not land again**:
+  `git log --grep='Advance .sdlc/active'` on `main` is still empty and the pointer did not move. That is the
+  second live data point for `advance-push` (`6c7be5f` and `ae69ebc`); its spec should cite both.
+- **One follow-up is open, #84**, one commit on the same item, ready for review: the automated reviewer
+  posted a nit on #83 at 03:44:51 and the workflow merged at 03:45:28, so the fix (the porcelain parse
+  reads `git status --porcelain -z`, and a rename's source can no longer be mis-split) landed on a
+  re-created branch and needed its own pull request. A nit posted after the tracking comment's
+  `Important: 0` line never blocks the merge; a fix that arrives after the merge is a new pull request,
+  never a push to a deleted branch. The automated review on #84 then found rule 7 unmet (the arrow
+  misparse had been found twice), so #84 also carries `knowledge/lessons/nul-terminated-git-output.md`,
+  its pointer line, a re-flowed hooks bullet in the CLAUDE-only fragment to pay for it at the adopter's
+  cap, and the regenerated context files: deviation 5 of 5, the cap. **`CLAUDE.md` in that diff is one
+  of the two the merge workflow refuses by design, so #84 is the owner's click**, not an automatic merge.
+- **What #83 changed in production.** `scripts/approve_dispatch.py --commit` regenerates the indexes before
+  it judges the tree. On `main` (a grant, or an intent approval tapped there) it also heals any other item's
+  stale index; on a work branch (every supervised spec or plan tap) it writes only the item's own
+  `work/<slug>/index.md` and `work/index.md`, because `check_artifact_chain.py` counts only those as the
+  item's files. So the tap route of `knowledge/lessons/human-commits-leave-indexes-stale.md` is closed on
+  `main`; the web-editor retirement route is not, and neither is a foreign stale index on a branch. The
+  route is read from runner-set values (`GITHUB_REF`, `GITHUB_REF_NAME`, `GITHUB_REF_TYPE`, the event
+  payload's `repository.default_branch`) and falls narrow on anything malformed. `.github/workflows/approve.yml`'s
+  header sentence about what the committer stages is now imprecise for `main` (one line, protected path,
+  the owner's edit).
+- **The item is done once #84 merges and the owner retires it**, and the retrospective of 2026-09-13 still
+  stands: retiring a delegated item may be impossible today (`superseded` needs a human approver and these
+  artifacts carry `approved-by: claude`); if the retirement fails on that, it is the defect already on file,
+  not a new one.
+- **Process record from this item, kept because it is the first delegated item with a revision.** The first
+  review round's security pass found the signed spec would have turned a work branch's pull request red
+  (a foreign index in the diff flips the chain check into strict mode) and that a rename's source was never
+  judged; that is a spec requirement touched, so it went the revision route (`work/approve-tap-regenerates-index/revisions/1.md`):
+  the trigger and proposal were written, the two reviewer subagents (Opus, against a Fable writer) were run
+  on the proposal, and their sections appended verbatim. The writer's first draft of that record had the
+  two reviewer sections written by the writer itself, in the reviewers' voice, and was corrected before
+  anything was signed; a record is only a consensus record when the sections come from the reviewers. Once
+  is a note here; twice is a lesson. Five deviations of five were logged, the cap: two were
+  mispredictions in the plan's step 1 (a count, a timing), one a missing entry for a spec correction, and two
+  were what the review rounds asked for (two cases; a lesson). Step 1 is where plans here keep being wrong.
+- Live items now: `approve-tap-regenerates-index` (merged, #84 open, un-retired, still the pointer);
+  `advance-push` (intent `approved`, `mode: supervised`, `b30feff`; no spec or plan; its Build edits
+  `scripts/delegated_merge.py`, a locked path, and `require-plan.sh` opens only for the item the pointer
+  names, so the owner points the pointer at it by hand before that Build); `ci-budget` (step 13 by slug on
+  2026-09-20 15:00 UTC, scheduled); `session-chaining` (retired).
+- Open pull requests: #84 (this item's follow-up) and the handoff pull request carrying this section;
+  #60 `risk-detour` and #61 `standing-grant` intents (will conflict on `work/index.md`, merge `main` in and
+  regenerate); #65 and #66 dependabot; #67 `plan-adherence` and #68 `revision` drafts.
+- Still true: branch protection is absent on `main`; the `triage` label does not exist; local runs need
+  `GH_TOKEN`/`GITHUB_TOKEN` unset and there is no `gh` binary in the container; the approvals hook refuses
+  any Bash text naming the human approval script, so a spec's acceptance command must not name it.
+
+## Task state (2026-09-14 ~01:50 UTC) — HISTORY, superseded by the section above
 - **`.sdlc/active` names `approve-tap-regenerates-index`** — moved there by the owner's delegated tap
   (`70437ab`), not by any merge. Four items are live at once, which the pointer alone cannot show:
   - `approve-tap-regenerates-index`: intent `approved`, **`mode: delegated`**, granted by `luissiviero` on
@@ -243,17 +297,24 @@ before acting, whatever this section says. It is written for the state as of the
 that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
 "Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'
-(2026-09-14 ~01:50 UTC). Two work items are approved and unstarted, both intent-only: `.sdlc/active` names
-`approve-tap-regenerates-index`, granted `mode: delegated`, so /sdlc-run can drive it grant to merge; and
-`advance-push`, `mode: supervised`, whose spec and plan can be written now under the supervised skills but
-whose Build needs the owner to point `.sdlc/active` at it first. Ask the owner which goes first and work only
-that one; one session owns one work item. Do not touch `ci-budget`: its acceptance step has a scheduled
-session on 2026-09-20. Read the item's approved intent.md and its log.md before writing anything; for
-`advance-push`, `6c7be5f` on main is live evidence that the advance never lands. Run scripts/verify.sh, the
-chain check with --slug <item>, scripts/run_evals.sh and scripts/check_okf.py before asking the owner for
-anything, and never write approved, never merge, never move `.sdlc/active`."
+(2026-09-14 ~03:55 UTC). `.sdlc/active` names `approve-tap-regenerates-index`, which is merged (#83,
+ae69ebc, delegated) with a one-commit follow-up #84 open or merged; do not start work on it, it is done
+once #84 is in and the owner has retired it. The one approved, unstarted item is `advance-push`,
+`mode: supervised`: its spec and plan can be written now under the supervised skills, each followed by the
+owner's tap, but its Build edits a locked path and needs the owner to point `.sdlc/active` at it by hand
+first. Ask the owner before starting it, and work only that one; one session owns one work item. Do not
+touch `ci-budget`: its acceptance step has a scheduled session on 2026-09-20. Read the item's approved
+intent.md and its log.md before writing anything; `6c7be5f` and `ae69ebc` on main are live evidence that
+the advance never lands. Run scripts/verify.sh, the chain check with --slug <item>, scripts/run_evals.sh and
+scripts/check_okf.py before asking the owner for anything, and never write approved, never merge, never
+move `.sdlc/active`."
 
 (Superseded, kept as a record: the prompt before it read "Read docs/sdlc/handoff/HANDOFF.md on main, starting
+at 'Session protocol' and the newest 'Task state' (2026-09-14 ~01:50 UTC). Two work items are approved and
+unstarted, both intent-only: `.sdlc/active` names `approve-tap-regenerates-index`, granted `mode: delegated`,
+so /sdlc-run can drive it grant to merge; and `advance-push`, `mode: supervised`, whose spec and plan can be
+written now under the supervised skills but whose Build needs the owner to point `.sdlc/active` at it first.
+Ask the owner which goes first and work only that one." Before that: "Read docs/sdlc/handoff/HANDOFF.md on main, starting
 at 'Session protocol' and the newest 'Task state'. `.sdlc/active` names `ci-budget`; its code is merged and
 its step 13 has a scheduled session of its own, so do not touch it. `work/session-chaining` is merged and
 retired. Open no new work item until the owner retires `ci-budget` and points `.sdlc/active` at the next."
