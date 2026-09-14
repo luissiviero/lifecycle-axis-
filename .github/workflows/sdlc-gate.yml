@@ -1,7 +1,12 @@
 name: sdlc-gate
+# Runs on a pull request that is ready for review. A draft costs nothing here: the agent runs
+# verify.sh and the chain check locally at every step (sdlc-run step 4), GitHub refuses to merge a
+# draft, and delegated_merge.py refuses one too -- so the build window is CI-free, not gate-free
+# (work/ci-budget R-1). `ready_for_review` is in the trigger list because without it a pull request
+# that lived as a draft would get no gate run until its next push.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+    types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
 permissions:
   contents: read   # read-only token: this workflow only checks and reports
   # One endpoint, repos/{repo}/actions/runs/{id}: the artifact chain check resolves a dispatch-made
@@ -11,9 +16,25 @@ permissions:
   # knowledge/lessons/workflow-permissions-name-every-api.md).
   actions: read
 
+# One gate per pull request. Only a new push cancels a run in flight; a same-sha re-trigger
+# (labelled, edited, going ready) queues behind it rather than cancelling it. That is not a promise
+# that a cancelled run never lands on the head sha: GitHub holds one running and one pending run per
+# group and evicts the pending one when a third event joins, whatever `cancel-in-progress` says,
+# which is why scripts/delegated_merge.py has a rule for exactly that row. 89 of 96 gate runs used
+# to be superseded by a later push and paid for in full (work/ci-budget R-1, spec C5).
+concurrency:
+  group: sdlc-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: ${{ github.event.action == 'synchronize' }}
+
 jobs:
   artifact-chain:
     runs-on: ubuntu-latest
+    # A Bot editing the body -- an app's summary, a tracking comment -- changes nothing this job
+    # reads (only the `Work-Item:` line, which no Bot writes), and used to buy a second full run on
+    # the same sha that also woke the merge script. A human's `edited` still runs.
+    if: >-
+      github.event.pull_request.draft == false &&
+      !(github.event.action == 'edited' && github.event.sender.type == 'Bot')
     env:
       # Boolean only. The secrets themselves are scoped to the triage step, which runs read-only
       # tools; they are never in the environment of steps that execute PR-head code such as
@@ -55,7 +76,7 @@ jobs:
       # agent-evals.yml's "Trust the checkout"; a change to one belongs in the other
       # (work/batch-b-followups R-1).
       - name: Trust the checkout so the repo's settings apply to claude -p
-        if: failure() && env.HAS_CLAUDE_AUTH == 'true'
+        if: failure() && env.HAS_CLAUDE_AUTH == 'true' && contains(github.event.pull_request.labels.*.name, 'triage')
         run: |
           python3 - <<'PY'
           import json, os
@@ -68,8 +89,12 @@ jobs:
           with open(path, "w") as f:
               json.dump(data, f)
           PY
-      - name: Triage failure (read-only judgment step; runs only when a Claude credential is configured)
-        if: failure() && env.HAS_CLAUDE_AUTH == 'true'
+      # Opt-in, because it was the most expensive thing in this repository: 3.6 minutes median on a
+      # red run and 10.6 at worst, and three of the last four triaged a drift that was already on
+      # main and that the pull request body had already diagnosed. `labeled` is a trigger, so
+      # applying `triage` re-runs the gate with this step on (work/ci-budget R-2).
+      - name: Triage failure (read-only judgment step; runs only when the `triage` label is applied)
+        if: failure() && env.HAS_CLAUDE_AUTH == 'true' && contains(github.event.pull_request.labels.*.name, 'triage')
         env:
           # step-scoped; only Read/Grep/Glob tools below. `claude -p` reads whichever is set.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

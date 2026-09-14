@@ -1294,5 +1294,106 @@ class StalePointer(unittest.TestCase):
             self.assertIn("merges only the active item", notes[0])
 
 
+def _dirty_repo(root, slug="demo"):
+    """`_make_repo`'s committed tree plus a staged file that was never committed.
+
+    This is the recorded scenario (knowledge/lessons/commit-before-the-chain-check.md): the work
+    sits in the index only, and the base and HEAD are the *same* commit, which is why a guard that
+    compares resolved revisions would never fire here (work/run-queue-followups/revisions/1.md)."""
+    wd = _make_repo(root, slug=slug)
+    _write(os.path.join(root, "src", "new.py"), "x = 1\n")
+    _git(root, "add", "-A")
+    return wd
+
+
+class DirtyTree(unittest.TestCase):
+    """work/run-queue-followups R-1..R-5: an empty diff on a tree the check could not examine is
+    refused, and the `--base HEAD` self-check that scripts/verify.sh runs is left alone."""
+
+    def test_staged_work_with_an_empty_diff_is_one_clear_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            _dirty_repo(root)
+            result = _run(root, "--slug", "demo", "--base", "main")
+            self.assertEqual(result.returncode, 1, result.stdout)
+            fails = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
+            self.assertEqual(len(fails), 1, result.stdout)
+            self.assertIn("the diff against 'main' is empty but the working tree is not", fails[0])
+            self.assertIn("src/new.py", fails[0])
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+
+    def test_self_check_on_a_dirty_tree_still_passes(self):
+        # scripts/verify.sh runs `--base HEAD` (VERIFY_CMDS) and the documented order of work is
+        # stage, verify, commit -- so a dirty tree here is normal, not a defect.
+        with tempfile.TemporaryDirectory() as root:
+            _dirty_repo(root)
+            result = _run(root, "--slug", "demo", "--base", "HEAD")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+            self.assertNotIn("  FAIL:", result.stdout)
+
+    def test_clean_tree_with_no_commits_still_passes(self):
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            result = _run(root, "--slug", "demo", "--base", "main")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+            self.assertNotIn("  FAIL:", result.stdout)
+
+    def test_untracked_file_counts_as_dirty(self):
+        # The first recorded occurrence was a new intent.md that was untracked at the time.
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _write(os.path.join(root, "work", "demo", "notes.md"), "draft\n")
+            result = _run(root, "--slug", "demo", "--base", "main")
+            self.assertEqual(result.returncode, 1, result.stdout)
+            fails = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
+            self.assertEqual(len(fails), 1, result.stdout)
+            self.assertIn("work/demo/notes.md", fails[0])
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+
+    def test_ignored_paths_do_not_count(self):
+        # .gitignore already covers verify.sh's own scratch output, so a verify run cannot make its
+        # own tree look dirty to the guard.
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _write(os.path.join(root, ".gitignore"), ".sdlc/.last-verify\n")
+            _commit(root, "ignore verify's scratch file")
+            _write(os.path.join(root, ".sdlc", ".last-verify"), "abc1234\n")
+            result = _run(root, "--slug", "demo", "--base", "main")
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS")
+
+    def test_a_rename_is_sampled_as_a_path_not_a_descriptor(self):
+        # `git status --porcelain` renders a rename as `R  old -> new`; column-4 parsing alone would
+        # print the whole descriptor as if it were one path (security pass nit, revisions/1.md).
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _write(os.path.join(root, "src", "old.py"), "x = 1\n")
+            _commit(root, "add a file to rename")
+            _git(root, "mv", "src/old.py", "src/renamed.py")
+            result = _run(root, "--slug", "demo", "--base", "main")
+            self.assertEqual(result.returncode, 1, result.stdout)
+            fails = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
+            self.assertEqual(len(fails), 1, result.stdout)
+            self.assertIn("src/renamed.py", fails[0])
+            self.assertNotIn("->", fails[0])
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+
+    def test_unreadable_status_refuses(self):
+        # Fail closed: if the check cannot tell whether the tree is clean, it cannot claim to have
+        # examined it (security pass, revisions/1.md). A corrupt index leaves commit-to-commit
+        # `git diff` at rc 0 while `git status` exits 128, which isolates this path from the
+        # base-ref refusal above it.
+        with tempfile.TemporaryDirectory() as root:
+            _make_repo(root)
+            _write(os.path.join(root, ".git", "index"), "not-an-index")
+            result = _run(root, "--slug", "demo", "--base", "main")
+            self.assertEqual(result.returncode, 1, result.stdout)
+            fails = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
+            self.assertEqual(len(fails), 1, result.stdout)
+            self.assertIn("cannot tell whether the working tree is clean", fails[0])
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+
+
 if __name__ == "__main__":
     unittest.main()

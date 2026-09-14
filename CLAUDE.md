@@ -12,8 +12,9 @@ Each work item lives in `work/<slug>/` and holds `intent.md`, `spec.md`, `plan.m
 Every artifact has YAML front matter with `status` (`draft` | `in-review` | `approved` | `delegated` |
 `superseded`) and `approved-by`. Only a human sets `status: approved`; a hook refuses it from an agent. An
 agent may set `delegated` only under a human's delegation grant on the intent (`.sdlc/delegation.yaml`). The
-active work item is named in `.sdlc/active`; when an item completes, a human retires it (`superseded` on its
-artifacts, a ledger line each, the pointer cleared or moved to the next item) and a retired plan closes the gate.
+active work item is named in `.sdlc/active`; the session protocol and the seed prompt for the next session are
+in `docs/sdlc/handoff/HANDOFF.md`; when an item completes, a human retires it (`superseded` on its artifacts, a
+ledger line each, the pointer cleared or moved to the next item) and a retired plan closes the gate.
 
 ## Hard rules (enforced by hooks and CI, not by good intentions)
 1. No code edits under the paths in `.sdlc/config.env` (`PLAN_REQUIRED_PATHS`)
@@ -30,8 +31,7 @@ artifacts, a ledger line each, the pointer cleared or moved to the next item) an
    That human act may be one tap: a `workflow_dispatch` run of `.github/workflows/approve.yml` writes what the
    approval script writes, with the run's actor as the deciding handle. Ask for the tap and wait; the production
    gate catches every route an agent has to press it.
-4. Never deploy, publish, or push to a protected branch. The production gate hook
-   stops you; a human authorizes releases.
+4. Never deploy, publish, or push to a protected branch. The production gate hook stops you; a human authorizes releases.
 5. Run `scripts/verify.sh` before asking for review. Paste its last line in the PR.
 6. Review findings cite `file:line` and evidence. Max five minor comments per review.
 7. A mistake made twice becomes a line in this file or a skill, in the same PR.
@@ -50,40 +50,37 @@ Run all of them before reporting a task complete and paste the last lines. If a 
 - Keep this file under `MAX_CONTEXT_LINES` (120): `wc -l CLAUDE.md` after regenerating; trim prose, never rules, if over
 
 ## Workflow
-One stage at a time: write `intent.md`, then `spec.md`, then `plan.md`, then implement,
-then review, and file `incident.md` when something breaks. Templates for each artifact
-are in `docs/sdlc/templates/`. Do not start an artifact until a human has approved the
-previous one, or the agent has signed it under a delegation grant.
+One stage at a time: write `intent.md`, then `spec.md`, then `plan.md`, then implement, then review, and file
+`incident.md` when something breaks. Templates for each artifact are in `docs/sdlc/templates/`. Do not start an
+artifact until a human has approved the previous one, or the agent has signed it under a delegation grant.
 
 ## Conventions
 - Branch: `work/<slug>` for a human; an agent session's branch carries a prefix from `AGENT_BRANCH_PREFIXES`
   (`claude/`). PR title starts with `[<slug>]`. PR body has `Work-Item: <slug>`.
 - Commit messages explain *why*; reference the work item slug.
 - Tests live next to the code they test; every bug fix adds a regression test.
-- A review runs on a **different model from the one that wrote the work**, whenever a second one is available:
-  a writer re-reading its own diff shares its own blind spots, and pull request 51 has the scars — three rounds,
-  each finding real defects in the last round's fixes, two of them introduced by the fix before. The item's
-  ledger records which model wrote and which reviewed (the owner writes the names, as `revisions/<n>.md`'s
-  `## Reviewer: <role> (<model>)` heading expects), so a later reader can tell a second pair of eyes from one.
+- Keep one agent code pull request open at a time (an intent-only or handoff-only one may run beside it); draft first, ready once.
+- A review runs on a **different model from the one that wrote the work** when a second is available: a writer re-reading its own
+  diff shares its blind spots, and pull request 51 has the scars — three rounds, each finding real defects in the last round's
+  fixes, two introduced by the fix before. The owner records in the item's ledger which model wrote and which reviewed, as
+  `revisions/<n>.md`'s `## Reviewer: <role> (<model>)` heading expects, so a later reader can tell a second pair of eyes from one.
 - `work/<slug>/log.md` gets an entry at every gate (format in `docs/sdlc/templates/log.md`); `approved-by` must be a
   handle from `.sdlc/approvers.yaml`; decisions go to `knowledge/decisions/`; institutional knowledge goes to
   `knowledge/`, and CLAUDE.md/GEMINI.md link to it rather than restating it.
 - Humans approve one of three ways; the tap is the cheapest. **Actions -> approve -> Run workflow**
   (`.github/workflows/approve.yml`) with `slug`, `artifact` and `mode` runs the approval script as the run's actor
   and commits with `Approved-Run`/`Approved-Actor` trailers CI verifies against the run; an agent names the three inputs and waits.
-- Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone:
-  `git config sdlc.approver <github-handle>`, or pass `--as <handle>`; it enforces intent → spec → plan order), or by
-  editing the artifact plus `log.md` in the GitHub web editor; then commit as themselves. The script refuses to run
-  inside an agent session; an agent asks for approval and waits. CI checks the approval commit's author.
+- Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone `git config sdlc.approver
+  <handle>`, or `--as <handle>`; it enforces intent → spec → plan order), or by editing the artifact plus `log.md` in the GitHub web
+  editor, then commit as themselves. The script refuses an agent session; an agent asks and waits. CI checks the commit's author.
 - When the intent has `mode: delegated`, the agent signs with `python3 scripts/sign.py <slug> <artifact>` under
   its own handle; ledger lines read `-> delegated`, with `deviation:` and `revision <n>:` notes as the case may
   be; re-signing an already-signed or approved artifact needs `--revision revisions/<n>.md`.
 
 ## Workflow entry points (skills)
 `/sdlc-intent` → `/sdlc-spec` → `/sdlc-plan` → implement → `/sdlc-review` → `/sdlc-incident`
-- Hooks in `.claude/hooks/` enforce rules 1, 3 and 4 as `PreToolUse` matchers on
-  `Edit|Write|MultiEdit|Bash`, plus a `Stop` reminder for rule 5. They read
-  `.sdlc/config.env` under `$CLAUDE_PROJECT_DIR`; a block is `exit 2` with the reason on stderr.
+- Hooks in `.claude/hooks/` enforce rules 1, 3 and 4 as `PreToolUse` matchers on `Edit|Write|MultiEdit|Bash`, plus a `Stop`
+  reminder for rule 5. They read `.sdlc/config.env` under `$CLAUDE_PROJECT_DIR`; a block is `exit 2` with the reason on stderr.
 - Subagents live in `.claude/agents/` with a named role and a bounded `tools:` list. Keep one writer per work item:
   subagents read and return evidence, the session holding the plan makes every edit
   (`knowledge/decisions/one-writer-until-ledger.md`, provisional, with an expiry).
@@ -105,4 +102,7 @@ A mistake made twice becomes a file there and a pointer line here, in the same P
 - A fixture supplies its own identity and time; a test that reads the ambient environment passes here and fails on the runner — knowledge/lessons/tests-carry-their-own-environment.md
 - A rules-fragment line is paid for at the adopter's render, which sits at exactly the cap; measure with adopt.sh into scratch — knowledge/lessons/adopter-context-file-sits-at-the-cap.md
 - Commit before `check_artifact_chain.py --base origin/main`: staged work is invisible to it, and an empty diff passes as in-progress — knowledge/lessons/commit-before-the-chain-check.md
+- Watch a new test, eval case or `Verifiable:` clause fail before the change; one only ever seen green proves nothing — knowledge/lessons/a-verifiable-command-fails-before-the-change.md
+- A tap or a web-editor retirement commits no index: run `gen_index.py --check` on `main` before cutting a branch, and carry the regeneration under the item whose index it is — knowledge/lessons/human-commits-leave-indexes-stale.md
+- Never split tool output on a text delimiter a filename can contain; use NUL-terminated output (`git status --porcelain -z`) — knowledge/lessons/nul-terminated-git-output.md
 <!-- END GENERATED -->

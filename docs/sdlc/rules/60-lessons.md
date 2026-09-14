@@ -22,3 +22,6 @@ A mistake made twice becomes a file there and a pointer line here, in the same P
 - A fixture supplies its own identity and time; a test that reads the ambient environment passes here and fails on the runner — knowledge/lessons/tests-carry-their-own-environment.md
 - A rules-fragment line is paid for at the adopter's render, which sits at exactly the cap; measure with adopt.sh into scratch — knowledge/lessons/adopter-context-file-sits-at-the-cap.md
 - Commit before `check_artifact_chain.py --base origin/main`: staged work is invisible to it, and an empty diff passes as in-progress — knowledge/lessons/commit-before-the-chain-check.md
+- Watch a new test, eval case or `Verifiable:` clause fail before the change; one only ever seen green proves nothing — knowledge/lessons/a-verifiable-command-fails-before-the-change.md
+- A tap or a web-editor retirement commits no index: run `gen_index.py --check` on `main` before cutting a branch, and carry the regeneration under the item whose index it is — knowledge/lessons/human-commits-leave-indexes-stale.md
+- Never split tool output on a text delimiter a filename can contain; use NUL-terminated output (`git status --porcelain -z`) — knowledge/lessons/nul-terminated-git-output.md
