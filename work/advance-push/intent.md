@@ -5,11 +5,11 @@ title: The post-merge advance never lands, because it pushes from a checkout old
 description: "delegated_merge.py advances .sdlc/active by committing on the job's checkout of main, taken before the merge API call moved main; the push is non-fast-forward every time and is swallowed as a note, so no queue has ever advanced live. Fetch and fast-forward onto the merged main before writing, with a regression test whose remote moves."
 stage: plan
 # status: draft | in-review | approved | delegated | superseded
-status: in-review
+status: approved
 author: Luis Siviero (repo owner); found and drafted by Claude while planning work/standing-grant and work/risk-detour, both of which depend on the queue advancing
 # approved-by: product owner; set only by a human, with scripts/approve.py from their own shell
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-14
 # risk-class: low | medium | high; the grant below is valid only for classes the policy lists
 risk-class: low
 # mode: supervised | delegated; delegated-by and delegated-on are set only by a human, like approved-by
