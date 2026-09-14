@@ -96,11 +96,16 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   line the owner had to commit by hand (`be1c162`), and a second test module for the review round's four
   cases. #89's body proposes the one-line reading that matches the header (absent from `git ls-files` on
   the base branch is new). Rule 3 keeps the hook out of an agent's diff, so it needs the owner or an item.
-- **New, unfiled: the delegated-merge workflow goes red on any pull request whose `Work-Item` is not the
-  active slug.** Runs `34846578359` and `34846667149` on #88's check completions both end
-  `CONDITION pull-request: refused — Work-Item is 'retire-delegated-items' but .sdlc/active names
-  'advance-push'` and exit 1. That is the designed refusal, but it bills a red run for a condition that is
-  not an error, exactly the shape `work/ci-budget` R-7 fixed for `not-delegated`.
+- **Expect one red delegated-merge run per check completion on any open pull request that is not the
+  active item's, and leave it alone.** Runs `34846578359` and `34846667149` on #88's check completions
+  both end `CONDITION pull-request: refused — Work-Item is 'retire-delegated-items' but .sdlc/active
+  names 'advance-push'` and exit 1. That is `work/ci-budget` R-7's deliberate choice, not a gap it left:
+  R-7 made `not-delegated` exit 0 and in the same breath kept this one red — "a locked path or a refused
+  pull request on a supervised item stays a red run with its own `CONDITION` line", because a refusal
+  about the pull request itself must never hide behind the grant verdict
+  (`work/ci-budget/spec.md` R7; the same sentence is in `delegated_merge.py`'s `NOT_DELEGATED` comment).
+  It costs a run per event, which is the price R-7 weighed and paid. Changing it needs an intent that
+  argues the case R-7 already decided, not a bug report.
 - **Open pull requests**: #88 `retire-delegated-items` intent (green, mergeable, `Important: 0 | Nits: 0`
   on its last two reviews); #60 `risk-detour` and #61 `standing-grant` intents, both merging clean against
   `c18a9ee` as this is written; #65 and #66 dependabot; #67 `plan-adherence` and #68 `revision` drafts.
