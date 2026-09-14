@@ -52,6 +52,10 @@ Guards, because this is a bot commit to the default branch that no chain check s
   advance, so the queue ends there by construction. Grant such items last.
 - A new commit author appears on `main`: `github-actions[bot]`, one commit per advance, each naming the
   pull request it followed.
+- The advance shipped with a fixture whose remote never moved between the checkout and the push, which
+  is the one case production never produces, so it committed on the pre-merge checkout and its push was
+  rejected on every real merge; `advance-push` added the fixture that moves and the fetch-and-fast-forward
+  before the write.
 
 ## Amends
 `delegated-mode.md` decision 6, which said the workflow does nothing after merging and commenting: it
