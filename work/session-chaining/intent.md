@@ -5,7 +5,7 @@ title: "The kit never says who manages session context, so the owner has been do
 description: "One session per work item is the protocol the owner chose, but nothing in the kit writes it down or acts on it: sdlc-run's advance step does not open the next session, the handoff carries no protocol, and two skills give instructions that are wrong or incomplete against the repository as it stands."
 stage: plan
 # status: draft | in-review | approved | delegated | superseded
-status: approved
+status: superseded
 author: Luis Siviero (repo owner), asking during the ci-budget execution session of 2026-09-11; the three defects come from the mock walk of 2026-09-11 and were re-verified against main at 6cd63b1
 # approved-by: product owner; set only by a human, with scripts/approve.py from their own shell
 approved-by: luissiviero
