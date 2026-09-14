@@ -15,3 +15,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 
 - 2026-09-14T01:33:20Z | intent.md | in-review -> approved | luissiviero | b30feff | mode: delegated
 - 2026-09-14T02:43:57Z | spec.md | in-review -> delegated | claude | 864923e | designed from the owner's two answers in the intent: regeneration inside --commit via gen_index.render_all, every regenerated index committed, allowlist widened to the generated paths under six new committer cases; sign.py and the grant untouched
+- 2026-09-14T02:46:42Z | plan.md | in-review -> delegated | claude | e5ec667 | two code files and the item's own artifacts; six new committer cases, three to be seen red before the code; kind feature so the existing test file stays editable
