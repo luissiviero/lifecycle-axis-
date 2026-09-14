@@ -5,11 +5,11 @@ title: A delegated item cannot be retired into a green chain, and its retirement
 description: "An agent signs spec.md and plan.md with approved-by: claude; when the owner retires the item the chain check validates superseded against the approver list exactly as approved, so every pull request that names the retired item fails, including the one that regenerates the indexes the web-editor retirement left stale. Make superseded a human act the check reads from the ledger, and make the retirement a tap that regenerates what it changes."
 stage: plan
 # status: draft | in-review | approved | delegated | superseded
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), who retired work/approve-tap-regenerates-index on 2026-09-14 and hit both halves; drafted by Claude from the measurement on pull request 86 and the 2026-09-13 retrospective that predicted it
 # approved-by: product owner; set only by a human, with scripts/approve.py from their own shell
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-14
 # risk-class: low | medium | high; the grant below is valid only for classes the policy lists
 risk-class: medium
 # mode: supervised | delegated; delegated-by and delegated-on are set only by a human, like approved-by
