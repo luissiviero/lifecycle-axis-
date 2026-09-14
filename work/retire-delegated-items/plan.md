@@ -149,3 +149,12 @@ Not in the list, on purpose: `.sdlc/`, `.claude/hooks/`, `scripts/checks/`, `scr
   that moves the pointer is strict on a pull request. The R-5 chain case therefore points the pointer at
   another live item on the base first, and the `RetiredDelegatedItem` fixture does the same. The tap runs
   on `main` and never meets this; the handoff bullet in step 6 says so.
+- 2026-09-14 step 2, deviation 3: the pre-existing `InProgressChain.test_superseded_with_an_invalid_approver_fails`
+  went red under the spec's R-1 as written (a superseded plan.md with `approved-by: claude[bot]` and a valid
+  human retiring line must still fail). The intent's Must keeps every existing case green unmodified, so the
+  rule is narrowed rather than the case changed: `approved-by` is skipped only when the ledger shows the
+  artifact signed under a grant (a `-> delegated` line for it, or a retiring line from `delegated`); with
+  no signature line the approver check stays. The signature is read from the whole ledger, not from the
+  retiring line alone, so an agent-actored retiring line on a signed artifact is still one ledger fault (R-2). The spec's R-1 row and D1 are amended to say so, in this commit; the owner is told on the pull
+  request, since the spec was approved before the amendment. This spec read the case and did not see it
+  (gotcha missed).
