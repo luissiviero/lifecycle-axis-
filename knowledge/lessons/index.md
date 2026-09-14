@@ -35,3 +35,4 @@ single incident that yields more than one distinct lesson gets `<incident-slug>-
 - [commit-before-the-chain-check.md](commit-before-the-chain-check.md) — staged work is invisible to the chain check; commit first, and since work/run-queue-followups it refuses rather than passing
 - [a-verifiable-command-fails-before-the-change.md](a-verifiable-command-fails-before-the-change.md) — watch a new test, eval case or `Verifiable:` clause fail before the change; one only ever seen green proves nothing
 - [human-commits-leave-indexes-stale.md](human-commits-leave-indexes-stale.md) — a tap or a web-editor retirement commits no index; check `main` for drift before cutting a branch, and regenerate under the item whose index it is
+- [nul-terminated-git-output.md](nul-terminated-git-output.md) — never split tool output on a text delimiter a filename can contain; use NUL-terminated output, where a rename is two fields
