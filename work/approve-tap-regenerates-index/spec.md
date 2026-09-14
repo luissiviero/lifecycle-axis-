@@ -5,7 +5,7 @@ title: The approval tap regenerates the indexes it leaves stale, inside the comm
 description: "scripts/approve_dispatch.py --commit renders work/<slug>/index.md and work/index.md with gen_index.py's own renderer before it stages, and on the default branch also every other item's index it finds stale, so a tap on main heals drift; on any other ref it writes and stages only the item's own two, because the chain check counts only those as the item's files. It keeps refusing every other stray path, judges a rename at both ends, and its allowlist and docstring say so. The workflow, approve.py and the generator do not change."
 stage: design
 # status: draft | in-review | approved | delegated | superseded
-status: delegated
+status: superseded
 reads: intent.md
 # approved-by: product owner; tech lead consulted for medium/high risk; set only by a human
 approved-by: claude
