@@ -135,4 +135,19 @@ change persists, and nothing else imports the new module. The revert touches a l
 owner's click too.
 
 ## Deviations log (append during implementation; same commit as the deviation)
-- 
+- 2026-09-14 — step 1 predicted five red and one green and the spec's R-8 said four; the observation is six
+  red. With today's code and only the no-op `merge_sha` keyword added (without it every case is a
+  `TypeError`, which proves nothing), the five predicted cases fail on their assertions as predicted, and
+  the R-4 hook case, predicted green, errors: today's non-fast-forward push is refused by the client before
+  the remote's `pre-receive` hook ever runs, so the counter file the case reads never exists. Six of six
+  therefore exercise the change; R-8's count is corrected in the spec in this commit, as step 1 said it
+  would be. 1 of 5.
+- 2026-09-14 — the plan and spec C2 said a new test file "stays writable" under `kind: fix`, reading the
+  hook's own header; `protect-tests.sh` checks existence on disk, so the file was writable exactly once.
+  Its first write carried one fixture defect (the second clone of a bare remote whose `HEAD` names a
+  `master` that never exists checks nothing out; `git clone -b main` is the line), and the hook refused
+  the one-line fix from this session. The module was committed as written (4fdf262) for the owner to edit
+  in the web editor; the red set above and the green run after the code were observed on a corrected copy
+  outside the tree, and the tree's own module is run green in step 5 once the owner's line lands. Not a
+  hook change (rule 3): the hook's header and its check disagree, which the pull request description
+  proposes to reconcile. 2 of 5.

@@ -976,7 +976,7 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
         return out.finish(merged=number)
 
     try:
-        gh_api("PUT", "repos/%s/pulls/%s/merge" % (repo, number), {
+        merged = gh_api("PUT", "repos/%s/pulls/%s/merge" % (repo, number), {
             "sha": head_sha,
             "merge_method": policy.merge.get("method"),
             # The head label is the branch's own text; the merge commit names the pull request,
@@ -1003,9 +1003,12 @@ def run(event, policy, config, approvers_file, dry_run=False, now=None, stream=N
     # (the workflow takes the default branch, never the head), so this is the only place that may
     # move the pointer -- an item's own pull request never can, because `.sdlc` is ALWAYS_LOCKED.
     # A failure here never un-merges anything: it is logged and the run still reports the merge.
+    # The merge endpoint's response names the merge commit; advance() fast-forwards onto it and
+    # refuses if the branch has moved past it (work/advance-push).
     if root:
         try:
-            advance(root, out, slug, number, policy, now=now)
+            advance(root, out, slug, number, policy, now=now,
+                    merge_sha=(merged if isinstance(merged, dict) else {}).get("sha"))
         except (OSError, ValueError, MergeError) as exc:
             # ValueError covers UnicodeDecodeError from a non-UTF-8 intent.md in the queue: the
             # merge already succeeded, so a crash here would report a failed job for work that
@@ -1052,7 +1055,7 @@ def _append_ledger(root, slug, entry):
     return rel
 
 
-def advance(root, out, merged_slug, number, policy, now=None):
+def advance(root, out, merged_slug, number, policy, now=None, merge_sha=None):
     """Move `.sdlc/active` to the next queued item and record it on both ledgers.
 
     Refuses, writing nothing, on a dirty tree, when the pointer does not name the item just merged,
@@ -1066,9 +1069,42 @@ def advance(root, out, merged_slug, number, policy, now=None):
     slug, so in production it compares the file to itself. It is kept because `advance()` is also
     reachable directly, where it is the only thing standing between a wrong argument and a wrong
     write.
+
+    The checkout this runs in was taken before the merge API call moved the default branch, so
+    before anything is written it is brought up to date (work/advance-push): fetch the checkout's
+    branch, refuse unless the fetched tip is the merge commit `merge_sha` names (when it is
+    given), then `git merge --ff-only` onto it. Each failure is a note and no write; the checkout
+    is never reset, rebased or force-pushed. Without this the advance commit's parent was the
+    pre-merge tip and its push was rejected on every real merge.
     """
     now = now or datetime.now(timezone.utc)
     ts = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
+    fetch = subprocess.run(["git", "-C", root, "fetch", "origin", branch],
+                           capture_output=True, text=True)
+    if fetch.returncode != 0:
+        # The same "not pushed" shape as the rejected push below: the advance was indeed not
+        # pushed, and a missing or unreachable remote is found here first.
+        out.stream.write("note: advance commit not pushed (fetch of origin/%s failed: %s); "
+                         "the next merge will advance\n"
+                         % (branch, (fetch.stderr.strip().splitlines() or ["fetch failed"])[-1]))
+        return None
+    tip = _git(root, "rev-parse", "FETCH_HEAD", check=False)
+    if merge_sha and tip != merge_sha:
+        # Another push landed on the branch in the seconds after the merge, or the merge response
+        # named something the fetch did not see. The record must say "merged as <the merge
+        # commit>", so nothing is written; the next merge advances from a fresh checkout.
+        out.stream.write("note: origin/%s is at %s, not the merge commit %s; not advancing\n"
+                         % (branch, tip[:12], merge_sha[:12]))
+        return None
+    ff = subprocess.run(["git", "-C", root, "merge", "--ff-only", "FETCH_HEAD"],
+                        capture_output=True, text=True)
+    if ff.returncode != 0:
+        # A checkout that diverged from the branch; the workflow's fresh checkout never does.
+        # Never reset or rebase it: a note, and the checkout is left exactly where it was.
+        out.stream.write("note: the checkout could not fast-forward to origin/%s (%s); not advancing\n"
+                         % (branch, (ff.stderr.strip().splitlines() or ["merge --ff-only failed"])[-1]))
+        return None
     # The allowlist below bounds which *files* are committed, not what is inside them: `git add` on
     # an already-dirty file would stage that file's other changes too (security pass, nit 2). The
     # workflow's checkout is always fresh, so a dirty tree here means something unexpected touched
@@ -1120,12 +1156,11 @@ def advance(root, out, merged_slug, number, policy, now=None):
          "-c", "user.email=%s" % ADVANCE_IDENTITY[1],
          "commit", "-q", "-m",
          "[%s] Advance .sdlc/active after #%s merged" % (nxt or "queue-empty", number))
-    branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
     push = subprocess.run(["git", "-C", root, "push", "origin", "HEAD:%s" % branch],
                           capture_output=True, text=True)
     if push.returncode != 0:
-        # Someone else pushed between the checkout and now. The pointer is unchanged on the remote,
-        # and the next merge advances it; retrying here would race the same way.
+        # Someone else pushed between the fetch above and now. The pointer is unchanged on the
+        # remote, and the next merge advances it; retrying here would race the same way.
         out.stream.write("note: advance commit not pushed (%s); the next merge will advance\n"
                          % (push.stderr.strip().splitlines() or ["push rejected"])[-1])
         return None
