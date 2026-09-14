@@ -10,7 +10,7 @@ timestamp: 2026-09-14T05:45:00Z
 |---|---|---|---|---|---|---|
 | [_example](_example/index.md) | Example work item | plan | approved | approved | approved | plan.md -> approved by luissiviero |
 | [adopter-first-hour](adopter-first-hour/index.md) | A fresh install of the kit breaks in the first hour; the adopter path must work end to end | plan | approved | approved | approved | PR #33 -> in-review by claude |
-| [advance-push](advance-push/index.md) | The post-merge advance never lands, because it pushes from a checkout older than the merge it follows | plan | approved | approved | approved | plan.md -> approved by luissiviero |
+| [advance-push](advance-push/index.md) | The post-merge advance never lands, because it pushes from a checkout older than the merge it follows | plan | approved | approved | approved | PR #89 -> in-review by claude |
 | [agent-evals](agent-evals/index.md) | Evals test the agent, and can go red | plan | approved | approved | approved | PR #34 -> in-review by claude |
 | [approval-gate](approval-gate/index.md) | Only a human can flip an artifact to approved | plan | approved | approved | approved | PR #25 -> in-review by claude |
 | [approve-by-dispatch](approve-by-dispatch/index.md) | Give permission for the AI to change from one mode to the other when I request, without doing everything manually | plan | approved | approved | delegated | plan.md -> delegated by claude |
