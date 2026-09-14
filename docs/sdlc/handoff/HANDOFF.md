@@ -262,7 +262,11 @@ Batch A is merged; open Batch B starting with WI-7 band-detector.")
   `delegated -> superseded`) ledger line per artifact, and set `.sdlc/active` to the next item or to empty.
   `require-plan.sh` refuses a `superseded` plan; `check_artifact_chain.py` fails every pull request whose base
   already has `.sdlc/active` naming a retired item (the retiring pull request itself gets a note to move the
-  pointer), and notes one whose `Work-Item` differs from the pointer. Nothing *retires* an item on merge
+  pointer), and notes one whose `Work-Item` differs from the pointer. It also fails any pull request whose
+  `Work-Item:` names a **retired** item, since every chain artifact must read `approved`: so a pull request
+  cleaning up *after* a retirement (regenerating the indexes the web-editor route leaves stale, say) must
+  leave the `Work-Item:` line off — `sdlc-gate.yml` then falls back to `.sdlc/active`, which names a live
+  item. Verify such a pull request with the slug the gate will use, not with the default. Nothing *retires* an item on merge
   (`superseded` stays the owner's act; one tap for it is a follow-up item), but since `work/run-queue` the
   merge does *move the pointer*: `delegated_merge.py` advances `.sdlc/active` to the next granted, unstarted
   item (`scripts/next_item.py`: earliest `delegated-on`, ties by slug) and writes a ledger line on both items,
