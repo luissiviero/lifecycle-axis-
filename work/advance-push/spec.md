@@ -5,7 +5,7 @@ title: The advance fetches and fast-forwards onto the merged main before it writ
 description: "delegated_merge.advance() fetches the default branch, refuses unless the fetched tip is the merge commit the API returned, fast-forwards the job's checkout onto it, and only then writes and pushes, so the advance commit's parent is the merge commit and the push is a fast-forward; a rejected push after that stays a note. Proven by a fixture whose bare remote moves between the checkout and the advance, as the merge API moves main."
 stage: design
 # status: draft | in-review | approved | delegated | superseded
-status: approved
+status: superseded
 reads: intent.md
 # approved-by: product owner; tech lead consulted for medium/high risk; set only by a human
 approved-by: luissiviero
