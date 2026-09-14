@@ -3,7 +3,7 @@ type: doc
 title: Session handoff (2026-09-14)
 description: "How to resume in a new session: the session protocol, the task state, the owner's routine, and the seed prompt the finishing session leaves for the next one."
 tags: [sdlc, handoff, playbook-comparison, delegated-mode]
-timestamp: 2026-09-14T14:20:00Z
+timestamp: 2026-09-14T17:30:00Z
 ---
 
 # Session handoff (read this first after any context reset)
@@ -64,7 +64,35 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-14 ~14:10 UTC)
+## Task state (2026-09-14 ~17:30 UTC)
+- **`retire-delegated-items` is built on `claude/retire-delegated-items`, pull request #92, and
+  `.sdlc/active` names it.** The owner tapped intent (`017c832`, on `main`), spec (`fa0ac9b`) and plan
+  (`6016332`) today; the build followed the plan's seven steps in one commit each. What changed: the chain
+  check judges a `superseded` artifact by its retirer (the `-> superseded` ledger line's actor and the
+  commit's author or verified trailer, bound to a `mode: retire` run-name), never by `approved-by`, which
+  the approver list is asked about only where the ledger shows no signature for the artifact; the approval
+  script gains `--retire` and `--next`; the dispatch helper's role gate requires every present artifact's
+  role under `mode: retire` and its commit subject reads `Retire`; the workflow offers `mode: retire` and
+  a `next` input with the run-name byte-identical. On `main`'s own tree,
+  `python3 scripts/check_artifact_chain.py --base HEAD --slug approve-tap-regenerates-index` went from two
+  `FAIL` lines to `CHAIN: PASS` with the change and nothing else.
+- **One spec amendment after approval, told to the owner on #92.** The spec's R-1 first said `approved-by`
+  is never validated on `superseded`; the pre-existing case `test_superseded_with_an_invalid_approver_fails`
+  pins that a human-approved plan with a bot approver still fails after retirement, and the intent keeps
+  every existing case green. The rule shipped narrower (validated where the ledger shows no `-> delegated`
+  line and no retiring line from `delegated`), the spec's R-1 and D1 say so, and the plan's deviation 3
+  records it. The spec read that case while it was written and did not see it.
+- **Done when #92 is merged and the owner retires this item, by the tap it built.** The first
+  `mode: retire` run on `main` is the production observation of R-9 and R-10: its summary reads `Retired`,
+  its commit is `[retire-delegated-items] Retire as luissiviero` with the trailers, and `gen_index.py
+  --check` on `main` afterwards prints `INDEX: up to date`. The `next` input is the owner's choice; blank
+  leaves the pointer empty, and then every pull request needs a `Work-Item:` line until a grant or a
+  retirement points it again.
+- **Still open and unchanged from the section below**: the advance is unobserved in production until a
+  delegated item merges; `EXEMPT` in the chain check lists `CLAUDE.md` but not its two sibling renders;
+  `protect-tests.sh` locks a new test file the moment it exists; #60 and #61 wait on the owner's merge.
+
+## Task state (2026-09-14 ~14:10 UTC) — HISTORY, superseded by the section above
 - **`advance-push` is built and merged, and `.sdlc/active` still names it.** #87 carried the approved
   intent, spec and plan (merged 12:04 UTC as `25b579d`, before the build commits existed), and #89 the
   build (merged 14:06 UTC as `c18a9ee`). `advance()` now refuses a dirty checkout before it touches
@@ -478,16 +506,24 @@ Batch A is merged; open Batch B starting with WI-7 band-detector.")
   "Session protocol".
   `require-plan.sh` blocks every write under `scripts/` (including Bash text that mentions
   `scripts`) until the active plan is approved by a `tech-lead`.
-- Retiring an item is a human act, from the web editor today (`work/retire-active-pointer`): set
-  `status: superseded` on `intent.md`, `spec.md` and `plan.md`, append one `approved -> superseded` (or
-  `delegated -> superseded`) ledger line per artifact, and set `.sdlc/active` to the next item or to empty.
-  `require-plan.sh` refuses a `superseded` plan; `check_artifact_chain.py` fails every pull request whose base
-  already has `.sdlc/active` naming a retired item (the retiring pull request itself gets a note to move the
-  pointer), and notes one whose `Work-Item` differs from the pointer. It also fails any pull request whose
-  `Work-Item:` names a **retired** item, since every chain artifact must read `approved`: so a pull request
-  cleaning up *after* a retirement (regenerating the indexes the web-editor route leaves stale, say) must
-  leave the `Work-Item:` line off — `sdlc-gate.yml` then falls back to `.sdlc/active`, which names a live
-  item. Verify such a pull request with the slug the gate will use, not with the default. Fix the body
+- Retiring an item is a human act, and since `work/retire-delegated-items` it is one tap on `main`:
+  **Actions -> approve -> Run workflow** with `mode` `retire`, the `slug` (required) and `next` (the slug to
+  point `.sdlc/active` at; blank clears a pointer naming the retired item and leaves any other alone). The
+  run sets `status: superseded` on every present artifact with its `approved-by` untouched, appends one
+  `approved -> superseded` (or `delegated -> superseded`) ledger line per artifact, moves the pointer and
+  regenerates the indexes in one commit. The web editor still works for the same four edits and still leaves
+  the indexes stale (`knowledge/lessons/human-commits-leave-indexes-stale.md`). `check_artifact_chain.py`
+  judges a retired artifact by who retired it -- the retiring ledger line's actor, who must hold the
+  artifact's role, and the commit that set `superseded`, by author or by verified trailer -- so an
+  agent-signed item retires into a green chain; `approved-by` is validated against the approver list only
+  where the ledger shows no signature. `require-plan.sh` refuses a `superseded` plan; the check fails every
+  pull request whose base already has `.sdlc/active` naming a retired item (the retiring pull request itself
+  gets a note to move the pointer), and notes one whose `Work-Item` differs from the pointer. A pull request
+  whose `Work-Item:` names a **retired** item passes only in in-progress mode (its own files and the two
+  indexes, nothing else): so a clean-up after a retirement carries the retired slug's line, and a pull
+  request carrying code never does. A retirement on a branch that *moves* the pointer is strict, because
+  `.sdlc/active` counts as the item's own file only while it names the item; that is why the tap runs on
+  `main`. Verify such a pull request with the slug the gate will use, not with the default. Fix the body
   **before** the push: the gate resolves the slug from `github.event.pull_request.body` in the event payload,
   so a body edited after the push never reaches the run it was meant to fix, and re-running that run replays
   the same payload. Only the next push carries a corrected body. Nothing *retires* an item on merge

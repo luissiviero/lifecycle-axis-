@@ -43,7 +43,9 @@ A red `index-drift` on a branch that did not touch the file is this defect, not 
 regenerate, and move on. Do not treat it as a flake.
 
 ## Where it is enforced
-Nowhere yet. `work/approve-tap-regenerates-index` (granted `delegated` on 2026-09-14) is the fix for the tap
-route: regeneration inside `approve_dispatch.py --commit`, with the allowlist widened to the generated
-indexes. Its spec should also name the web-editor retirement route, which that fix does not reach; until a
-hook or the tap makes both routes impossible, this pointer stays.
+On the tap route, for approvals and retirements alike: `work/approve-tap-regenerates-index` put the
+regeneration inside `approve_dispatch.py --commit` with the allowlist widened to the generated indexes, and
+`work/retire-delegated-items` made a retirement the same tap (`mode: retire`), so its commit goes through the
+same committer. The web-editor route, for either act, still commits no index; until a hook or a check makes
+that route impossible, this pointer stays and the first command after a web-editor commit on `main` is
+`python3 scripts/gen_index.py --check`.
