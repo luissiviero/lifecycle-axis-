@@ -5,7 +5,7 @@ title: Regenerate inside the committer, heal foreign drift only on the default b
 description: "scripts/approve_dispatch.py --commit decides its route from runner-set values, renders every index with gen_index.render_all, writes and allows other items' indexes only on the default branch, stages what one git status run reported, refuses an index-only diff before staging, judges a rename's source, and says so in its text; thirteen new cases in scripts/test_approve_dispatch.py, ten seen red before the code."
 stage: build
 # status: draft | in-review | approved | delegated | superseded  (require-plan.sh refuses code edits until approved)
-status: delegated
+status: superseded
 # kind: feature | fix  (fix: protect-tests.sh refuses edits to existing test files)
 kind: feature
 reads: spec.md
