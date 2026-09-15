@@ -187,7 +187,8 @@ defect. See open question 5 if the owner reads that differently.
   there is no item to check and nothing is claiming to be approved. In **strict** mode (the diff reaches
   outside the item) it stays `FAIL`, because a diff that changes code must name the approved chain
   authorising it. An explicit `--slug` that names nothing stays a FAIL in both.
-  A:
+  A: accepted as proposed (owner, 2026-09-15): split by mode -- a note and exit 0 in in-progress
+     mode, `FAIL` kept in strict mode, and an explicit `--slug` that names nothing stays a `FAIL` in both.
 - Q: how should the shallow clone be handled — degrade, or deepen?
   Proposed: **degrade, never deepen.** The check is read-only and runs in CI; making it fetch would give a
   verification step a network dependency and a way to mutate the repo it is judging. So: ask
@@ -196,14 +197,16 @@ defect. See open question 5 if the owner reads that differently.
   approval commit -- run git fetch --unshallow` and do not report an approver. A full clone behaves exactly
   as today. Deliberate abuse is not widened: CI is `fetch-depth: 0`, so a pull request cannot make the gate
   shallow, and the note is loud rather than silent.
-  A:
+  A: accepted as proposed (owner, 2026-09-15): degrade, never deepen. The check stays read-only and
+     reports a loud note naming the graft; it never fetches.
 - Q: keep fault (c) in this intent, or split it into its own item? The 03:10 Task state explicitly leaves
   this to you.
   Proposed: **keep it here.** All three are one symptom — `verify.sh` red for a reason that is not the work
   — and (a) and (c) are two effects of the same `advance()` call, first observed in the same commit. One
   spec with three requirements and three independent tests keeps the evidence together, and the item stays
   small. Split it only if you would rather land (a) and (b) first; say so and (c) becomes `advance-regenerates-index`.
-  A:
+  A: accepted as proposed (owner, 2026-09-15): keep all three faults in this one item. No split; the
+     spec carries three requirements with three independent tests.
 - Q: where should (c)'s regeneration live — inside `advance()`, or as a step in `delegated-merge.yml` after it?
   Proposed: **inside `advance()`**, importing `gen_index` and extending the `written` allowlist with exactly
   `work/<merged-slug>/index.md`, `work/<next-slug>/index.md` (when there is a next) and `work/index.md`.
@@ -211,15 +214,20 @@ defect. See open question 5 if the owner reads that differently.
   property; a workflow step would need its own commit, its own push and its own race with the same
   not-forced push. Note `delegated-merge.yml:81` checks out with no `fetch-depth`, so the regeneration must
   read only the working tree — `gen_index.py` does.
-  A:
+  A: accepted as proposed (owner, 2026-09-15): inside `advance()`, extending the `written` allowlist
+     by exactly the regenerated index paths, so the refusal at `delegated_merge.py:1169` stays the
+     safety property.
 - Q: do you read `DETOUR: needed` as requiring a detour record at this gate anyway?
   Proposed: **no.** The skill files a record for "an intent meant for a grant"; this one is supervised and
   its code will land by your click, so the detour has nothing to route around. If you would rather have the
   record on file regardless, say so and it is filed under `work/self-check-false-reds/revisions/` before the
   spec.
-  A:
+  A: accepted as proposed (owner, 2026-09-15): no detour record at this gate; the item is supervised
+     and seeks no grant, so the detour has nothing to route around.
 - Q: is `medium` the class you want, or would you rather this be `high`?
   Proposed: **medium**, for the reasons above — `high` would not change the route (both stay supervised and
   both need your tap at every gate), so the difference is only what the record says about blast radius, and
   `medium` is the honest reading for a change that cannot reach `main` unclicked.
-  A:
+  A: accepted as proposed (owner, 2026-09-15): `medium`. Confirmed in production by the approval tap
+     itself -- the `mode: delegated` run (approve run #33, 03:42:33Z) failed at `approve.py:347`'s
+     `policy.risk_ok()` and recorded nothing; the `supervised` run (#34) succeeded.
