@@ -86,4 +86,4 @@ merge since `risk-detour` landed, which the handoff's Task state is waiting to o
   `approved`? Proposed: only when `approved`, the one status under which a park can exist; a park line on
   an intent in any other status is stale by definition, so the marker reads `parked` only for
   `status: approved` and the stage cell otherwise comes from `_stage`.
-  A:
+  A: agreed (owner, 2026-09-15): the marker reads `parked` only for `status: approved`; any other status takes its stage from the artifacts and shows no `Parked:` line.
