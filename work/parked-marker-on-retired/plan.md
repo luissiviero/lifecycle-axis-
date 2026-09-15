@@ -29,7 +29,7 @@ stood in for it (`CLAUDE.md` conventions, the lessons named under Risks, the spe
 
 ## Files that change
 - scripts/test_gen_index_retired.py — new; `class RetiredParkedItem` on `test_gen_index._build_two_item_tree` plus the `ParkedMarker` approvers file: `test_a_retired_item_loses_the_marker` (an item `retired` with three `superseded` artifacts and a ledger that ends `parked:` then three `-> superseded` lines; golden item index with no `Parked:` line, the top-index row with stage `plan`) and `test_a_park_on_an_unapproved_intent_is_not_marked` (the parked fixture's intent as `status: in-review` with the same parked ledger; stage `intent`, no `Parked:` line) (spec R-1, R-2)
-- scripts/gen_index.py — `build_item`: the `"parked"` value becomes `next_item.parked_note(entries, next_item.resumers(root))` only when `(intent_fm.get("status") or "").strip() == "approved"`, else `None`; the comment above it says why (spec R-1, D1, D3)
+- scripts/gen_index.py — `build_item`: `av = next_item.resumers(root)` once per item as today, and the `"parked"` value becomes `next_item.parked_note(entries, av)` only when `intent_fm.get("status") == "approved"` (the queue's own spelling), else `None`; the comment above it and the `next_item` import comment say why (spec R-1, D1, D3; deviation 2)
 - work/risk-detour/index.md — regenerated: the `Parked:` line and its blank line go (spec R-4)
 - work/index.md — regenerated: the `risk-detour` row's stage cell `parked` becomes `plan`; this item's own row (spec R-4)
 - work/parked-marker-on-retired/spec.md — signed under the grant
@@ -71,8 +71,10 @@ workflow merge this pull request without a click.
    conditions hold; `sdlc-run` step 7 follows.
 
 ## Risks
-- Risk: the condition is put in a renderer instead of `build_item`, and the two renderers disagree →
-  mitigation: spec D1 names the function; R-1's case asserts both outputs from one `render_all` call.
+- Risk: the condition is put in one renderer and the two renderers disagree → mitigation: R-1's case
+  asserts both outputs from one `render_all` call. A condition duplicated into both renderers would pass
+  the cases too (plan pass on pull request 100); spec D1 names `build_item`, and the review reads the
+  diff for it.
 - Risk: a parked, live item loses its marker → mitigation: `ParkedMarker` is the pin and is locked under
   this plan, so it cannot be edited into passing; R-3 requires it green unmodified.
 - Risk: the new module drifts from `test_gen_index`'s fixtures if those change later → mitigation: it
@@ -111,3 +113,11 @@ delegated item.
   `risk-detour` row, this item's own row and the timestamp, the two extra lines R-4's prose already
   excepts), so the sentence now names the three. No requirement, design line or test changed; the file
   list said `spec.md` was signed only, so this is logged. 1 of 5.
+- 2026-09-15 — the review round (plan-reviewer and security-reviewer on Opus 5 against a Fable 5.1 writer;
+  `Important: 0`, six nits) changed the code by three nits: `next_item.resumers(root)` stays outside the
+  condition so a malformed `.sdlc/approvers.yaml` still fails the run on a tree with no approved intent;
+  the comparison drops a dead `.strip()` and reads `intent_fm.get("status") == "approved"`, the queue's
+  spelling (`knowledge/lessons/one-path-spelling-in-guards.md`); the `next_item` import comment says the
+  index adds a condition. Spec design step 3 rewritten to match (it said the approvers read moved under
+  the condition) and this plan's first risk line corrected (its mitigation was overstated). No
+  requirement, acceptance test or test case changed; 16 cases green. 2 of 5.

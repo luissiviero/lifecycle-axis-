@@ -26,7 +26,7 @@ timestamp: 2026-09-15T02:36:00Z
 | [docs-reconcile](docs-reconcile/index.md) | The docs say what the code does | plan | approved | approved | approved | PR #37 -> in-review by claude |
 | [front-matter](front-matter/index.md) | Templates and artifact parsers must agree; approve.py must not misfire | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [loop-protection](loop-protection/index.md) | The agent must not be able to weaken the check on its own work | plan | approved | approved | approved | plan.md -> in-review by claude |
-| [parked-marker-on-retired](parked-marker-on-retired/index.md) | A retired item still reads `parked` in the generated index | plan | approved | delegated | delegated | plan.md -> delegated by claude |
+| [parked-marker-on-retired](parked-marker-on-retired/index.md) | A retired item still reads `parked` in the generated index | plan | approved | delegated | delegated | PR #100 -> in-review by claude |
 | [retire-active-pointer](retire-active-pointer/index.md) | Retire `.sdlc/active` when a work item completes, so the plan gate stops opening on finished work | plan | approved | delegated | delegated | PR #53 -> in-review by claude |
 | [retire-delegated-items](retire-delegated-items/index.md) | A delegated item cannot be retired into a green chain, and its retirement leaves the indexes stale | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
 | [risk-detour](risk-detour/index.md) | A delegated item that meets non-low work looks for a low-only route by reviewer consensus, and parks instead of stopping the queue | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |

@@ -44,9 +44,10 @@ The intent's one question is answered and is a decision here: the marker reads `
 2. Nothing downstream changes: `render_item_index` prints `Parked: <note>` when `item["parked"]` is truthy
    (`:183`) and `render_top_index` picks `parked` over `_stage` on the same key (`:234`). One condition at
    the source, two renderers healed.
-3. `resumers(root)` reads `.sdlc/approvers.yaml`; the call moves under the condition, so a retired item's
-   render no longer opens the approvers file. That is the only observable side effect and it is a
-   reduction.
+3. `resumers(root)` reads `.sdlc/approvers.yaml` and stays outside the condition, called once per item as
+   today, so a malformed approvers file still fails the run loudly on a tree with no approved intent
+   (security pass on pull request 100, nit 3). Only the `parked_note` call is gated; there is no other
+   observable side effect.
 
 ### Interfaces (APIs, events, schemas) — exact shapes
 - `build_item` keeps its return shape; `item["parked"]` is `str | None` as today, with `None` for every
