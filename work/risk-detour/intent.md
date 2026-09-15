@@ -149,4 +149,4 @@ the fact rather than a stop they are called back for, and that is the trade the 
   the intent is `in-review`, which an agent may write, and the owner's approval tap is the sign-off that a
   signature would be at every later gate. If the owner would rather the detour start at the spec gate,
   the first line of Proposed outcome changes to say so and this question closes the other way.
-  A:
+  A: agreed (owner, 2026-09-15): at the intent-drafting gate a unanimous `revise` files and ledgers the record and re-signs nothing; the route is drafted into the in-review intent's Proposed outcome, and the owner's approval tap is the sign-off. Once the intent is signable under a standing grant, this gate re-signs like the others.
