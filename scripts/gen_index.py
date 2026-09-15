@@ -38,7 +38,8 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_artifact_chain as cac  # noqa: E402  (front_matter(), reused)
 import log_ledger  # noqa: E402
-import next_item  # noqa: E402  (parked_note(): the queue and the index read one rule)
+import next_item  # noqa: E402  (parked_note(): the queue and the index read one rule; the index
+#                                 asks it only for an approved intent, the one status a park can be on)
 
 ARTIFACTS = ("intent.md", "spec.md", "plan.md", "incident.md")
 DEFAULT_TIMESTAMP = "1970-01-01T00:00:00Z"
@@ -138,6 +139,7 @@ def build_item(root, slug):
     description = intent_fm.get("description") or ""
 
     entries, _malformed = log_ledger.parse(os.path.join(item_dir, "log.md"))
+    av = next_item.resumers(root)
     last_entry = entries[-1] if entries else None
 
     ts_candidates = [fm.get("timestamp") for fm in fms.values() if fm and fm.get("timestamp")]
@@ -154,8 +156,14 @@ def build_item(root, slug):
         "description": description,
         "timestamp": timestamp,
         "last_entry": last_entry,
-        # work/risk-detour R-6: the `parked:` note that parks the item, or None.
-        "parked": next_item.parked_note(entries, next_item.resumers(root)),
+        # work/risk-detour R-6: the `parked:` note that parks the item, or None. Read only for an
+        # approved intent (work/parked-marker-on-retired R-1): a park exists on no other status, and
+        # a retirement writes `-> superseded` lines, neither `parked:` nor `resumed:`, so the helper
+        # would otherwise go on reporting the park after the owner retired the item. The same
+        # comparison the queue makes (next_item._eligible); the approvers file is still read for
+        # every item so a malformed one fails loudly whatever the tree holds.
+        "parked": (next_item.parked_note(entries, av)
+                   if intent_fm.get("status") == "approved" else None),
     }
 
 

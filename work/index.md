@@ -2,7 +2,7 @@
 type: sdlc/index
 title: Work items
 description: Generated index of every work/<slug> item; run scripts/gen_index.py to refresh.
-timestamp: 2026-09-15T02:20:28Z
+timestamp: 2026-09-15T02:36:00Z
 ---
 # Work items
 
@@ -26,10 +26,10 @@ timestamp: 2026-09-15T02:20:28Z
 | [docs-reconcile](docs-reconcile/index.md) | The docs say what the code does | plan | approved | approved | approved | PR #37 -> in-review by claude |
 | [front-matter](front-matter/index.md) | Templates and artifact parsers must agree; approve.py must not misfire | plan | approved | approved | approved | plan.md -> in-review by claude |
 | [loop-protection](loop-protection/index.md) | The agent must not be able to weaken the check on its own work | plan | approved | approved | approved | plan.md -> in-review by claude |
-| [parked-marker-on-retired](parked-marker-on-retired/index.md) | A retired item still reads `parked` in the generated index | intent | approved | — | — | intent.md -> approved by luissiviero |
+| [parked-marker-on-retired](parked-marker-on-retired/index.md) | A retired item still reads `parked` in the generated index | plan | approved | delegated | delegated | PR #100 -> in-review by claude |
 | [retire-active-pointer](retire-active-pointer/index.md) | Retire `.sdlc/active` when a work item completes, so the plan gate stops opening on finished work | plan | approved | delegated | delegated | PR #53 -> in-review by claude |
 | [retire-delegated-items](retire-delegated-items/index.md) | A delegated item cannot be retired into a green chain, and its retirement leaves the indexes stale | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
-| [risk-detour](risk-detour/index.md) | A delegated item that meets non-low work looks for a low-only route by reviewer consensus, and parks instead of stopping the queue | parked | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
+| [risk-detour](risk-detour/index.md) | A delegated item that meets non-low work looks for a low-only route by reviewer consensus, and parks instead of stopping the queue | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
 | [run-queue](run-queue/index.md) | Grant several items up front and let one delegated run work through them, so I can be away for hours | plan | approved | delegated | delegated | plan.md -> delegated by claude |
 | [run-queue-followups](run-queue-followups/index.md) | The chain check reports PASS on work it never saw; make it say so instead | plan | approved | delegated | delegated | PR #58 -> in-review by claude |
 | [sdlc-kit-phase-1](sdlc-kit-phase-1/index.md) | Make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
