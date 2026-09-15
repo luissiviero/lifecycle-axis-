@@ -136,6 +136,85 @@ def _run_cli(args, cwd=None):
     )
 
 
+PARKED_INTENT = """\
+---
+type: sdlc/intent
+id: parked
+title: Parked item
+description: Parked before its spec
+status: approved
+approved-by: alice
+mode: delegated
+delegated-by: alice
+delegated-on: 2026-01-01
+risk-class: low
+timestamp: 2026-01-01T00:00:00Z
+---
+# Intent: parked
+"""
+
+PARKED_LOG = """\
+---
+type: sdlc/log
+id: parked-log
+title: Gate ledger for parked
+description: test fixture
+timestamp: 2026-01-01T00:00:00Z
+---
+# Log: parked
+
+- 2026-01-01T00:00:00Z | intent.md | in-review -> approved | alice | abc1234 | mode: delegated
+- 2026-01-03T00:00:00Z | intent.md | approved -> approved | claude | def5678 | parked: revision 2: no low-only route; remainder: parked-supervised
+"""
+
+GOLDEN_PARKED_INDEX = (
+    "---\n"
+    "type: sdlc/work-item\n"
+    "id: parked\n"
+    "title: Parked item\n"
+    "description: Parked before its spec\n"
+    "timestamp: 2026-01-01T00:00:00Z\n"
+    "---\n"
+    "# Parked item\n"
+    "\n"
+    "- [intent.md](intent.md) — status: approved; approved-by: alice; Parked before its spec\n"
+    "\n"
+    "Parked: parked: revision 2: no low-only route; remainder: parked-supervised\n"
+    "\n"
+    "Last gate: - 2026-01-03T00:00:00Z | intent.md | approved -> approved | claude | def5678 | parked: revision 2: no low-only route; remainder: parked-supervised\n"
+)
+
+GOLDEN_PARKED_ROW = (
+    "| [parked](parked/index.md) | Parked item | parked | approved | — | — | intent.md -> approved by claude |\n"
+)
+
+
+class ParkedMarker(unittest.TestCase):
+    """work/risk-detour R-6: the generated index marks a parked item where the owner looks first, and
+    an unparked item renders byte-identically to before (its own tree, so the two-item goldens above
+    stay as they are)."""
+
+    def test_a_parked_item_is_marked_in_both_indexes(self):
+        with tempfile.TemporaryDirectory() as root:
+            _build_two_item_tree(root)
+            _write(os.path.join(root, "work", "parked", "intent.md"), PARKED_INTENT)
+            _write(os.path.join(root, "work", "parked", "log.md"), PARKED_LOG)
+            outputs = _outputs_by_path(gen_index.render_all(root))
+            self.assertEqual(outputs[os.path.join("work", "parked", "index.md")], GOLDEN_PARKED_INDEX)
+            self.assertIn(GOLDEN_PARKED_ROW, outputs["work/index.md"])
+            # The unparked items are untouched by the marker.
+            self.assertEqual(outputs[os.path.join("work", "alpha", "index.md")], GOLDEN_ALPHA_INDEX)
+            self.assertIn("| [alpha](alpha/index.md) | Alpha item | spec | approved | approved | — | spec.md -> approved by alice |\n",
+                          outputs["work/index.md"])
+            # A resumed item loses the marker.
+            _write(os.path.join(root, "work", "parked", "log.md"),
+                   PARKED_LOG + "- 2026-01-04T00:00:00Z | intent.md | approved -> approved | alice | 0123abc | resumed: the remainder merged\n")
+            outputs = _outputs_by_path(gen_index.render_all(root))
+            self.assertNotIn("Parked:", outputs[os.path.join("work", "parked", "index.md")])
+            self.assertIn("| [parked](parked/index.md) | Parked item | intent | approved | — | — | intent.md -> approved by alice |\n",
+                          outputs["work/index.md"])
+
+
 class GoldenRender(unittest.TestCase):
     def test_two_items_match_golden_strings(self):
         with tempfile.TemporaryDirectory() as root:

@@ -15,6 +15,7 @@ mode: supervised
 delegated-by:
 delegated-on:
 supersedes:
+detour-of:
 record:
 resource: docs/sdlc/README.md
 tags: [example]

@@ -127,6 +127,76 @@ class Eligibility(unittest.TestCase):
             self.assertEqual(ni.queue(root, policy), ["ok-item"])
 
 
+def _log(root, slug, notes):
+    """work/<slug>/log.md with one intent.md line per note, `approved -> approved` by whoever the note
+    names first (an agent parks, the owner resumes), in file order. The shape is the one the advance
+    already writes on intents (spec D3)."""
+    lines = ["---", "type: sdlc/log", "id: %s-log" % slug, "---", "# Log", ""]
+    for i, (actor, note) in enumerate(notes):
+        lines.append("- 2026-01-0%dT00:00:00Z | intent.md | approved -> approved | %s | abc%04d | %s"
+                     % (i + 1, actor, i, note))
+    _write(os.path.join(root, "work", slug, "log.md"), "\n".join(lines) + "\n")
+
+
+class Parked(unittest.TestCase):
+    """work/risk-detour R-3: a parked item is never offered again; the owner's `resumed:` line puts it
+    back; the record a park names is not opened."""
+
+    def test_parked_before_the_spec_is_skipped(self):
+        with tempfile.TemporaryDirectory() as root:
+            policy = _repo(root, {
+                "parked-item": (_intent(on="2026-09-01"), None),
+                "fresh": (_intent(on="2026-09-08"), None),
+            })
+            _log(root, "parked-item", [("claude", "parked: revision 2: no low-only route; remainder: parked-item-supervised")])
+            self.assertEqual(ni.queue(root, policy), ["fresh"])
+            ok, reason = ni._eligible(root, "parked-item", policy)
+            self.assertFalse(ok)
+            self.assertTrue(reason.startswith("parked:"), reason)
+
+    def test_parked_then_resumed_by_the_owner_is_offered_again(self):
+        with tempfile.TemporaryDirectory() as root:
+            policy = _repo(root, {
+                "resumed-item": (_intent(on="2026-09-01"), _spec("in-review")),
+                "fresh": (_intent(on="2026-09-08"), None),
+            })
+            _log(root, "resumed-item", [
+                ("claude", "parked: revision 1: route stayed locked; remainder: resumed-item-supervised"),
+                ("luissiviero", "resumed: the remainder merged as its own item"),
+            ])
+            self.assertEqual(ni.queue(root, policy), ["resumed-item", "fresh"])
+
+    def test_a_parked_note_naming_a_missing_record_still_parks(self):
+        """A park is conservative: the queue reads the ledger word, never the record behind it."""
+        with tempfile.TemporaryDirectory() as root:
+            policy = _repo(root, {"parked-item": (_intent(on="2026-09-01"), None)})
+            _log(root, "parked-item", [("claude", "parked: revision 9: (no such file); remainder: none")])
+            self.assertFalse(os.path.exists(os.path.join(root, "work", "parked-item", "revisions", "9.md")))
+            self.assertEqual(ni.queue(root, policy), [])
+            self.assertIsNone(ni.next_item(root, policy))
+
+    def test_parked_note_reads_the_latest_of_parked_and_resumed(self):
+        """The helper alone: only intent.md lines count, only the two words count, the last wins."""
+        import log_ledger
+        with tempfile.TemporaryDirectory() as root:
+            _log(root, "x", [
+                ("claude", "parked: first"),
+                ("luissiviero", "resumed: back"),
+                ("claude", "deviation: unrelated"),
+            ])
+            entries, _ = log_ledger.parse(os.path.join(root, "work", "x", "log.md"))
+            self.assertIsNone(ni.parked_note(entries))
+            _log(root, "y", [("claude", "parked: first"), ("luissiviero", "resumed: back"), ("claude", "parked: again")])
+            entries, _ = log_ledger.parse(os.path.join(root, "work", "y", "log.md"))
+            self.assertEqual(ni.parked_note(entries), "parked: again")
+            # A parked: note on another artifact is not a park of the item.
+            _write(os.path.join(root, "work", "z", "log.md"),
+                   "---\ntype: sdlc/log\n---\n- 2026-01-01T00:00:00Z | spec.md | in-review -> in-review | claude | abc | parked: not this\n")
+            entries, _ = log_ledger.parse(os.path.join(root, "work", "z", "log.md"))
+            self.assertIsNone(ni.parked_note(entries))
+            self.assertIsNone(ni.parked_note([]))
+
+
 class EmptyQueue(unittest.TestCase):
     def test_none_when_nothing_is_eligible(self):
         with tempfile.TemporaryDirectory() as root:

@@ -30,6 +30,6 @@ artifact until a human has approved the previous one, or the agent has signed it
 - Humans approve from their own shell with `python3 scripts/approve.py <slug> <artifact>` (once per clone `git config sdlc.approver
   <handle>`, or `--as <handle>`; it enforces intent → spec → plan order), or by editing the artifact plus `log.md` in the GitHub web
   editor, then commit as themselves. The script refuses an agent session; an agent asks and waits. CI checks the commit's author.
-- When the intent has `mode: delegated`, the agent signs with `python3 scripts/sign.py <slug> <artifact>` under
-  its own handle; ledger lines read `-> delegated`, with `deviation:` and `revision <n>:` notes as the case may
-  be; re-signing an already-signed or approved artifact needs `--revision revisions/<n>.md`.
+- When the intent has `mode: delegated`, the agent signs with `python3 scripts/sign.py <slug> <artifact>` under its
+  own handle; ledger notes read `deviation:`, `revision <n>:` (a re-sign needs `--revision revisions/<n>.md`) or, on
+  `intent.md`, `parked:`/`resumed:` (a parked item leaves the queue until the owner's `resumed:` line).

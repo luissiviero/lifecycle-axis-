@@ -1,0 +1,35 @@
+name: detour-is-written-down
+kind: hook
+source: work/risk-detour/spec.md R-5 and R-7 (the run detours at every gate and parks instead of stopping; the remainder is a supervised intent with detour-of; the record is a revision record of kind detour); plan.md step 7
+# Structural greps in the shape of session-protocol-is-written-down: every phrase asserted here is
+# quoted from the file it names (knowledge/lessons/quote-the-file-not-your-memory.md). NO BLANK LINE may
+# appear below: run_evals.sh's `field` ends the block at the first unindented line
+# (knowledge/lessons/eval-checks-have-no-blank-lines.md); a negated assertion carries `|| exit 1`.
+check: |
+  set -e; R="$(git rev-parse --show-toplevel)"
+  RUN="$R/.claude/skills/sdlc-run/SKILL.md"; REV="$R/docs/sdlc/templates/revision.md"
+  # R-1: the record is a revision record with a kind and a Route section asking the five route questions.
+  grep -q '^kind: revision' "$REV"
+  grep -q '^## Route' "$REV"
+  for q in 'Outcome reached' 'Paths and their lists' 'Why the class is honestly low' 'Remainder for a human' 'What goes stale'; do grep -qF "$q" "$REV"; done
+  grep -q 'verdict: revise' "$REV"
+  # R-5: the intent template carries detour-of; the log template shows the park shape.
+  grep -q '^detour-of:' "$R/docs/sdlc/templates/intent.md"
+  grep -q 'parked: ' "$R/docs/sdlc/templates/log.md"
+  # R-7: the run skill has the detour rule, the trigger, the rounds, both park shapes, the remainder.
+  grep -q '^## The detour rule' "$RUN"
+  grep -q 'scripts/check_detour.py' "$RUN"
+  grep -q 'DETOUR: needed' "$RUN"
+  grep -q 'two records' "$RUN"
+  grep -qF 'parked: revision <n>: <why>; remainder: <slug>-supervised' "$RUN"
+  grep -qF 'parked: ready PR #<n>; click needed (<path>)' "$RUN"
+  grep -q 'detour-of' "$RUN"
+  grep -q 'second Claude model' "$RUN"
+  grep -q 're-signs nothing' "$RUN"
+  # The locked-path case no longer stops the queue.
+  ! grep -q 'a locked-path item never merges on its own' "$RUN" || exit 1
+  ! grep -qF "\`locked-paths\` is needed" "$RUN" || exit 1
+  # The three gate skills run the check at their gate.
+  for f in sdlc-spec sdlc-plan sdlc-intent; do grep -q 'scripts/check_detour.py' "$R/.claude/skills/$f/SKILL.md"; done
+  grep -q -- '--plan work/<slug>/plan.md' "$R/.claude/skills/sdlc-plan/SKILL.md"
+  grep -q 'detour-of' "$R/.claude/skills/sdlc-intent/SKILL.md"

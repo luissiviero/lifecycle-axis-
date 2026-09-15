@@ -54,6 +54,7 @@ on the intent). The pull request is the owner's click (spec C1): `.claude/skills
 - knowledge/decisions/risk-detour.md — new; `amends: delegated-mode.md`; context, decision, alternatives, consequences (spec R-9)
 - knowledge/decisions/delegated-mode.md — one "Amended on 2026-09-15" paragraph in the header quote naming decision 4 (spec R-9)
 - knowledge/decisions/index.md — one line (spec R-9)
+- work/_example/intent.md — `detour-of:` after `supersedes:`, so the always-green example keeps the template's keys in the template's order (deviation 3; `test_check_artifact_chain.py::ExampleMatchesTemplates` compares them)
 - work/risk-detour/spec.md — amendments under this plan's deviations, logged as `deviation:` lines (spec G-4: an amendment line on a delegated artifact must start `deviation:` or name a record)
 - work/risk-detour/plan.md — this plan; its deviations log
 - work/risk-detour/log.md — one ledger line per gate; the park line as the last commit
@@ -160,4 +161,16 @@ rules and context files are on `ALWAYS_LOCKED`, so the pull request is the owner
   item's own ledger is append-only history and stays; the pointer is unaffected (a click runs no advance).
 
 ## Deviations log (append during implementation; same commit as the deviation)
+- 2026-09-15 step 1 observed: `test_check_detour.py` 1 error (the module import, as predicted); `test_next_item.py::Parked`
+  2 failures + 1 error of 4 (the parked-then-resumed case is green by construction, since an unparked item is offered
+  anyway; the spec's R-3 row names it as a case, not as a red one); `test_gen_index.py::ParkedMarker` 1 failure;
+  `test_park_advance.py` 1 failure (`'next-item' != 'later-item'`); `test_sign.py` green, the guard as predicted.
+  No file-list change.
+- 2026-09-15 spec amendment 2 (ledger `deviation:` line): the Interfaces example row for a parked item carried a
+  Markdown link the OKF checker read as broken (`WARN work/risk-detour/spec.md link slug/index.md`); reworded to
+  describe the cell. No file-list change.
+- 2026-09-15 deviation 3 (file list, ledger `deviation:` line): `work/_example/intent.md` gains the blank `detour-of:`
+  key, because `scripts/test_check_artifact_chain.py::ExampleMatchesTemplates::test_front_matter_keys_match` holds the
+  always-green example to the intent template's keys in the template's order and went red on the template change
+  (step 6). Added to `## Files that change`.
 - 

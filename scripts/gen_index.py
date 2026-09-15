@@ -38,6 +38,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_artifact_chain as cac  # noqa: E402  (front_matter(), reused)
 import log_ledger  # noqa: E402
+import next_item  # noqa: E402  (parked_note(): the queue and the index read one rule)
 
 ARTIFACTS = ("intent.md", "spec.md", "plan.md", "incident.md")
 DEFAULT_TIMESTAMP = "1970-01-01T00:00:00Z"
@@ -153,6 +154,8 @@ def build_item(root, slug):
         "description": description,
         "timestamp": timestamp,
         "last_entry": last_entry,
+        # work/risk-detour R-6: the `parked:` note that parks the item, or None.
+        "parked": next_item.parked_note(entries),
     }
 
 
@@ -177,6 +180,9 @@ def render_item_index(item):
         desc = fm.get("description", "")
         lines.append(f"- [{name}]({name}) — status: {status}; approved-by: {approved_by}; {desc}")
     lines.append("")
+    if item.get("parked"):
+        lines.append(f"Parked: {item['parked']}")
+        lines.append("")
     entry = item["last_entry"]
     lines.append(f"Last gate: {log_ledger.render(entry) if entry else '—'}")
     lines.append("")
@@ -223,7 +229,9 @@ def render_top_index(items):
     for item in items:
         slug = item["slug"]
         title = _escape_pipe(item["title"])
-        stage = _stage(item["fms"])
+        # A parked item says so where the owner looks first (work/risk-detour R-6, D6); the stage it
+        # reached is on its own index.
+        stage = "parked" if item.get("parked") else _stage(item["fms"])
         intent_cell = _status_cell(item["fms"], "intent.md")
         spec_cell = _status_cell(item["fms"], "spec.md")
         plan_cell = _status_cell(item["fms"], "plan.md")

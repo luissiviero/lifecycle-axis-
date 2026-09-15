@@ -13,3 +13,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 - 2026-01-01T00:00:00Z | intent.md | (none) -> draft | <actor> | <sha> | drafted from the interview
 - 2026-01-01T01:00:00Z | intent.md | draft -> approved | <actor> | <sha> | approved by the role named for `intent` in `.sdlc/approvers.yaml`
 - 2026-01-01T02:00:00Z | spec.md | in-review -> delegated | <agent handle> | <sha> | signed under the delegation grant on intent.md (delegated mode)
+- 2026-01-01T03:00:00Z | intent.md | approved -> approved | <agent handle> | <sha> | parked: revision <n>: <why>; remainder: <slug>-supervised (the queue skips the item until an owner line reads `resumed: <why>`)

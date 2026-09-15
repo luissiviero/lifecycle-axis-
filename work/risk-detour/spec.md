@@ -116,7 +116,7 @@ the record and re-signs nothing (Q6).
 - `docs/sdlc/templates/intent.md` front matter: `# detour-of: the slug of the parked item this intent is the
   remainder of, if any` and `detour-of:` after `supersedes:`.
 - `docs/sdlc/templates/log.md`: one more example line, the park shape above.
-- `work/index.md` row for a parked item: `| [slug](slug/index.md) | <title> | parked | approved | — | — | intent.md -> approved by claude |`;
+- `work/index.md` row for a parked item: the slug link cell as today, then `| <title> | parked | approved | — | — | intent.md -> approved by claude |`;
   `work/<slug>/index.md`: the line `Parked: parked: revision 1: ...` inserted before `Last gate:`, with a
   blank line between.
 
