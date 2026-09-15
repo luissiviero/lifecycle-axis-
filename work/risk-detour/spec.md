@@ -5,7 +5,7 @@ title: A deterministic detour check at every gate, a route record reviewers judg
 description: "The run meets non-low work as a DETOUR: needed line from a new path check that reuses the merge script's own locked-path matcher; a revision record of kind detour carries the route and reviewers judge the route, not the trigger; a unanimous revise amends and re-signs the artifact, two split records at one gate park the item as a parked: ledger line on intent.md that next_item.py and the index both read; the park lands as the item's own delegated pull request so the merge's advance moves the pointer, and the non-low remainder is a supervised intent with a detour-of key in its own pull request."
 stage: design
 # status: draft | in-review | approved | delegated | superseded
-status: delegated
+status: superseded
 reads: intent.md
 # approved-by: product owner; tech lead consulted for medium/high risk; set only by a human
 approved-by: claude

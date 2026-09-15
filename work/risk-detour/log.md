@@ -26,3 +26,6 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 - 2026-09-15T01:23:15Z | spec.md | delegated -> delegated | claude | 49ba7f3 | deviation: amended for the review round on PR #96: R-2 reads the diff NUL-terminated and normalises plan bullets, R-3 lets only an intent-role actor lift a park, Interfaces corrected to the commands the code runs; the signature itself untouched
 - 2026-09-15T01:25:34Z | PR #96 | draft -> in-review | claude | cffcedd | the detour check, the route record, the park and the queue that skips it; review round 1 on 49ba7f3 (security and plan passes on Opus 5) fixed in cffcedd, Important 0, Nits 1 accepted; every path under .claude/skills, docs/sdlc/templates, docs/sdlc/rules and the three context files is ALWAYS_LOCKED, so the merge is the owner click
 - 2026-09-15T01:25:34Z | intent.md | approved -> approved | claude | cffcedd | parked: ready PR #96; click needed (.claude/skills/sdlc-run/SKILL.md)
+- 2026-09-15T02:14:12Z | intent.md | approved -> superseded | luissiviero | b15bacb
+- 2026-09-15T02:14:12Z | spec.md | delegated -> superseded | luissiviero | b15bacb
+- 2026-09-15T02:14:12Z | plan.md | delegated -> superseded | luissiviero | b15bacb

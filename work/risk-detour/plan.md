@@ -5,7 +5,7 @@ title: Tests first, then the check, the queue rule, the index marker, the templa
 description: "Thirty-two files in one claude/ branch: eight under scripts/ (a new check_detour.py and its test module, a parked_note helper in next_item.py with four cases, a parked marker in gen_index.py with a golden case, a detour-record guard in test_sign.py, a new test_park_advance.py composing the merge tests' Advance fixture), three templates, four skills, two rule fragments with the three context files regenerated, three eval cases, a decision record with an amendment note and an index line, and the item's own artifacts; every new case is watched red before its code, the adopter's render is measured at the cap, and the last commit parks the item as `parked: ready PR #<n>; click needed (<path>)` because every skill, template and rule path sits on the merge script's ALWAYS_LOCKED floor."
 stage: build
 # status: draft | in-review | approved | delegated | superseded  (require-plan.sh refuses code edits until approved)
-status: delegated
+status: superseded
 # kind: feature | fix  (fix: protect-tests.sh refuses edits to existing test files)
 kind: feature
 reads: spec.md
