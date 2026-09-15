@@ -104,8 +104,8 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
 - **Nothing is granted; the next item is the owner's choice.** Candidates: `standing-grant` (`main`,
   `in-review`, `mode: supervised`, `risk-class: medium`; the policy delegates `low` only, so it runs supervised
   with the owner's taps at every gate, and its answers 3 and Depends-on line are overtaken, see the 00:35
-  section); the four defects below, each needing a `/sdlc-intent` (all low, all grantable; the chain check and
-  `verify.sh` are locked paths, so their pull requests are clicks too). `ci-budget` keeps its session on
+  section); the four defects below, three `/sdlc-intent`s, numbered in the "Still true" bullet (all low, all
+  grantable; the chain check and `verify.sh` are locked paths, so their pull requests are clicks too). `ci-budget` keeps its session on
   2026-09-20 15:00 UTC and works by slug.
 - **One new gotcha from this session, a first occurrence with no lesson file yet:** a commit staged before
   `gen_index.py` ran carried stale indexes (`cffcedd`, `INDEX: 2 file(s) drifted` on the runner; the next
@@ -114,10 +114,12 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   workaround, the 2026-09-08 section says it bit two sessions before it was written down, and it is defect 3
   below, whose fix is the intent it still needs rather than another gotcha line.
 - **Still true**: the container clone is shallow, deepen first (resume step 8); the two red
-  `delegated-merge` runs `34908767884` and `34909007398` on `cb5cde5`/`8f4bb3c` are still unread; the four
-  defects each need an intent: the self-check fails on an empty pointer instead of noting it and misattributes
-  approvals on a shallow clone; `EXEMPT` in the chain check lists `CLAUDE.md` but not `GEMINI.md`/`AGENTS.md`;
-  the chain check crashes on a token with no `gh` binary instead of returning the no-token note. The
+  `delegated-merge` runs `34908767884` and `34909007398` on `cb5cde5`/`8f4bb3c` are still unread; the filed
+  defects each need an intent, numbered here so the references above and in later sections mean one thing:
+  defect 1, the self-check fails on an empty pointer instead of noting it, and misattributes approvals on a
+  shallow clone (one intent, as the 00:10 section decided); defect 2, `EXEMPT` in the chain check lists
+  `CLAUDE.md` but not `GEMINI.md`/`AGENTS.md`; defect 3, the chain check crashes on a token with no `gh`
+  binary instead of returning the no-token note. Older sections list the same three in other orders. The
   `send_later` check-in this session armed was deleted at handoff, so no second session acts on #96.
 
 ## Task state (2026-09-15 ~00:35 UTC) — HISTORY, superseded by the section above
@@ -600,9 +602,9 @@ to a placeholder (Actions -> approve -> Run workflow on main, `mode` `retire`, `
 `ci-budget`) and wait. Then ask the owner which item is next and wait; do not draft anything they have not
 named. Candidates: `standing-grant` (in-review, supervised, medium: it cannot be granted under a low-only
 policy and runs with the owner's taps at every gate; its answers 3 and Depends-on are overtaken), and four
-defects that each need a `/sdlc-intent` (the self-check fails on an empty pointer and misattributes on a
-shallow clone; `EXEMPT` in the chain check lacks `GEMINI.md`/`AGENTS.md`; the chain check crashes on a token
-with no `gh`). Every gate now runs `python3 scripts/check_detour.py` (`--paths`, `--plan`, `--diff`), and a
+defects needing three `/sdlc-intent`s, numbered in the Task state (defect 1: the self-check fails on an
+empty pointer and misattributes on a shallow clone; defect 2: `EXEMPT` in the chain check lacks
+`GEMINI.md`/`AGENTS.md`; defect 3: the chain check crashes on a token with no `gh`). Every gate now runs `python3 scripts/check_detour.py` (`--paths`, `--plan`, `--diff`), and a
 `DETOUR: needed` line goes to the run skill's detour rule, never to a stop; a park is a `parked:` ledger line
 on intent.md. Never write approved or superseded, never touch the grant keys, never sign intent.md, never
 merge, never move `.sdlc/active`. Do not touch `ci-budget`, which has a scheduled session on 2026-09-20. Run
