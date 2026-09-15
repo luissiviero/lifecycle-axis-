@@ -33,3 +33,4 @@ timestamp: 2026-09-14T17:00:00Z
 | [run-queue-followups](run-queue-followups/index.md) | The chain check reports PASS on work it never saw; make it say so instead | plan | approved | delegated | delegated | PR #58 -> in-review by claude |
 | [sdlc-kit-phase-1](sdlc-kit-phase-1/index.md) | Make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
 | [session-chaining](session-chaining/index.md) | The kit never says who manages session context, so the owner has been doing it by hand | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
+| [standing-grant](standing-grant/index.md) | Delegated mode is the state every session starts in, a subject typed in and a merged pull request out, with no per-item tap | intent | in-review | — | — | intent.md -> in-review by claude |
