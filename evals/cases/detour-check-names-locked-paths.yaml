@@ -1,0 +1,36 @@
+name: detour-check-names-locked-paths
+kind: hook
+source: work/risk-detour/spec.md R-2 (the trigger is deterministic: every path under PROTECTED_PATHS, RELEASE_GATED_PATHS, the policy's locked-paths or the merge script's ALWAYS_LOCKED floor is named, through the one matcher the merge already uses; DETOUR: none exit 0, DETOUR: needed (<n>) exit 3)
+# The check is what lets a run meet non-low work as a line instead of a feeling, so both of its answers
+# are asserted on a throwaway root that carries its own config and policy, whatever this repository's
+# own lists say on the day it runs. NO BLANK LINE may appear below: run_evals.sh's `field` ends the block
+# at the first unindented line and a blank line is unindented
+# (knowledge/lessons/eval-checks-have-no-blank-lines.md). `set -e` makes every assertion count.
+check: |
+  set -e
+  root="$(mktemp -d)"
+  trap 'rm -rf "$root"' EXIT
+  mkdir -p "$root/.sdlc"
+  printf 'PROTECTED_PATHS=".claude/hooks .sdlc"\nRELEASE_GATED_PATHS="migrations"\n' > "$root/.sdlc/config.env"
+  printf 'enabled: true\nagents: [claude]\nsignable: [spec.md, plan.md]\nrisk-classes: [low]\nlocked-paths: [scripts/sign.py]\n' > "$root/.sdlc/delegation.yaml"
+  # Two locked paths (one from the policy, one from the merge script's own floor) and one clean path:
+  # each locked one is named with its list and prefix, and the verdict counts them; exit 3.
+  out="$(python3 scripts/check_detour.py --root "$root" --paths scripts/sign.py docs/sdlc/templates/plan.md scripts/next_item.py)" && code=0 || code=$?
+  [ "$code" -eq 3 ]
+  printf '%s\n' "$out" | grep -qF "scripts/sign.py: locked by locked-paths 'scripts/sign.py'"
+  printf '%s\n' "$out" | grep -qF "docs/sdlc/templates/plan.md: locked by ALWAYS_LOCKED 'docs/sdlc/templates'"
+  ! printf '%s\n' "$out" | grep -q 'next_item' || exit 1
+  [ "$(printf '%s\n' "$out" | tail -1)" = "DETOUR: needed (2)" ]
+  # The config's own lists count too, and a file entry never matches a longer name.
+  out="$(python3 scripts/check_detour.py --root "$root" --paths migrations/0007.sql .sdlc/active scripts/sign.py.bak)" && code=0 || code=$?
+  [ "$code" -eq 3 ]
+  printf '%s\n' "$out" | grep -qF "migrations/0007.sql: locked by RELEASE_GATED_PATHS 'migrations'"
+  printf '%s\n' "$out" | grep -qF ".sdlc/active: locked by PROTECTED_PATHS, ALWAYS_LOCKED '.sdlc'"
+  [ "$(printf '%s\n' "$out" | tail -1)" = "DETOUR: needed (2)" ]
+  # Clean paths: the one line, exit 0.
+  out="$(python3 scripts/check_detour.py --root "$root" --paths scripts/next_item.py knowledge/decisions/x.md)"
+  [ "$out" = "DETOUR: none" ]
+  # No source is bad input, not a verdict: exit 2 and no DETOUR line.
+  out="$(python3 scripts/check_detour.py --root "$root" 2>/dev/null)" && code=0 || code=$?
+  [ "$code" -eq 2 ]
+  [ -z "$out" ]

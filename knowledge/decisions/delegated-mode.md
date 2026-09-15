@@ -30,6 +30,16 @@ timestamp: 2026-09-05T12:05:00Z
 > may move on a merge: an item's own pull request may never contain `.sdlc/active`, because `.sdlc`
 > is on this script's `ALWAYS_LOCKED` floor. Decisions 2 and 7 are untouched — a queue of N items is
 > N human grants, and the advance never writes `approved` or `superseded`.
+>
+> **Amended on 2026-09-15 by [`risk-detour.md`](risk-detour.md).** Decision 4's consensus record now
+> also answers whether a route exists that reaches the intent's outcome touching only low-risk
+> surface: a record of `kind: detour` with a `## Route` section, judged by the same reviewers with
+> the same two verdict words, and adopted by the same `sign.py --revision`. A locked path met at any
+> gate is a `DETOUR: needed` line from `scripts/check_detour.py`, which calls this script's own
+> `check_locked_paths`, not a stop; two split records at one gate park the item as a `parked:` ledger
+> line on its intent that `scripts/next_item.py` skips, and the park lands as the item's own
+> delegated pull request so the advance above moves the pointer past it. Nothing here changes the
+> word `approved`, the grant keys or the policy file.
 
 ## Context
 

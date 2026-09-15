@@ -10,7 +10,10 @@ Precondition: `work/<slug>/spec.md` is approved. Work in plan mode; do not edit 
 2. Fill `docs/sdlc/templates/plan.md`. The `## Files that change` list is a contract: CI fails the PR if the diff touches anything not listed. Prefer explicit paths; use globs only for generated files.
 3. Any path under `RELEASE_GATED_PATHS` (see `.sdlc/config.env`) goes under `## Release-gated` with a human owner.
 4. Map each spec requirement to the test that will prove it under `## Proof`.
-5. Write with `status: in-review`. When the intent has `mode: delegated`, run `python3 scripts/sign.py <slug> plan.md`
+5. Run `python3 scripts/check_detour.py --slug <slug> --plan work/<slug>/plan.md`. `DETOUR: needed` names every
+   path the delegated merge will lock: on a delegated item follow `/sdlc-run`'s detour rule (a route record, or
+   the park) before signing; on a supervised item say under `## Release-gated` that the merge is the owner's click.
+6. Write with `status: in-review`. When the intent has `mode: delegated`, run `python3 scripts/sign.py <slug> plan.md`
    and continue implementing — the plan gate opens on a signed plan under the grant. Otherwise stop: implementation
    hooks stay closed until a human sets `status: approved`. Ask for the tap: give the owner the three inputs to pick in the Actions tab (**Actions -> approve -> Run workflow**, `.github/workflows/approve.yml`): `slug`, `artifact`, `mode`. Naming the inputs is not approving -- the owner reads the artifact and chooses, and the run records who chose.
 

@@ -18,6 +18,8 @@ delegated-by:
 delegated-on:
 # supersedes: previous intent id, if any
 supersedes:
+# detour-of: the slug of the parked item this intent is the remainder of, if any (mode stays supervised; the class is the record's)
+detour-of:
 # record: legacy system id (Jira/ServiceNow) if that system holds a copy
 record:
 resource: <link to issue / incident / channel thread / band breach log>

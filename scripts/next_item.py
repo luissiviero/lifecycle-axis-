@@ -13,6 +13,11 @@ An item is in the queue when all of these hold on `work/<slug>/intent.md`:
   - it is *unstarted*: no `spec.md`, or its status is `draft`/`in-review`. A signed or approved spec
     means some session is already working it, and handing it out twice would put two writers on one
     item (knowledge/decisions/one-writer-until-ledger.md).
+  - it is not *parked*: of the `intent.md` lines in `work/<slug>/log.md` whose note starts `parked:`
+    or `resumed:`, the latest is not `parked:` (work/risk-detour R-3). A park is the run's decision
+    that no low-only route reaches the outcome; a `resumed:` line puts the item back only when its
+    actor holds the `intent.md` role in `.sdlc/approvers.yaml` (an agent cannot lift a park). The
+    record a park names is not opened: a park is conservative.
 Delegated mode being off empties the queue, like every other `may_*` query in delegation.py.
 
 Order: earliest `delegated-on` first, ties broken by slug ascending. `delegated-on` is date-only, so
@@ -36,12 +41,17 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
+import approvers  # noqa: E402
 import delegation  # noqa: E402
+import log_ledger  # noqa: E402
 from check_artifact_chain import ROOT, SLUG_RE, front_matter  # noqa: E402
 
 # A spec in one of these states has not been signed off, so the item is still unstarted. Anything
 # else (`delegated`, `approved`, `superseded`) means the item has moved past Design.
 UNSTARTED_SPEC_STATUSES = ("draft", "in-review")
+# The two ledger words a park is (work/risk-detour D3): notes on `intent.md` lines, latest wins.
+PARKED = "parked:"
+RESUMED = "resumed:"
 
 
 def _eligible(root, slug, policy):
@@ -59,10 +69,44 @@ def _eligible(root, slug, policy):
     ok, reason = policy.risk_ok(fm.get("risk-class", ""))
     if not ok:
         return False, reason
+    entries, _ = log_ledger.parse(os.path.join(root, "work", slug, "log.md"))
+    parked = parked_note(entries, resumers(root))
+    if parked is not None:
+        return False, "parked: %s" % parked[len(PARKED):].strip()
     spec = front_matter(os.path.join(root, "work", slug, "spec.md"))
     if spec is not None and (spec.get("status") or "draft") not in UNSTARTED_SPEC_STATUSES:
         return False, "already started (spec.md is '%s')" % spec.get("status")
     return True, None
+
+
+def resumers(root=None):
+    """Who may lift a park: the approvers file under `root`, read the way the chain check reads it.
+    A missing file fails closed -- nobody resumes -- like every other `is_valid` call."""
+    root = root or ROOT
+    return approvers.load(path=os.path.join(root, ".sdlc", "approvers.yaml"))
+
+
+def parked_note(entries, av=None):
+    """The `parked:` note that currently parks the item, or None (work/risk-detour R-3).
+
+    Only `intent.md` lines count, only notes starting `parked:` or `resumed:` count, and the last such
+    line in file order decides -- the ledger is append-only, so file order is time order. A `parked:`
+    line parks whoever wrote it; a `resumed:` line lifts the park only when its actor holds the
+    `intent.md` role in the approvers file (`av`, from resumers()): the park is the owner's stop, and
+    the agent it stops must not be the one to lift it (security-standards §8; security pass on pull
+    request 96, finding 2). With no `av`, no line resumes. Read by the queue here and by
+    scripts/gen_index.py for the `parked` marker, so both say the same thing.
+    """
+    state = None
+    for e in entries:
+        if e.artifact != "intent.md":
+            continue
+        note = e.note.strip()
+        if note.startswith(PARKED):
+            state = note
+        elif note.startswith(RESUMED) and av is not None and av.is_valid("intent.md", e.actor)[0]:
+            state = None
+    return state
 
 
 def queue(root=None, policy=None, exclude=None):

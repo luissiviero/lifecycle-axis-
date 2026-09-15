@@ -11,6 +11,9 @@ If not, stop and say so.
 2. Load every standards skill listed in `docs/sdlc/README.md` (at minimum `security-standards`). Treat their rules as requirements, not suggestions; list them in `skills-applied`.
 3. Fill `docs/sdlc/templates/spec.md`. Every requirement row maps to an intent success criterion and names a machine-checkable acceptance test.
 4. Record decisions as ADRs. Record gotchas you found in the code (they are the most valuable part).
-5. Write with `status: in-review`. Summarize open design choices for the human in five lines or fewer. Do not approve.
+5. Run `python3 scripts/check_detour.py --slug <slug> --paths <every path the design names>`. `DETOUR: needed`
+   means the design's route is not low-only: on a delegated item follow `/sdlc-run`'s detour rule (a route
+   record, or the park) before signing; on a supervised item name the locked paths under Areas of concern.
+6. Write with `status: in-review`. Summarize open design choices for the human in five lines or fewer. Do not approve.
    When the intent has `mode: delegated`, run `python3 scripts/sign.py <slug> spec.md` and continue to `/sdlc-plan`;
    otherwise stop and ask for the tap. Ask for the tap: give the owner the three inputs to pick in the Actions tab (**Actions -> approve -> Run workflow**, `.github/workflows/approve.yml`): `slug`, `artifact`, `mode`. Naming the inputs is not approving -- the owner reads the artifact and chooses, and the run records who chose.

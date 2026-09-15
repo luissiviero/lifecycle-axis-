@@ -59,6 +59,38 @@ Agrees; nothing else in the plan goes stale.
 verdict: revise
 """
 
+REVISION_DETOUR_RECORD = """\
+---
+type: sdlc/revision
+id: demo-revision-2
+title: A low-only route around the hook change
+description: "The plan named .claude/hooks/require-plan.sh; the route reaches the outcome through the templates and the run skill and leaves the hook to a supervised remainder."
+artifact: spec.md
+kind: detour
+trigger: "python3 scripts/check_detour.py --plan work/demo/plan.md: .claude/hooks/require-plan.sh: locked by PROTECTED_PATHS, ALWAYS_LOCKED '.claude' / DETOUR: needed (1)"
+timestamp: 2026-09-15T02:00:00Z
+---
+# Revision 2: a low-only route around the hook change
+
+## Proposal
+Amend the spec's design to the route below; the hook change becomes work/demo-supervised.
+
+## Route (detour only)
+- Outcome reached: the intent's outcomes 1 and 2; outcome 3 (the hook refusal) is the remainder.
+- Paths and their lists: docs/sdlc/templates/revision.md (ALWAYS_LOCKED), .claude/skills/sdlc-run/SKILL.md (ALWAYS_LOCKED); no PROTECTED_PATHS path remains.
+- Why the class is honestly low: no script that judges a merge or a signature changes.
+- Remainder for a human: .claude/hooks/require-plan.sh, medium, as work/demo-supervised.
+- What goes stale: spec design step 3, plan step 4 and its proof row.
+
+## Reviewer: security-reviewer (sonnet)
+The route touches no judging script; the remainder is named and classed; the paths are the lists the check printed.
+verdict: revise
+
+## Reviewer: plan-reviewer (haiku)
+Outcome 3 is honestly left for a human, not dropped; spec step 3 and plan step 4 are the stale parts and both are named.
+verdict: revise
+"""
+
 REVISION_ONE_REVIEWER = """\
 ---
 type: sdlc/revision
@@ -371,6 +403,31 @@ class SignPasses(unittest.TestCase):
             r = run(root, "demo", "plan.md")
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn("status: delegated", read(root, "work/demo/plan.md"))
+
+    def test_resigns_with_a_detour_record(self):
+        """work/risk-detour R-1: a detour record is a revision record with `kind: detour` and a
+        `## Route` section, and sign.py reads it exactly as it reads a revision record -- the verdict
+        words and the reviewer headings are all it looks at. A guard, green by design; the
+        mutation below (one `keep`) is what proves the record is still judged."""
+        with tempfile.TemporaryDirectory() as root:
+            make_repo(root, spec_status="delegated", spec_by="claude", extra_log=_spec_sign_line("delegated", "claude"))
+            write_revision(root, "2.md", REVISION_DETOUR_RECORD)
+            r = run(root, "demo", "spec.md", "--revision", "revisions/2.md",
+                    "--note", "detour: templates and skills only, the hook change goes to a supervised remainder")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            entries, malformed = log_ledger.parse(os.path.join(root, "work", "demo", "log.md"))
+            self.assertEqual(malformed, [])
+            sigs = log_ledger.signatures(entries, "spec.md")
+            self.assertEqual(len(sigs), 2, entries)
+            self.assertEqual(sigs[-1].from_status, "delegated")
+            self.assertTrue(sigs[-1].note.startswith("revision 2: detour: "), sigs[-1].note)
+        with tempfile.TemporaryDirectory() as root:
+            make_repo(root, spec_status="delegated", spec_by="claude", extra_log=_spec_sign_line("delegated", "claude"))
+            write_revision(root, "2.md", REVISION_DETOUR_RECORD.replace("verdict: revise\n\n## Reviewer: plan-reviewer",
+                                                                        "verdict: keep\n\n## Reviewer: plan-reviewer"))
+            r = run(root, "demo", "spec.md", "--revision", "revisions/2.md", "--note", "detour: x")
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("keep", r.stderr)
 
     def test_resigns_with_a_unanimous_revision_record(self):
         with tempfile.TemporaryDirectory() as root:

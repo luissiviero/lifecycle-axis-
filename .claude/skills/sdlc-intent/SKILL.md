@@ -20,6 +20,11 @@ You are producing the first link in the artifact chain. Do not design or plan ye
    `work/<slug>/log.md` (`intent.md | (none) -> in-review`, format in the template), then run
    `python3 scripts/gen_index.py`: it writes `work/<slug>/index.md` and `work/index.md`, and
    `scripts/checks/index-drift.sh` fails the pull request without them. Print the path and the open questions.
+   Then run `python3 scripts/check_detour.py --paths <every path named under Affected users and systems>`. On an
+   intent meant for a grant, `DETOUR: needed` starts `/sdlc-run`'s detour rule at this gate: file the record under
+   `work/<slug>/revisions/`, ledger it, draft the low-only route into Proposed outcome, re-sign nothing (the owner's
+   tap is the sign-off), and name the remainder. An intent that *is* the remainder of a parked item carries
+   `detour-of: <slug>` and `mode: supervised`, with the record's risk class.
 5. Open the intent's pull request with `gh pr create --draft` (an intent-only one may run beside the active
    item's code pull request). A draft's gate and review runs conclude `skipped` in seconds, so writing costs
    nothing; mark it ready when you ask the owner to merge, and the gate runs once on that click. The tap comes

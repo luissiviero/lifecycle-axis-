@@ -1,0 +1,34 @@
+name: run-queue-skips-parked-item
+kind: hook
+source: work/risk-detour/spec.md R-3 (a parked item is never offered again; the owner's resumed: line puts it back; the record a park names is not opened)
+# A park is two ledger words on intent.md lines, latest wins (spec D3). The queue is what would hand a
+# parked item straight back to the next run, so both ends are asserted on a throwaway fixture: the
+# parked item is skipped by --list and by the plain call, and a resumed: line re-queues it at its
+# grant's place in the order. NO BLANK LINE may appear below: run_evals.sh's `field` ends the block at
+# the first unindented line and a blank line is unindented
+# (knowledge/lessons/eval-checks-have-no-blank-lines.md). `set -e` makes every assertion count.
+check: |
+  set -e
+  root="$(mktemp -d)"
+  trap 'rm -rf "$root"' EXIT
+  mkdir -p "$root/.sdlc" "$root/work/parked-item" "$root/work/queued"
+  printf 'enabled: true\nagents: [claude]\nsignable: [spec.md, plan.md]\nrisk-classes: [low]\n' > "$root/.sdlc/delegation.yaml"
+  printf 'roles:\n  product-owner: [luissiviero]\nartifacts:\n  intent.md: product-owner\nnever-approve: [claude]\n' > "$root/.sdlc/approvers.yaml"
+  granted='---\ntype: sdlc/intent\nstatus: approved\nmode: delegated\ndelegated-by: luissiviero\ndelegated-on: %s\nrisk-class: low\n---\n'
+  printf -- "$granted" 2026-01-01 > "$root/work/parked-item/intent.md"
+  printf -- "$granted" 2026-01-02 > "$root/work/queued/intent.md"
+  # Both unstarted and granted, the parked one earlier: without the park it would be first.
+  [ "$(python3 scripts/next_item.py --root "$root")" = "parked-item" ]
+  printf -- '---\ntype: sdlc/log\n---\n- 2026-01-03T00:00:00Z | intent.md | approved -> approved | claude | abc1234 | parked: revision 2: no low-only route; remainder: parked-item-supervised\n' > "$root/work/parked-item/log.md"
+  # Parked: the queue names the other item and only it; the record the note names does not exist and
+  # that changes nothing (a park is conservative).
+  [ ! -e "$root/work/parked-item/revisions/2.md" ]
+  [ "$(python3 scripts/next_item.py --root "$root")" = "queued" ]
+  [ "$(python3 scripts/next_item.py --root "$root" --list)" = "queued" ]
+  # An agent's resumed: line lifts nothing: the park is the owner's stop (security-standards rule 8).
+  printf -- '- 2026-01-03T12:00:00Z | intent.md | approved -> approved | claude | bcd2345 | resumed: reconsidered\n' >> "$root/work/parked-item/log.md"
+  [ "$(python3 scripts/next_item.py --root "$root")" = "queued" ]
+  # Resumed by the owner: back at the head of the queue, in grant order.
+  printf -- '- 2026-01-04T00:00:00Z | intent.md | approved -> approved | luissiviero | def5678 | resumed: the remainder merged as its own item\n' >> "$root/work/parked-item/log.md"
+  [ "$(python3 scripts/next_item.py --root "$root")" = "parked-item" ]
+  [ "$(python3 scripts/next_item.py --root "$root" --list | tr '\n' ' ')" = "parked-item queued " ]
