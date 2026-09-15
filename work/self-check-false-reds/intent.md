@@ -5,11 +5,11 @@ title: The self-check fails on an empty pointer and misreads approvals on a shal
 description: "check_artifact_chain.py ends verify.sh with FAIL when .sdlc/active is empty -- now the common case, because a delegated merge with an empty queue clears the pointer -- and on a shallow clone attributes every approval to the grafted boundary commit; the same advance also leaves work/<slug>/index.md and work/index.md stale, so main is red on three counts that are not the work."
 stage: plan
 # status: draft | in-review | approved | delegated | superseded
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), who named defect 1 as the next item in the 2026-09-15 ~03:10 Task state; drafted by Claude in the successor session opened for it
 # approved-by: product owner; set only by a human, with scripts/approve.py from their own shell
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-15
 # risk-class: low | medium | high; the grant below is valid only for classes the policy lists
 risk-class: medium
 # mode: supervised | delegated; delegated-by and delegated-on are set only by a human, like approved-by
