@@ -90,8 +90,10 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   `refused` on locked paths whatever else holds. None of those paths is in `PROTECTED_PATHS`, so the hooks
   let the build proceed; the skill's "locked path ends the queue quietly" case applies at the merge, not
   at the plan gate. Do not stop at the spec or plan because the merge is locked: finish to a ready pull
-  request and say so, which is the intent's own first answer ("finish to a ready pull request and park;
-  click needed"). Because the merge is a click, no `advance()` runs on it and the production
+  request and say so, which is the intent's own first answer, verbatim from `work/risk-detour/intent.md`:
+  "finish to a ready pull request and park with `parked: ready PR #<n>; click needed (<path>)`, so the
+  pointer moves on" (the `parked:` line itself is what this item builds; until then, say it in the pull
+  request). Because the merge is a click, no `advance()` runs on it and the production
   observation `advance-push` waits for is still unobserved; the pointer stays on `risk-detour` until
   the owner retires it by tap (`mode: retire`, `next` blank or the next item).
 - **`standing-grant` is on `main`, `in-review`, `mode: supervised`, `risk-class: medium`.** Its six
