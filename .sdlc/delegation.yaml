@@ -61,4 +61,4 @@ merge:
 # on top of the repository's own PROTECTED_PATHS and RELEASE_GATED_PATHS. These are the scripts and
 # document that judge the merge itself, so the head copy on a delegated PR must be byte-identical to
 # main's, or the merge is refused.
-locked-paths: [scripts/check_artifact_chain.py, scripts/approvers.py, scripts/log_ledger.py, scripts/approve.py, scripts/sign.py, scripts/delegation.py, scripts/delegated_merge.py, scripts/check_control_plane.sh, scripts/check_workflow_permissions.py, REVIEW.md, .claude-plugin, docs/sdlc/handoff]
+locked-paths: [scripts/check_artifact_chain.py, scripts/approvers.py, scripts/log_ledger.py, scripts/approve.py, scripts/sign.py, scripts/delegation.py, scripts/delegated_merge.py, scripts/check_control_plane.sh, scripts/check_workflow_permissions.py, scripts/next_item.py, REVIEW.md, .claude-plugin, docs/sdlc/handoff]
