@@ -5,7 +5,7 @@ title: Two red cases in a new module, then one condition in build_item, then the
 description: "scripts/test_gen_index_retired.py (new, two cases composing test_gen_index's fixtures, both watched red first), then build_item in scripts/gen_index.py gates the parked_note call on the intent reading status: approved, then python3 scripts/gen_index.py heals the risk-detour row and index on main; kind fix, so no existing test file is touched."
 stage: build
 # status: draft | in-review | approved | delegated | superseded  (require-plan.sh refuses code edits until approved)
-status: delegated
+status: superseded
 # kind: feature | fix  (fix: protect-tests.sh refuses edits to existing test files)
 kind: fix
 reads: spec.md

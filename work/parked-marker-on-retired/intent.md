@@ -5,7 +5,7 @@ title: A retired item still reads `parked` in the generated index
 description: "gen_index.py marks an item parked from its ledger's latest parked:/resumed: line alone, so a retired item whose last such line is a park keeps the parked stage cell and the Parked: line after its intent is superseded; the marker should yield to the retirement."
 stage: plan
 # status: draft | in-review | approved | delegated | superseded
-status: approved
+status: superseded
 author: Luis Siviero (repo owner), in the session that closed risk-detour on 2026-09-15; drafted by Claude from the owner's choice of a separate low item over folding it into a later defect intent
 # approved-by: product owner; set only by a human, with scripts/approve.py from their own shell
 approved-by: luissiviero

@@ -5,7 +5,7 @@ title: The generated index reads the parked marker only from an approved intent
 description: "gen_index.build_item asks next_item.parked_note for a park only when the item's intent.md has status: approved; on any other status the stage cell comes from _stage and the item index carries no Parked: line, so a retired item renders like every other retired item. The helper, the queue and every judging script are untouched; one regression case in a new module is seen red first."
 stage: design
 # status: draft | in-review | approved | delegated | superseded
-status: delegated
+status: superseded
 reads: intent.md
 # approved-by: product owner; tech lead consulted for medium/high risk; set only by a human
 approved-by: claude
