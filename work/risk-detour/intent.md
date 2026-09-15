@@ -5,17 +5,17 @@ title: A delegated item that meets non-low work looks for a low-only route by re
 description: "Delegated mode stays low-only. Today non-low work is refused at admission or stops the whole queue mid-item; the only consensus record asks for the smallest change that clears a trigger, never for a route that stays low. Let the run convene reviewers at every gate for a route that reaches the intent's outcome touching only low-risk surface, adopt it on a unanimous verdict, and otherwise park the item and continue."
 stage: plan
 # status: draft | in-review | approved | delegated | superseded
-status: in-review
+status: approved
 author: Luis Siviero (repo owner), in the session of 2026-09-08 that planned delegated-by-default; drafted by Claude from the owner's statement and an exploration of the run skill, the revision record and the queue
 # approved-by: product owner; set only by a human, with scripts/approve.py from their own shell
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-15
 # risk-class: low | medium | high; the grant below is valid only for classes the policy lists
 risk-class: low
 # mode: supervised | delegated; delegated-by and delegated-on are set only by a human, like approved-by
-mode: supervised
-delegated-by:
-delegated-on:
+mode: delegated
+delegated-by: luissiviero
+delegated-on: 2026-09-15
 # supersedes: previous intent id, if any
 supersedes:
 # record: legacy system id (Jira/ServiceNow) if that system holds a copy
