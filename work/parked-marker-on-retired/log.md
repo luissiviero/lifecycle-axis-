@@ -12,3 +12,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 
 - 2026-09-15T02:20:28Z | intent.md | (none) -> in-review | claude | fd39dd0 | drafted in the session that closed risk-detour, at the owner's choice of a separate low item: a retired item's row and index still read parked because gen_index.py reads only the latest parked:/resumed: ledger line; one condition and a regression test in a new module (kind fix); one open question with a proposal (the marker only for an approved intent)
 - 2026-09-15T02:23:10Z | intent.md | in-review -> in-review | claude | 0c02fbf | open question answered by the owner: the proposal accepted as written, the parked marker reads only for status approved
+- 2026-09-15T02:25:33Z | intent.md | in-review -> approved | luissiviero | 0a6d336 | mode: delegated
