@@ -3,7 +3,7 @@ type: doc
 title: Session handoff (2026-09-15)
 description: "How to resume in a new session: the session protocol, the task state, the owner's routine, and the seed prompt the finishing session leaves for the next one."
 tags: [sdlc, handoff, playbook-comparison, delegated-mode]
-timestamp: 2026-09-15T03:00:00Z
+timestamp: 2026-09-15T03:10:00Z
 ---
 
 # Session handoff (read this first after any context reset)
@@ -69,7 +69,44 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-15 ~03:00 UTC)
+## Task state (2026-09-15 ~03:10 UTC)
+- **The cycle is closed: `parked-marker-on-retired` is merged and retired, the handoff is on `main`, and
+  `main` is green.** After the 03:00 section: the owner's retire tap landed as `e8ec522` (03:05:27Z, three
+  artifacts `superseded`, three retiring ledger lines by `luissiviero`, `.sdlc/active` repointed to
+  `ci-budget`, every stale index regenerated in the same commit), and #101, the 03:00 handoff refresh,
+  merged by click as `5bf9573`. On `5bf9573`: `INDEX: up to date`, `VERIFY: PASS (5bf9573)`,
+  `python3 scripts/next_item.py --list` prints nothing. Nothing is granted and nothing is in flight.
+- **The advance's two production effects are now both observed and both healed by the one tap**, exactly as
+  the 03:00 section predicted: the pointer it empties (defect 1's common case) and the indexes it leaves
+  stale (`work/<slug>/index.md` and `work/index.md`, because `advance()` appends a ledger line without
+  regenerating). Between `4eb8383` and `e8ec522` every pull request was red on both lines. Both belong to
+  **defect 1's intent**, which is now the strongest candidate: its fix would let the advance regenerate what
+  it dirties and note an empty pointer instead of failing, retiring the placeholder `next` the retire tap
+  needs today.
+- **`.sdlc/active` names `ci-budget`, and that is a placeholder, not an item to work.** The retire tap's
+  `next` input put it there so `verify.sh` has a slug; `ci-budget`'s own work keeps its scheduled session on
+  2026-09-20 15:00 UTC. No session takes it, and the pointer moves again at the next grant tap.
+- **A successor session was opened by this session with the seed prompt below** (step 7(d), its second use
+  ever), at the owner's word, to draft **defect 1's intent** — `/sdlc-intent` needs no grant, so the session
+  drafts it `in-review` on its own branch, opens the intent-only pull request, and stops for the owner's
+  approval tap. Approving it with `mode` `delegated` also repoints `.sdlc/active` at it, and a later session
+  runs it end to end. Nothing about that prompt grants anything.
+- **Still open for the owner, in no order.** `standing-grant` (`main`, `in-review`, `mode: supervised`,
+  `risk-class: medium`; the low-only policy cannot grant it, so it runs with a tap at every gate; its
+  answers 3 and Depends-on line are overtaken, see the 00:35 section); defect 2 and defect 3, each still
+  needing a `/sdlc-intent`; the two red `delegated-merge` runs `34908767884` and `34909007398`, still
+  unread.
+- **Still true**: deepen the clone first (resume step 8) and run the checks with
+  `env -u GH_TOKEN -u GITHUB_TOKEN`; the defects keep the 01:50 section's numbers (defect 1: the self-check
+  fails on an empty pointer instead of noting it, and misattributes approvals on a shallow clone, one
+  intent; defect 2: `EXEMPT` in the chain check lists `CLAUDE.md` but not `GEMINI.md`/`AGENTS.md`; defect 3:
+  the chain check crashes on a token with no `gh` binary). The session that wrote this section wrote
+  `parked-marker-on-retired` on Fable 5.1 and was switched to Opus 5 by the owner after the merge, so this
+  handoff and the item it reports are not the same model's work; the item's own review ran on Opus 5
+  against the Fable 5.1 writer, as its ledger records. Both `send_later` check-ins this session armed were
+  deleted once #100 merged, so nothing wakes it again.
+
+## Task state (2026-09-15 ~03:00 UTC) — HISTORY, superseded by the section above
 - **`parked-marker-on-retired` is merged by the delegated-merge workflow and its advance landed; `.sdlc/active`
   is empty; nothing is queued.** #100 merged as `94f89de` at 02:53 UTC by `github-actions[bot]` (run
   `34922908400`, triggered by the `pr-review` completion): nine `CONDITION ... ok` lines (`locked-paths: ok —
@@ -679,29 +716,38 @@ before acting, whatever this section says. It is written for the state as of the
 that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
 "Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'
-(2026-09-15 ~03:00 UTC). `parked-marker-on-retired` is merged (#100, `94f89de`) by the delegated-merge
-workflow, its advance landed (`4eb8383`) and emptied `.sdlc/active`, and nothing is granted or queued, so no
-item is yours yet. Before anything else run `git fetch --unshallow origin` (the container clone is shallow
-and the chain check misattributes approvals on it), then, with `env -u GH_TOKEN -u GITHUB_TOKEN` (the
-container sets a token but has no `gh`, and the chain check crashes on that), `python3 scripts/gen_index.py
---check` and `scripts/verify.sh` on main. If verify ends `FAIL: no active work item` or the index check
-reports drift on `work/parked-marker-on-retired/index.md` and `work/index.md`, the owner has not yet retired
-the item: ask for the retire tap (Actions -> approve -> Run workflow on main, `mode` `retire`, `slug`
-`parked-marker-on-retired`, `next` `ci-budget`), which points the pointer at a placeholder and regenerates
-the stale indexes, and wait. Then ask the owner which item is next and wait; do not draft anything they have
-not named. Candidates: `standing-grant` (in-review, supervised, medium: it cannot be granted under a
-low-only policy and runs with the owner's taps at every gate; its answers 3 and Depends-on are overtaken),
-and three defect intents numbered in the Task state (defect 1: the self-check fails on an empty pointer,
-now the common case after every delegated merge with an empty queue, and misattributes on a shallow clone;
-defect 2: `EXEMPT` in the chain check lacks `GEMINI.md`/`AGENTS.md`; defect 3: the chain check crashes on a
-token with no `gh`). Every gate runs `python3 scripts/check_detour.py` (`--paths`, `--plan`, `--diff`), and
-a `DETOUR: needed` line goes to the run skill's detour rule, never to a stop; a park is a `parked:` ledger
-line on intent.md. Never write approved or superseded, never touch the grant keys, never sign intent.md,
-never merge, never move `.sdlc/active`. Do not touch `ci-budget`, which has a scheduled session on
-2026-09-20. Run scripts/verify.sh, the chain check with --slug <your item>, scripts/run_evals.sh and
-scripts/check_okf.py before asking the owner for anything."
+(2026-09-15 ~03:10 UTC). `parked-marker-on-retired` is merged (#100), retired by tap (`e8ec522`) and its
+handoff is on main (#101, `5bf9573`); `main` is green and nothing is granted or in flight. Your task is one
+artifact: draft **defect 1's intent** with `/sdlc-intent`, the defect the Task state numbers 1, which the
+owner named as the next item. It is two faults in one intent, both in `scripts/check_artifact_chain.py`'s
+self-check: (a) an empty `.sdlc/active` ends `verify.sh` with `FAIL: no active work item` instead of a note,
+which is now the common case, because a delegated merge with an empty queue clears the pointer and every
+pull request is red until a retire tap puts a placeholder slug back; and (b) on a shallow clone the check
+attributes an approval to the newest boundary commit carrying the artifact, so it fails for a reason that is
+not on main (resume step 8). Fold in the advance's second effect the 03:10 section records, for the owner to
+accept or split: `advance()` appends a ledger line without regenerating `work/<slug>/index.md` and
+`work/index.md`, so the same window is also red on `INDEX: 2 file(s) drifted`; the retire tap heals it today
+(`work/approve-tap-regenerates-index`). Before anything else run `git fetch --unshallow origin` (the
+container clone is shallow), then, with `env -u GH_TOKEN -u GITHUB_TOKEN` (the container sets a token but
+has no `gh`, and the chain check crashes on that), `python3 scripts/gen_index.py --check` and
+`scripts/verify.sh` on main; both were green on `5bf9573`. Then `/sdlc-intent` on your own `claude/` branch:
+the template's every field, `risk-class` your honest reading with its reason, `mode: supervised` (only a
+human grants), every open question with a proposed answer so the owner can reply in one tap, and
+`python3 scripts/check_detour.py --paths` over the paths the Affected systems name (`check_artifact_chain.py`
+is on the policy's locked list, so expect `DETOUR: needed` and say so in the intent: the code lands by the
+owner's click, not a delegated merge). Open the intent-only pull request with `Work-Item: <your slug>`, run
+scripts/verify.sh, the chain check, scripts/run_evals.sh and scripts/check_okf.py, paste the last lines, and
+then stop and ask for the approval tap (Actions -> approve -> Run workflow on main, `artifact` `intent.md`,
+`mode` `supervised` or `delegated`, `slug` yours) — naming the inputs is not approving. Write no spec and no
+plan until that tap lands. `.sdlc/active` names `ci-budget`: that is the retire tap's placeholder, not your
+item, and `ci-budget` keeps its own session on 2026-09-20 — do not touch it, nor `standing-grant`, nor
+defects 2 and 3. Never write approved or superseded, never touch the grant keys, never sign intent.md,
+never merge, never move `.sdlc/active`."
 
-(Superseded, kept as a record: the prompt before it named `parked-marker-on-retired` as the item to take from
+(Superseded, kept as a record: the prompt before it held no item, said `parked-marker-on-retired` was merged
+with its advance landed and the pointer empty, and told the next session to ask for the retire tap if the
+checks were red and then to ask the owner which item was next. Before that, the prompt named
+`parked-marker-on-retired` as the item to take from
 spec to a merged pull request under `/sdlc-run`, `kind: fix` with the regression case in a new module, and told
 the session to observe the first delegated merge's advance and do step 7 with `Work-Item: ci-budget`. Before
 that, the prompt held no item, said `risk-detour` was merged and parked
