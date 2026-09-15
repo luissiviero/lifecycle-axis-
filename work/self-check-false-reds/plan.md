@@ -160,4 +160,4 @@ touched; `.sdlc/active` was never moved by this item. Both scripts are locked pa
 an owner's click.
 
 ## Deviations log (append during implementation; same commit as the deviation)
--
+- 
