@@ -3,7 +3,7 @@ type: doc
 title: Session handoff (2026-09-15)
 description: "How to resume in a new session: the session protocol, the task state, the owner's routine, and the seed prompt the finishing session leaves for the next one."
 tags: [sdlc, handoff, playbook-comparison, delegated-mode]
-timestamp: 2026-09-15T00:10:00Z
+timestamp: 2026-09-15T00:35:00Z
 ---
 
 # Session handoff (read this first after any context reset)
@@ -69,7 +69,43 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-15 ~00:10 UTC)
+## Task state (2026-09-15 ~00:35 UTC)
+- **`risk-detour` is granted and `.sdlc/active` names it; nothing else is queued.** The owner answered
+  the sixth open question on #60 (`0e7eb1a`: the intent-drafting gate re-signs nothing, the route goes
+  into the in-review intent's Proposed outcome, the tap is the sign-off), merged #60 (`27457ba`), #61
+  (`4c17609`) and #94 (`ae35caf`), then tapped the grant: run `34913272819`, commit `3ce6eae`, `status:
+  approved`, `mode: delegated`, `approved-by`/`delegated-by: luissiviero`, `delegated-on: 2026-09-15`,
+  ledger line `in-review -> approved | luissiviero | ae35caf | mode: delegated`, and the pointer moved
+  from `ci-budget` to `risk-detour` in the same commit with the indexes regenerated. On `3ce6eae`:
+  `INDEX: up to date`, `CONTEXT: 3 files up to date`, `CHAIN: PASS` (in-progress mode, intent only),
+  `VERIFY: PASS (3ce6eae)`. `python3 scripts/next_item.py --list --exclude risk-detour` prints nothing:
+  the queue is this one item.
+- **What the next session does: `/sdlc-run` on `risk-detour`, spec to ready pull request.** Its
+  precondition holds on `main` (`enabled: True`, `risk-classes: [low]`, the intent approved and
+  delegated, the pointer set). Steps 1 to 5 as the skill says: `/sdlc-spec` and `sign.py risk-detour
+  spec.md`, `/sdlc-plan` and `sign.py risk-detour plan.md`, build on a `claude/` branch, verify at every
+  step, `/sdlc-review` on a different model, ready. **Expect the merge to be the owner's click, not the
+  workflow's.** The intent's file list names `.claude/skills/*`, `docs/sdlc/templates/*` and
+  `docs/sdlc/rules/*`, all on the merge script's `ALWAYS_LOCKED` floor, so the delegated merge will end
+  `refused` on locked paths whatever else holds. None of those paths is in `PROTECTED_PATHS`, so the hooks
+  let the build proceed; the skill's "locked path ends the queue quietly" case applies at the merge, not
+  at the plan gate. Do not stop at the spec or plan because the merge is locked: finish to a ready pull
+  request and say so, which is the intent's own first answer ("finish to a ready pull request and park;
+  click needed"). Because the merge is a click, no `advance()` runs on it and the production
+  observation `advance-push` waits for is still unobserved; the pointer stays on `risk-detour` until
+  the owner retires it by tap (`mode: retire`, `next` blank or the next item).
+- **`standing-grant` is on `main`, `in-review`, `mode: supervised`, `risk-class: medium`.** Its six
+  answers stand as written on 2026-09-08. Two are overtaken and a spec writer should read them with
+  that in mind: answer 3 (this item's pull request clears the pointer after #58) is moot, the pointer is
+  moved by the retire tap's `next` and by the delegated merge's advance today; and its Depends-on line
+  names `advance-push`, merged, and `risk-detour`, now real and active. Not this session's item.
+- **Still true from the section below**: the container clone is shallow, deepen it first (resume step
+  8); the two red `delegated-merge` runs on `main` (`34908767884`, `34909007398`) are unread; the four
+  defects (empty pointer and shallow misattribution in the chain check, `EXEMPT` without `GEMINI.md`/
+  `AGENTS.md`, the crash on a token with no `gh`) each need an intent; `ci-budget` has its session on
+  2026-09-20 15:00 UTC and works by slug, since the pointer no longer names it.
+
+## Task state (2026-09-15 ~00:10 UTC) — HISTORY, superseded by the section above
 - **`.sdlc/active` names `ci-budget` as a placeholder, and `main` verifies green on a full clone.** After
   the section below was written, the owner re-ran the retire tap with `next` set to `ci-budget` (run
   `34908559088`, commit `cb5cde5`, 23:22 UTC, touching only the pointer; the indexes were already current),
@@ -500,31 +536,30 @@ before acting, whatever this section says. It is written for the state as of the
 that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
 "Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'
-(2026-09-15 ~00:10 UTC). `retire-delegated-items` is merged and retired, and `.sdlc/active` names `ci-budget`
-as a placeholder; nothing is in flight and no item is yours yet. Before anything else run `git fetch
---unshallow origin` (the container clone is shallow, and the chain check misattributes approvals on it),
-then `python3 scripts/gen_index.py --check` and `scripts/verify.sh` on main. If verify ends `FAIL: no active work item (.sdlc/active is empty ...)`, the pointer is still empty:
-ask the owner to point it by re-running the retire tap (Actions -> approve -> Run workflow on main, `mode`
-`retire`, `slug` `retire-delegated-items`, `next` the item they want active; every artifact is already
-superseded, so only the pointer moves and the indexes regenerate with it) and wait; until then every pull
-request is red on verify. If a web-editor commit left the indexes stale, regenerate them under the item
-whose index it is. Then ask the owner which item is next and wait. Two intents are open with unanswered
-open questions carrying a proposal: #60 `risk-detour` (low, the only grantable one, and what a queue that
-does not stop on non-low work needs first) and #61 `standing-grant` (medium, and it depends on the other
-two). An intent may be merged with its questions still blank, but do not let it be tapped until they are
-answered: a tap starts the spec on unconfirmed proposals. Never write approved, never merge, never move
-`.sdlc/active`. Do not touch `ci-budget`, which has a scheduled session on 2026-09-20, even if the pointer
-names it as a placeholder. The first delegated merge after now is the production observation
-`advance-push` was built for: read its job log for `ADVANCE: .sdlc/active -> <slug>` and check that main
-gained an advance commit whose first parent is the merge commit, then record it in the next Task state.
-Three defects are filed in the Task state and need an intent each, and a fourth rides the first: the
-self-check fails on an empty pointer instead of noting it (and misattributes on a shallow clone), `EXEMPT` in the chain check lists `CLAUDE.md` but not `GEMINI.md` or
-`AGENTS.md`, and the chain check crashes on a token with no `gh` binary instead of returning the no-token
-note. Run scripts/verify.sh, the chain check with --slug <your item>, scripts/run_evals.sh and
-scripts/check_okf.py before asking the owner for anything."
+(2026-09-15 ~00:35 UTC). Your item is `risk-detour`: `.sdlc/active` on main names it, and
+`work/risk-detour/intent.md` is approved and delegated by the owner (commit `3ce6eae`), with six answered
+open questions that are decisions, not proposals. Re-read both before acting. First run `git fetch
+--unshallow origin` (the container clone is shallow and the chain check misattributes approvals on it), then
+`python3 scripts/gen_index.py --check` and `scripts/verify.sh` on main; both were green on `3ce6eae`. Then
+`/sdlc-run`: print the queue (it is this one item), `/sdlc-spec` and sign, `/sdlc-plan` and sign, build on
+a `claude/` branch as a draft pull request with `Work-Item: risk-detour`, verify at every step, `/sdlc-review`
+on a different model from the writer, ready. The item's file list touches `.claude/skills`,
+`docs/sdlc/templates` and `docs/sdlc/rules`, which the merge script always locks: the hooks allow the edits,
+the delegated merge will refuse, and the owner merges by click. Do not stop at the spec or plan for that
+reason; finish to a ready pull request, then tell the owner it is theirs to click, as the intent's first
+answer says. When it merges, do step 7 of the run skill: re-read `.sdlc/active` (it will still name
+`risk-detour`, since a click runs no advance), refresh the handoff's Task state and seed prompt on a fresh
+branch from main, open that pull request ready with `Work-Item: ci-budget` (the one item with a complete
+approved chain; the next item has none), and say that no successor is scheduled because the queue is
+empty. Never write approved or superseded, never touch the grant keys, never sign intent.md, never merge,
+never move `.sdlc/active`. Do not touch `ci-budget`, which has a scheduled session on 2026-09-20. Four
+defects in the Task state need an intent each and are not yours. Run scripts/verify.sh, the chain check
+with --slug risk-detour, scripts/run_evals.sh and scripts/check_okf.py before asking the owner for anything."
 
-(Superseded, kept as a record: the prompt before it read the same against the 2026-09-14 ~19:00 Task
-state, with the pointer possibly empty and no unshallow step. Before that, the prompt named
+(Superseded, kept as a record: the prompt before it held no item, told the next session to run the checks
+on main and ask the owner which item was next, with #60 and #61 still open. Before that, the same against
+the 2026-09-14 ~19:00 Task state, with the pointer possibly empty and no unshallow step. Before that, the
+prompt named
 `retire-delegated-items` as the active item
 with #92 open or merged, and told the next session to ask for the retire tap if it had not happened.
 Before that, the prompt said nothing was in flight, `.sdlc/active` named
