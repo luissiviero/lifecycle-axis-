@@ -154,8 +154,12 @@ def build_item(root, slug):
         "description": description,
         "timestamp": timestamp,
         "last_entry": last_entry,
-        # work/risk-detour R-6: the `parked:` note that parks the item, or None.
-        "parked": next_item.parked_note(entries, next_item.resumers(root)),
+        # work/risk-detour R-6: the `parked:` note that parks the item, or None. Read only for an
+        # approved intent (work/parked-marker-on-retired R-1): a park exists on no other status, and
+        # a retirement writes `-> superseded` lines, neither `parked:` nor `resumed:`, so the helper
+        # would otherwise go on reporting the park after the owner retired the item.
+        "parked": (next_item.parked_note(entries, next_item.resumers(root))
+                   if (intent_fm.get("status") or "").strip() == "approved" else None),
     }
 
 
