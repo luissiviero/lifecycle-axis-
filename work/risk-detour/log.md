@@ -1,0 +1,16 @@
+---
+type: sdlc/log
+id: risk-detour-log
+title: Gate ledger for risk-detour
+description: Chronological record of stage transitions and approvals for this work item.
+timestamp: 2026-09-08T20:31:02Z
+---
+# Log: risk-detour
+
+Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
+(append-only; `<note>` is optional; parsed by `scripts/log_ledger.py`).
+
+- 2026-09-08T20:31:02Z | intent.md | (none) -> in-review | claude | 52ffb04 | drafted from the owner's statement (delegated stays low-only; on non-low work look for a low-only route by reviewer consensus instead of stopping) and the owner's three decisions in the same session (two items, the detour at every gate including mid-build, park and continue); measured: five terminal admission checks, the run skill's stop-the-queue rule, a revision record that asks the wrong question, a queue rule that would re-offer a parked item; five questions answered as proposals for the owner
+- 2026-09-08T21:35:56Z | intent.md | in-review -> in-review | claude | 81c2f0e | open questions answered by the owner: every proposal accepted as written
+- 2026-09-14T05:26:38Z | intent.md | in-review -> in-review | claude | fd31fd4 | the automated review on pull request 60 held one Important finding across three passes: the detour is decided to fire at intent drafting, but the adoption mechanism is sign.py --revision and intent.md is never signable, a sign.py change the Must-not list forbids. Carried into the open questions with a proposal (nothing is re-signed at that gate; the route is drafted into the in-review intent and the owner tap is the sign-off) for the owner to accept or turn around; nothing else in the intent changed
+- 2026-09-15T00:22:15Z | intent.md | in-review -> in-review | claude | 0e7eb1a | sixth open question answered by the owner: the proposal accepted as written, the intent-drafting gate re-signs nothing and the tap is the sign-off; branch merged up to main with work/index.md regenerated
