@@ -1,9 +1,9 @@
 ---
 type: doc
-title: Session handoff (2026-09-14)
+title: Session handoff (2026-09-15)
 description: "How to resume in a new session: the session protocol, the task state, the owner's routine, and the seed prompt the finishing session leaves for the next one."
 tags: [sdlc, handoff, playbook-comparison, delegated-mode]
-timestamp: 2026-09-14T19:00:00Z
+timestamp: 2026-09-15T00:10:00Z
 ---
 
 # Session handoff (read this first after any context reset)
@@ -25,6 +25,11 @@ timestamp: 2026-09-14T19:00:00Z
 6. Git identity in a new remote session is again an agent identity; never approve anything.
 7. First check in the new session: the new `protect-approvals.sh` is wired on `main`. An Edit that sets
    `status: approved` on any `work/<slug>/*.md` must be refused (exit 2). If it is not, stop and tell the owner.
+8. Before `verify.sh` or the chain check, deepen the clone: `git rev-parse --is-shallow-repository` prints
+   `true` in a fresh remote container, and `git fetch --unshallow origin` fixes it. On a shallow clone the chain
+   check attributes an approval to the newest boundary commit that carries the artifact, which on 2026-09-15
+   was an agent commit for `ci-budget`'s plan, so `verify.sh` fails for a reason that is not on `main`
+   (Task state 2026-09-15).
 
 ## Session protocol
 Three invariants, in force since 2026-09-13 (`work/session-chaining`):
@@ -64,7 +69,33 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-14 ~19:00 UTC)
+## Task state (2026-09-15 ~00:10 UTC)
+- **`.sdlc/active` names `ci-budget` as a placeholder, and `main` verifies green on a full clone.** After
+  the section below was written, the owner re-ran the retire tap with `next` set to `ci-budget` (run
+  `34908559088`, commit `cb5cde5`, 23:22 UTC, touching only the pointer; the indexes were already current),
+  and #93 merged as `8f4bb3c` at 23:25 UTC. On `8f4bb3c`: `INDEX: up to date`, `CONTEXT: 3 files up to
+  date`, `VERIFY: PASS (8f4bb3c)`, `CHAIN: PASS`, `OKF: 213 docs, 0 warnings`; `protect-approvals.sh`
+  refuses an Edit of `approved-by`, a Write carrying `status: approved` and a Bash line naming the approval
+  script, exit 2 each. The only trigger left is `ci-budget`'s session on 2026-09-20 15:00 UTC.
+- **New: a shallow clone makes the chain check blame the wrong commit.** The remote container clones with
+  a shallow boundary (15 commits in `.git/shallow` on 2026-09-15). `check_artifact_chain.py` attributes an
+  approval with `git log -n1 -G '^status: approved$'`, and on a shallow clone the newest boundary commit
+  that carries the file is the first hit: for `work/ci-budget/plan.md` that was `007b5c3`, an agent ledger
+  commit, rather than the tap `104c27d`, so `verify.sh` ended `FAIL` on "the commit that set status:
+  approved is authored by an agent identity". After `git fetch --unshallow origin` the same command ends
+  `CHAIN: PASS`. Resume step 8 above now says to deepen first. The check itself could note or refuse a
+  shallow repository (`git rev-parse --is-shallow-repository`) instead of misattributing; it is a locked
+  path, so that is a fourth defect for the empty-pointer intent below, not an item of its own.
+- **Not investigated**: two `delegated-merge` runs on `main` concluded failure, `34908767884` on `cb5cde5`
+  and `34909007398` on `8f4bb3c`. The 14:10 section explains one red run per check completion on a pull
+  request that is not the active item's; #93 carried `Work-Item: ci-budget`, which was the active item,
+  so these two may be something else. Read their logs before the next merge.
+- **Nothing is in flight and no item is granted.** The session that wrote this holds no item and asked
+  the owner which is next. Candidates, unchanged: #60 `risk-detour` and #61 `standing-grant`, both with
+  unanswered open questions; the three defects filed below each need an intent. `ci-budget` waits for
+  its 2026-09-20 session.
+
+## Task state (2026-09-14 ~19:00 UTC) — HISTORY, superseded by the section above
 - **`retire-delegated-items` is merged (#92 as `ea289b7`, 18:49 UTC) and retired by the tap it built
   (`302becb`, 18:51 UTC), and `.sdlc/active` is empty.** The first `mode: retire` run in production is
   `34883307360`: run-name `approve intent.md (retire) on retire-delegated-items by @luissiviero`,
@@ -469,9 +500,10 @@ before acting, whatever this section says. It is written for the state as of the
 that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
 "Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'
-(2026-09-14 ~19:00 UTC). `retire-delegated-items` is merged and retired; nothing is in flight and no item
-is yours yet. Before anything else run `python3 scripts/gen_index.py --check` and `scripts/verify.sh` on
-main. If verify ends `FAIL: no active work item (.sdlc/active is empty ...)`, the pointer is still empty:
+(2026-09-15 ~00:10 UTC). `retire-delegated-items` is merged and retired, and `.sdlc/active` names `ci-budget`
+as a placeholder; nothing is in flight and no item is yours yet. Before anything else run `git fetch
+--unshallow origin` (the container clone is shallow, and the chain check misattributes approvals on it),
+then `python3 scripts/gen_index.py --check` and `scripts/verify.sh` on main. If verify ends `FAIL: no active work item (.sdlc/active is empty ...)`, the pointer is still empty:
 ask the owner to point it by re-running the retire tap (Actions -> approve -> Run workflow on main, `mode`
 `retire`, `slug` `retire-delegated-items`, `next` the item they want active; every artifact is already
 superseded, so only the pointer moves and the indexes regenerate with it) and wait; until then every pull
@@ -485,13 +517,15 @@ answered: a tap starts the spec on unconfirmed proposals. Never write approved, 
 names it as a placeholder. The first delegated merge after now is the production observation
 `advance-push` was built for: read its job log for `ADVANCE: .sdlc/active -> <slug>` and check that main
 gained an advance commit whose first parent is the merge commit, then record it in the next Task state.
-Three defects are filed in the Task state and need an intent each: the self-check fails on an empty
-pointer instead of noting it, `EXEMPT` in the chain check lists `CLAUDE.md` but not `GEMINI.md` or
+Three defects are filed in the Task state and need an intent each, and a fourth rides the first: the
+self-check fails on an empty pointer instead of noting it (and misattributes on a shallow clone), `EXEMPT` in the chain check lists `CLAUDE.md` but not `GEMINI.md` or
 `AGENTS.md`, and the chain check crashes on a token with no `gh` binary instead of returning the no-token
 note. Run scripts/verify.sh, the chain check with --slug <your item>, scripts/run_evals.sh and
 scripts/check_okf.py before asking the owner for anything."
 
-(Superseded, kept as a record: the prompt before it named `retire-delegated-items` as the active item
+(Superseded, kept as a record: the prompt before it read the same against the 2026-09-14 ~19:00 Task
+state, with the pointer possibly empty and no unshallow step. Before that, the prompt named
+`retire-delegated-items` as the active item
 with #92 open or merged, and told the next session to ask for the retire tap if it had not happened.
 Before that, the prompt said nothing was in flight, `.sdlc/active` named
 `advance-push`, finished and merged, and told the next session to ask the owner to retire it and say
