@@ -104,7 +104,7 @@ delegated item.
 
 ## Deviations log (append during implementation; same commit as the deviation)
 - 2026-09-15 — the signed spec's body was corrected in two acceptance-test sentences after step 3
-  measured them: R-1 quoted the golden row as `[retired](retired/index.md)`, which `check_okf.py` reads as
+  measured them: R-1 quoted the golden row with its slug link in it, which `check_okf.py` reads as
   a Markdown link to a file that does not exist (`OKF: 227 docs, 1 warnings`), so the row is now described
   in words; R-4 counted `1 insertion, 1 deletion` on `work/index.md` against `origin/main`, which is the
   count against the commit before the fix, while against `origin/main` the file changes three lines (the
