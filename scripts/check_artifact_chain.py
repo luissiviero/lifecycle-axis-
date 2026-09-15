@@ -159,6 +159,36 @@ APPROVED_RUN_RE = re.compile(r"^Approved-Run:\s*(\d+)\s*$", re.MULTILINE)
 APPROVED_ACTOR_RE = re.compile(r"^Approved-Actor:\s*(\S+)\s*$", re.MULTILINE)
 
 
+def _is_graft(sha):
+    """True when `sha` is a shallow clone's boundary commit -- one git grafted in with no parents,
+    listed in its own shallow file (`git rev-parse --git-path shallow`). At a graft `git log -G`
+    reads the whole file as added by that commit, so both author lookups below would name the
+    boundary as the approver, whoever it is: on 2026-09-15 an agent's unrelated commit, and `main`
+    failed on a chain a full clone passes (work/self-check-false-reds R4; spec D3). A full clone has
+    no shallow file, so its real root commit is never mistaken for a graft; an unreadable file is
+    "no graft", which leaves today's behaviour rather than inventing a skip (spec R5)."""
+    if not sha:
+        return False
+    path = subprocess.run(["git", "rev-parse", "--git-path", "shallow"],
+                          capture_output=True, text=True, cwd=ROOT).stdout.strip()
+    if not path:
+        return False
+    if not os.path.isabs(path):
+        path = os.path.join(ROOT, path)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return sha in {line.strip() for line in f if line.strip()}
+    except OSError:
+        return False
+
+
+def _shallow_note(rel, sha):
+    """The author check could not run: the note branch the callers already have, with the reason.
+    Never a fetch -- a verification step does not mutate what it judges (spec R6, D4)."""
+    return (f"{rel}: history is shallow at {sha[:12]}; the author check needs the real approval "
+            f"commit -- run `git fetch --unshallow origin`")
+
+
 def dispatch_attestation(commit_sha):
     """(run_id, actor) from a commit's Approved-Run / Approved-Actor trailers, or None.
 
@@ -383,18 +413,20 @@ def check_grant(slug, wd, policy, av, notes, errors):
     who = ""
     if front_matter_text(head_text).get("mode") == "delegated":
         who = subprocess.run(
-            ["git", "log", "-n1", "--format=%an%x00%ae", "-G", "^mode: delegated$", "--", rel],
+            ["git", "log", "-n1", "--format=%H%x00%an%x00%ae", "-G", "^mode: delegated$", "--", rel],
             capture_output=True, text=True, cwd=ROOT,
         ).stdout.strip()
+    sha, an, ae = (who.split("\x00") + ["", "", ""])[:3]
     if not who:
         notes.append(f"work/{slug}/intent.md: grant not committed yet (author check skipped)")
-    else:
-        an, _, ae = who.partition("\x00")
-        if is_agent_identity(an, ae, av):
-            errors.append(
-                f"work/{slug}/intent.md: the commit that set mode: delegated is authored by an agent "
-                f"identity ({an} <{ae}>); a human grants delegated mode and commits"
-            )
+    elif _is_graft(sha):
+        # A shallow clone's boundary, not the grant's author (work/self-check-false-reds R4).
+        notes.append(_shallow_note(f"work/{slug}/intent.md", sha))
+    elif is_agent_identity(an, ae, av):
+        errors.append(
+            f"work/{slug}/intent.md: the commit that set mode: delegated is authored by an agent "
+            f"identity ({an} <{ae}>); a human grants delegated mode and commits"
+        )
 
 
 def check_signature(slug, name, fm, policy, entries, log_exists, errors):
@@ -833,11 +865,15 @@ def main():
                     ["git", "log", "-n1", "--format=%H%x00%an%x00%ae", "-G", f"^status: {status}$", "--", rel],
                     capture_output=True, text=True, cwd=ROOT,
                 ).stdout.strip()
+            sha, an, ae = (who.split("\x00") + ["", "", ""])[:3]
             if not who:
                 act = "approval" if status == "approved" else "supersession"
                 notes.append(f"work/{slug}/{name}: {act} not committed yet (author check skipped)")
+            elif _is_graft(sha):
+                # A shallow clone's boundary, not the approver: the same "could not run" note as
+                # above, never a fetch (work/self-check-false-reds R4, R6; spec D3, D4).
+                notes.append(_shallow_note(f"work/{slug}/{name}", sha))
             else:
-                sha, an, ae = (who.split("\x00") + ["", ""])[:3]
                 attested = dispatch_attestation(sha)
                 if attested:
                     # The trailer route: the decision was a tap in the Actions tab, and the run --

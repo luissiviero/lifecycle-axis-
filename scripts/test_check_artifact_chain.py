@@ -1121,21 +1121,19 @@ class DelegatedChain(unittest.TestCase):
 
 class ActiveSlugRequired(unittest.TestCase):
     """work/delegated-mode R-6: an empty or missing .sdlc/active with no --slug is one clear
-    failure line, not a cascade of "work//<artifact> is missing" errors."""
+    note, not a cascade of "work//<artifact> is missing" errors."""
 
-    def test_empty_active_slug_is_one_clear_failure(self):
+    def test_empty_active_slug_is_one_clear_note(self):
         with tempfile.TemporaryDirectory() as root:
             _make_repo(root)
             _write(os.path.join(root, ".sdlc", "active"), "")
             _commit(root, "blank .sdlc/active")
             result = _run(root, "--base", "HEAD")
-            self.assertEqual(result.returncode, 1)
-            fail_lines = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:")]
-            self.assertEqual(len(fail_lines), 1, result.stdout)
-            self.assertEqual(
-                fail_lines[0],
-                "  FAIL: no active work item (.sdlc/active is empty; pass --slug or set it)",
-            )
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS", result.stdout)
+            note_lines = [l for l in result.stdout.splitlines() if l.startswith("  note: no active work item")]
+            self.assertEqual(len(note_lines), 1, result.stdout)
+            self.assertEqual([l for l in result.stdout.splitlines() if l.startswith("  FAIL:")], [], result.stdout)
 
     def test_missing_active_file_is_one_clear_failure(self):
         with tempfile.TemporaryDirectory() as root:
