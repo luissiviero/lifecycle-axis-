@@ -168,3 +168,14 @@ an owner's click.
   at the merge commit, not at the pre-advance tip; the case pins `merge_sha`, which is what the spec's
   "nothing committed on top" means. 1 of 5 (supervised: a human re-approves only a plan *revision*, and
   this is not one).
+- 2026-09-15 — step order: fix (b) lands before fix (a), and fix (a) is held. Fix (a) was applied and
+  verified per step 4 -- `test_chain_no_slug.py` green, `test_chain_shallow.py` and
+  `test_advance_regenerates_index.py` still one red each -- but it turns two cases of the locked
+  `scripts/test_check_artifact_chain.py` red: `ActiveSlugRequired`'s empty-pointer and missing-pointer cases
+  (`work/delegated-mode` R-6) run `--base HEAD` and assert exit 1 on exactly the `FAIL: no active work item`
+  line that spec R1 replaces with a note. They are not wrong tests; they pin the rule this spec supersedes,
+  and R-6's intent (one clear line, not a cascade) still holds as one clear note. Under `kind: fix` the hook
+  forbids editing them and says a human changes them, so step 4's proof ("green unmodified") cannot hold
+  as written. Fix (a) is kept as a patch pending the owner's edit of those two cases; fixes (b) and (c)
+  proceed in the meantime. No requirement, design line or acceptance test of this item changed; the
+  locked suite's expectation is what changed, by the approved spec. 2 of 5.
