@@ -3,7 +3,7 @@ type: doc
 title: Session handoff (2026-09-14)
 description: "How to resume in a new session: the session protocol, the task state, the owner's routine, and the seed prompt the finishing session leaves for the next one."
 tags: [sdlc, handoff, playbook-comparison, delegated-mode]
-timestamp: 2026-09-14T05:00:00Z
+timestamp: 2026-09-14T19:00:00Z
 ---
 
 # Session handoff (read this first after any context reset)
@@ -64,7 +64,137 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-14 ~05:00 UTC)
+## Task state (2026-09-14 ~19:00 UTC)
+- **`retire-delegated-items` is merged (#92 as `ea289b7`, 18:49 UTC) and retired by the tap it built
+  (`302becb`, 18:51 UTC), and `.sdlc/active` is empty.** The first `mode: retire` run in production is
+  `34883307360`: run-name `approve intent.md (retire) on retire-delegated-items by @luissiviero`,
+  conclusion success, one commit `[retire-delegated-items] Retire as luissiviero` authored by the owner,
+  committed by `github-actions[bot]`, with `Approved-Run: 34883307360` / `Approved-Actor: luissiviero`,
+  touching exactly the three artifacts (`approved -> superseded`, `approved-by` untouched), three ledger
+  lines, `.sdlc/active` (cleared, `next` was blank) and the two indexes regenerated in the same commit.
+  `python3 scripts/gen_index.py --check` on `main` prints `INDEX: up to date`: the retirement route's
+  drift, filed as this item's second half, is closed on the tap route.
+- **`main` is `VERIFY: FAIL` on the empty pointer, and that is the one consequence of blank `next` the
+  spec under-described.** `scripts/verify.sh` runs `check_artifact_chain.py --base HEAD` with no slug, which
+  with an empty `.sdlc/active` ends `FAIL: no active work item (.sdlc/active is empty; pass --slug or set
+  it)`; `sdlc-gate` runs the same step, so every pull request is red on verify until the pointer names a
+  live item, whatever `Work-Item:` it carries. The spec's G-6 named the pull-request half of this and not
+  the verify half. The remedy is the tap the owner already has: re-run `mode: retire` on `main` with `slug`
+  `retire-delegated-items` and `next` set to a live item; every artifact is already `superseded` (a no-op
+  each), only the pointer moves, and the committer regenerates the indexes with it. The owner's second
+  answer on the intent foresaw exactly this use ("the only tap that can point at a supervised item").
+  `ci-budget` is the one live, fully approved item on `main` today; `risk-detour` becomes one when #60
+  merges. The defect proper needs its own intent: the self-check (`--base HEAD`, no pull request) should
+  treat an empty pointer as nothing to check, a note and `CHAIN: PASS`, rather than a failure; it is one
+  branch in `check_artifact_chain.py`, a locked path, with a case in `ActiveSlugRequired`.
+- **The item's record.** Intent `017c832`, spec `fa0ac9b`, plan `6016332`, all tapped; one review round
+  on Opus (plan-reviewer three Important, security-reviewer none, nine nits, every finding taken with a
+  case each); revision 1 signed by both reviewers and accepted by the owner's web-editor ledger line
+  `ae0e759` (whose index drift `7f05b9b` regenerated, the web-editor route in action once more); the
+  automated review on the final head `Important: 0 | Nits: 0`; merged with the `control-plane-approved`
+  label for the workflow change. Two defects the reviews named are unfiled and need an intent each:
+  `EXEMPT` in the chain check lists `CLAUDE.md` but not `GEMINI.md`/`AGENTS.md`, and the check crashes on
+  a token with no `gh` binary instead of returning the no-token note. A third is the empty-pointer verify
+  failure above. `CLAUDE.md` still says the tap takes three inputs; it takes five, and a retirement needs
+  `next`.
+- **Still open and unchanged**: the advance is unobserved in production until a delegated item merges;
+  `protect-tests.sh` locks a new test file the moment it exists; #60 and #61 wait on the owner's merge and
+  their open questions; `ci-budget` has a scheduled session on 2026-09-20.
+
+## Task state (2026-09-14 ~17:30 UTC) — HISTORY, superseded by the section above
+- **`retire-delegated-items` is built on `claude/retire-delegated-items`, pull request #92, and
+  `.sdlc/active` names it.** The owner tapped intent (`017c832`, on `main`), spec (`fa0ac9b`) and plan
+  (`6016332`) today; the build followed the plan's seven steps in one commit each. What changed: the chain
+  check judges a `superseded` artifact by its retirer (the `-> superseded` ledger line's actor and the
+  commit's author or verified trailer, bound to a `mode: retire` run-name), never by `approved-by`, which
+  the approver list is asked about only where the ledger shows no signature for the artifact; the approval
+  script gains `--retire` and `--next`; the dispatch helper's role gate requires every present artifact's
+  role under `mode: retire` and its commit subject reads `Retire`; the workflow offers `mode: retire` and
+  a `next` input with the run-name byte-identical. On `main`'s own tree,
+  `python3 scripts/check_artifact_chain.py --base HEAD --slug approve-tap-regenerates-index` went from two
+  `FAIL` lines to `CHAIN: PASS` with the change and nothing else.
+- **One spec amendment after approval, told to the owner on #92.** The spec's R-1 first said `approved-by`
+  is never validated on `superseded`; the pre-existing case `test_superseded_with_an_invalid_approver_fails`
+  pins that a human-approved plan with a bot approver still fails after retirement, and the intent keeps
+  every existing case green. The rule shipped narrower (validated where the ledger shows no `-> delegated`
+  line and no retiring line from `delegated`), the spec's R-1 and D1 say so, and the plan's deviation 3
+  records it. The spec read that case while it was written and did not see it.
+- **Done when #92 is merged and the owner retires this item, by the tap it built.** The first
+  `mode: retire` run on `main` is the production observation of R-9 and R-10: its summary reads `Retired`,
+  its commit is `[retire-delegated-items] Retire as luissiviero` with the trailers, and `gen_index.py
+  --check` on `main` afterwards prints `INDEX: up to date`. The `next` input is the owner's choice; blank
+  leaves the pointer empty, and then every pull request needs a `Work-Item:` line until a grant or a
+  retirement points it again.
+- **Still open and unchanged from the section below**: the advance is unobserved in production until a
+  delegated item merges; `EXEMPT` in the chain check lists `CLAUDE.md` but not its two sibling renders;
+  `protect-tests.sh` locks a new test file the moment it exists; #60 and #61 wait on the owner's merge.
+
+## Task state (2026-09-14 ~14:10 UTC) — HISTORY, superseded by the section above
+- **`advance-push` is built and merged, and `.sdlc/active` still names it.** #87 carried the approved
+  intent, spec and plan (merged 12:04 UTC as `25b579d`, before the build commits existed), and #89 the
+  build (merged 14:06 UTC as `c18a9ee`). `advance()` now refuses a dirty checkout before it touches
+  anything, fetches the checkout's branch as `git fetch origin -- <branch>`, refuses unless `FETCH_HEAD`
+  is the merge commit `run()` took from the merge endpoint's response, fast-forwards with `--ff-only`,
+  and only then writes and pushes as before. A `merge_sha` that is not a 7-to-40 hex string is treated as
+  absent at both ends; a detached checkout is a note. Ten cases in two new modules
+  (`scripts/test_delegated_merge_advance.py`, `scripts/test_delegated_merge_advance_review.py`);
+  `scripts/test_delegated_merge.py` is unmodified at 150.
+- **The fix is not observed in production yet, and cannot be until a delegated item merges.** An owner's
+  merge click runs no delegated-merge job, so no advance ran on `c18a9ee` and `git log --grep='Advance
+  .sdlc/active'` on `main` is still empty. The first *delegated* merge is the observation: its job log
+  should print `ADVANCE: .sdlc/active -> <slug>`, and `main` should gain an advance commit whose first
+  parent is the merge commit. Nothing is granted today, so nothing will merge delegated until the owner
+  grants a low-risk item.
+- **Retiring `advance-push` is the owner's next act, and this one retires cleanly.** Its `spec.md` and
+  `plan.md` are `approved-by: luissiviero` (supervised, two taps), not agent-signed, so it does not hit
+  the `retire-delegated-items` defect that made the previous item's retirement red. The web-editor route
+  still leaves the two indexes stale (`knowledge/lessons/human-commits-leave-indexes-stale.md`); run
+  `python3 scripts/gen_index.py --check` on `main` before cutting any branch after it.
+- **Two review rounds on Opus against a Fable writer found two Important security defects in the build,
+  both fixed with the reviewer's own repros pinned as cases.** The branch name reached `git fetch origin
+  <branch>` as an option-capable argument, so a ref named `--upload-pack=<script>` executed the script
+  over a local-path origin: argv closes shell injection, not argument injection, and `--` now ends the
+  options. And a merge response whose `sha` was not a string raised a `TypeError` out of `advance()` past
+  `run()`'s `except`, *after* the merge had happened, which would have failed a job for work that landed.
+- **`protect-tests.sh` locks a new test file the moment it exists on disk**, although its header says the
+  failing reproduction "is a new file and stays writable". That cost this item two things: one fixture
+  line the owner had to commit by hand (`be1c162`), and a second test module for the review round's four
+  cases. #89's body proposes the one-line reading that matches the header (absent from `git ls-files` on
+  the base branch is new). Rule 3 keeps the hook out of an agent's diff, so it needs the owner or an item.
+- **Expect one red delegated-merge run per check completion on any open pull request that is not the
+  active item's, and leave it alone.** Runs `34846578359` and `34846667149` on #88's check completions
+  both end `CONDITION pull-request: refused — Work-Item is 'retire-delegated-items' but .sdlc/active
+  names 'advance-push'` and exit 1. That is `work/ci-budget` R-7's deliberate choice, not a gap it left:
+  R-7 made `not-delegated` exit 0 and in the same breath kept this one red: "a locked path or a refused
+  pull request on a supervised item stays a red run with its own `CONDITION` line"
+  (`work/ci-budget/spec.md`, the R7 row, verbatim). The same file states the reason: "A
+  `not-delegated` verdict must not hide a refusal that is about the pull request rather than the
+  grant." Two
+  comments in `delegated_merge.py` say as much in their own words, and neither is that sentence: the
+  one above `NOT_DELEGATED`, "a refusal about the pull request itself stays red beside it", and the one
+  in the supervised branch beside the `locked-paths` call, "stays a red run with its own condition line
+  whatever its item's mode".
+  It costs a run per event, which is the price R-7 weighed and paid. Changing it needs an intent that
+  argues the case R-7 already decided, not a bug report.
+- **New, unfiled: `EXEMPT` in `check_artifact_chain.py` lists `CLAUDE.md` but not `GEMINI.md` or
+  `AGENTS.md`**, its two sibling renders of the same fragments. So a pull request that adds one line to
+  `docs/sdlc/rules/` outside the active item's own plan is red by construction: `docs/` and `knowledge/`
+  are exempt, `CLAUDE.md` is exempt by name, and the other two renders are not, so the check demands
+  they be listed in a plan that is already merged and approved. #90 is the live case — rule 7 asked for
+  a lesson pointer in the same pull request, and there was no green route to it. Either all three
+  renders are exempt or none is; `CLAUDE.md` alone is the accident of it having once been the only one.
+  Needs an intent, and until then a rules-fragment line either rides the active item's plan or merges
+  with the check red (`knowledge/decisions/merge-click-is-the-gate.md`).
+- **Open pull requests**: #88 `retire-delegated-items` intent (green, mergeable, `Important: 0 | Nits: 0`
+  on its last two reviews); #60 `risk-detour` and #61 `standing-grant` intents, both merging clean against
+  `c18a9ee` as this is written; #65 and #66 dependabot; #67 `plan-adherence` and #68 `revision` drafts.
+  All three intents still carry unanswered open questions with a proposal under each.
+- Still true: `ci-budget` is un-retired with a scheduled session on 2026-09-20 for its acceptance step;
+  branch protection is absent on `main`; the `triage` label does not exist; local runs need
+  `GH_TOKEN`/`GITHUB_TOKEN` unset and there is no `gh` binary in the container; the approvals hook refuses
+  any Bash text naming the human approval script, so a spec's acceptance command must not name it.
+
+## Task state (2026-09-14 ~05:00 UTC) — HISTORY, superseded by the section above
 - **`approve-tap-regenerates-index` is retired and `.sdlc/active` names `advance-push`.** The owner did
   both from the web editor in five commits (`e7d7ae7`, `f00c002`, `58a5852` set the three artifacts
   `superseded`; `4d9ccd9` the three ledger lines; `5a58b17` the pointer). #84 merged by the owner's click
@@ -339,22 +469,35 @@ before acting, whatever this section says. It is written for the state as of the
 that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
 "Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'
-(2026-09-14 ~05:00 UTC). Your item is `advance-push`: `.sdlc/active` names it, its intent is approved by
-luissiviero with `mode: supervised` and `risk-class: low`, and it has no spec and no plan. Write the spec
-with /sdlc-spec, ask the owner for the tap (Actions -> approve -> Run workflow, naming slug, artifact and
-mode) and wait; then /sdlc-plan and the same tap; then Build. Never write approved, never merge, never
-move `.sdlc/active`. Its Build edits scripts/delegated_merge.py, on the policy's locked-paths, so its
-pull request ends in the owner's click whatever else is true. The defect it fixes: after a delegated
-merge the advance commits on a checkout taken before the merge and pushes non-fast-forward, and the
-rejection is swallowed; `6c7be5f` and `ae69ebc` on main are two live merges where the pointer did not
-move and `git log --grep='Advance .sdlc/active'` is still empty. Before cutting your branch run
-`python3 scripts/gen_index.py --check` on main: a human commit leaves the indexes stale and a branch cut
-inside that window fails verify on a file nobody edited. Do not touch `ci-budget`, which has a scheduled
-session on 2026-09-20, and do not reopen `approve-tap-regenerates-index`, which is retired. Run
-scripts/verify.sh, the chain check with --slug advance-push, scripts/run_evals.sh and scripts/check_okf.py
-before asking the owner for anything."
+(2026-09-14 ~19:00 UTC). `retire-delegated-items` is merged and retired; nothing is in flight and no item
+is yours yet. Before anything else run `python3 scripts/gen_index.py --check` and `scripts/verify.sh` on
+main. If verify ends `FAIL: no active work item (.sdlc/active is empty ...)`, the pointer is still empty:
+ask the owner to point it by re-running the retire tap (Actions -> approve -> Run workflow on main, `mode`
+`retire`, `slug` `retire-delegated-items`, `next` the item they want active; every artifact is already
+superseded, so only the pointer moves and the indexes regenerate with it) and wait; until then every pull
+request is red on verify. If a web-editor commit left the indexes stale, regenerate them under the item
+whose index it is. Then ask the owner which item is next and wait. Two intents are open with unanswered
+open questions carrying a proposal: #60 `risk-detour` (low, the only grantable one, and what a queue that
+does not stop on non-low work needs first) and #61 `standing-grant` (medium, and it depends on the other
+two). An intent may be merged with its questions still blank, but do not let it be tapped until they are
+answered: a tap starts the spec on unconfirmed proposals. Never write approved, never merge, never move
+`.sdlc/active`. Do not touch `ci-budget`, which has a scheduled session on 2026-09-20, even if the pointer
+names it as a placeholder. The first delegated merge after now is the production observation
+`advance-push` was built for: read its job log for `ADVANCE: .sdlc/active -> <slug>` and check that main
+gained an advance commit whose first parent is the merge commit, then record it in the next Task state.
+Three defects are filed in the Task state and need an intent each: the self-check fails on an empty
+pointer instead of noting it, `EXEMPT` in the chain check lists `CLAUDE.md` but not `GEMINI.md` or
+`AGENTS.md`, and the chain check crashes on a token with no `gh` binary instead of returning the no-token
+note. Run scripts/verify.sh, the chain check with --slug <your item>, scripts/run_evals.sh and
+scripts/check_okf.py before asking the owner for anything."
 
-(Superseded, kept as a record: the prompt before it named `approve-tap-regenerates-index` as the active
+(Superseded, kept as a record: the prompt before it named `retire-delegated-items` as the active item
+with #92 open or merged, and told the next session to ask for the retire tap if it had not happened.
+Before that, the prompt said nothing was in flight, `.sdlc/active` named
+`advance-push`, finished and merged, and told the next session to ask the owner to retire it and say
+which item was next. Before that, the prompt named `advance-push` as the item to take from spec to
+Build, with the two live merges `6c7be5f` and `ae69ebc` as the evidence its spec should cite. Before that,
+the prompt named `approve-tap-regenerates-index` as the active
 item with its follow-up #84 open, and told the next session to ask the owner which of that item and
 `advance-push` went first. Before that: "Read docs/sdlc/handoff/HANDOFF.md on main, starting
 at 'Session protocol' and the newest 'Task state' (2026-09-14 ~01:50 UTC). Two work items are approved and
@@ -407,16 +550,24 @@ Batch A is merged; open Batch B starting with WI-7 band-detector.")
   "Session protocol".
   `require-plan.sh` blocks every write under `scripts/` (including Bash text that mentions
   `scripts`) until the active plan is approved by a `tech-lead`.
-- Retiring an item is a human act, from the web editor today (`work/retire-active-pointer`): set
-  `status: superseded` on `intent.md`, `spec.md` and `plan.md`, append one `approved -> superseded` (or
-  `delegated -> superseded`) ledger line per artifact, and set `.sdlc/active` to the next item or to empty.
-  `require-plan.sh` refuses a `superseded` plan; `check_artifact_chain.py` fails every pull request whose base
-  already has `.sdlc/active` naming a retired item (the retiring pull request itself gets a note to move the
-  pointer), and notes one whose `Work-Item` differs from the pointer. It also fails any pull request whose
-  `Work-Item:` names a **retired** item, since every chain artifact must read `approved`: so a pull request
-  cleaning up *after* a retirement (regenerating the indexes the web-editor route leaves stale, say) must
-  leave the `Work-Item:` line off — `sdlc-gate.yml` then falls back to `.sdlc/active`, which names a live
-  item. Verify such a pull request with the slug the gate will use, not with the default. Fix the body
+- Retiring an item is a human act, and since `work/retire-delegated-items` it is one tap on `main`:
+  **Actions -> approve -> Run workflow** with `mode` `retire`, the `slug` (required) and `next` (the slug to
+  point `.sdlc/active` at; blank clears a pointer naming the retired item and leaves any other alone). The
+  run sets `status: superseded` on every present artifact with its `approved-by` untouched, appends one
+  `approved -> superseded` (or `delegated -> superseded`) ledger line per artifact, moves the pointer and
+  regenerates the indexes in one commit. The web editor still works for the same four edits and still leaves
+  the indexes stale (`knowledge/lessons/human-commits-leave-indexes-stale.md`). `check_artifact_chain.py`
+  judges a retired artifact by who retired it -- the retiring ledger line's actor, who must hold the
+  artifact's role, and the commit that set `superseded`, by author or by verified trailer -- so an
+  agent-signed item retires into a green chain; `approved-by` is validated against the approver list only
+  where the ledger shows no signature. `require-plan.sh` refuses a `superseded` plan; the check fails every
+  pull request whose base already has `.sdlc/active` naming a retired item (the retiring pull request itself
+  gets a note to move the pointer), and notes one whose `Work-Item` differs from the pointer. A pull request
+  whose `Work-Item:` names a **retired** item passes only in in-progress mode (its own files and the two
+  indexes, nothing else): so a clean-up after a retirement carries the retired slug's line, and a pull
+  request carrying code never does. A retirement on a branch that *moves* the pointer is strict, because
+  `.sdlc/active` counts as the item's own file only while it names the item; that is why the tap runs on
+  `main` and its role gate refuses any other branch. Verify such a pull request with the slug the gate will use, not with the default. Fix the body
   **before** the push: the gate resolves the slug from `github.event.pull_request.body` in the event payload,
   so a body edited after the push never reaches the run it was meant to fix, and re-running that run replays
   the same payload. Only the next push carries a corrected body. Nothing *retires* an item on merge

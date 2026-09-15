@@ -5,7 +5,7 @@ title: Fetch, compare, fast-forward, then write; six cases in a new module, five
 description: "delegated_merge.advance() gains a merge_sha keyword and three steps before its dirty check (fetch the checkout's branch, refuse unless the fetched tip is the merge commit, fast-forward with --ff-only), run() passes the merge endpoint's sha; six cases in the new scripts/test_delegated_merge_advance.py on a fixture whose bare remote moves after the checkout, five red before the code; one sentence in knowledge/decisions/run-queue.md."
 stage: build
 # status: draft | in-review | approved | delegated | superseded  (require-plan.sh refuses code edits until approved)
-status: approved
+status: superseded
 # kind: feature | fix  (fix: protect-tests.sh refuses edits to existing test files)
 kind: fix
 reads: spec.md

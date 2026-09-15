@@ -630,6 +630,30 @@ class DispatchAttestation(unittest.TestCase):
         self.assertIs(ok, False)
         self.assertIn("names no slug", detail)
 
+    def test_a_retire_run_verifies_any_artifact_and_an_approval_run_does_not(self):
+        """work/retire-delegated-items R-3: one retire run supersedes every present artifact, so the
+        title's artifact segment is whatever the ignored `artifact` input showed and the mode segment
+        is the binding instead; the slug binding still holds. An approval run can never have set
+        `superseded`, so a `(supervised)` title is refused for one. `_verify` is left as it is (this
+        module receives additions only, spec R-4): the flag reaches the function through the module
+        attribute `_verify` looks up on each call."""
+        real = self.cac.verify_dispatch_run
+        self.cac.verify_dispatch_run = lambda *a, **kw: real(*a, retired=True, **kw)
+        try:
+            run = self._run_json(display_title="approve intent.md (retire) on demo by @luissiviero")
+            ok, detail = self._verify(run, slug="demo", artifact="spec.md")
+            self.assertIs(ok, True, detail)
+            run = self._run_json(display_title="approve intent.md (supervised) on demo by @luissiviero")
+            ok, detail = self._verify(run, slug="demo", artifact="spec.md")
+            self.assertIs(ok, False)
+            self.assertIn("does not name", detail)
+            run = self._run_json(display_title="approve intent.md (retire) on other by @luissiviero")
+            ok, detail = self._verify(run, slug="demo", artifact="spec.md")
+            self.assertIs(ok, False)
+            self.assertIn("not 'demo'", detail)
+        finally:
+            self.cac.verify_dispatch_run = real
+
     def _verify(self, run, actor="luissiviero", token="t", slug=None, artifact=None,
                 commit_sha=None):
         """verify_dispatch_run with the API call stubbed out at the subprocess boundary."""
@@ -1393,6 +1417,148 @@ class DirtyTree(unittest.TestCase):
             self.assertEqual(len(fails), 1, result.stdout)
             self.assertIn("cannot tell whether the working tree is clean", fails[0])
             self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+
+
+class RetiredDelegatedItem(unittest.TestCase):
+    """work/retire-delegated-items R-1 to R-4: a superseded artifact is judged by who retired it --
+    the actor of its `-> superseded` ledger line and the author, or the verified trailer, of the
+    commit that set the status -- never by approved-by, which keeps the signature it earned. The
+    fixture is the first delegated item this repository retired: intent.md human-approved and
+    granted, spec.md signed `delegated` by claude, plan.md human-approved; then all three
+    `superseded` on a branch, the pointer left on another live item so the diff is the item's own
+    files and the check takes in-progress mode (a moved pointer is strict, by own_artifact)."""
+
+    TRAILERS = "\n\nApproved-Run: {run}\nApproved-Actor: {actor}\n"
+
+    @staticmethod
+    def _retire_agent_signed(root, wd, actor, trailers=None, stray=None):
+        """Retire the _base_delegated_repo item the way a human does, keeping every approved-by:
+        intent.md (granted, approved by luissiviero), spec.md (delegated, signed by claude) and
+        plan.md (approved by luissiviero) go superseded, one ledger line each with `actor`.
+        Committed by the human identity, or -- with `trailers` naming the run's actor -- shaped as
+        approve_dispatch.py shapes a tap's commit: that actor as author, the bot as committer, both
+        trailers. `stray` adds a file outside the item, which flips the check to strict mode."""
+        _write(os.path.join(root, "work", "other", "intent.md"), _artifact("", status="in-review"))
+        _write(os.path.join(root, ".sdlc", "active"), "other\n")
+        _commit_as(root, HUMAN_NAME, HUMAN_EMAIL, "point at the next item")
+        _git(root, "checkout", "-q", "-b", "work/demo")
+        _write(os.path.join(wd, "intent.md"), _grant_intent().replace("status: approved", "status: superseded"))
+        _write(os.path.join(wd, "spec.md"), _artifact("claude", status="superseded"))
+        _write(os.path.join(wd, "plan.md"), _plan(HUMAN_NAME, status="superseded"))
+        with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+            for name, old in (("intent.md", "approved"), ("spec.md", "delegated"), ("plan.md", "approved")):
+                f.write(f"- 2026-09-14T00:00:00Z | {name} | {old} -> superseded | {actor} | abc1234 | retired\n")
+        if stray:
+            _write(os.path.join(root, stray), "x\n")
+        if trailers is None:
+            _commit_as(root, HUMAN_NAME, HUMAN_EMAIL, "retire the item")
+            return
+        _git(root, "add", "-A")
+        who = "%s <69210737+%s@users.noreply.github.com>" % (trailers, trailers)
+        _git(root, "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com",
+             "-c", "user.name=github-actions[bot]", "commit", "-q", "--author", who,
+             "-m", "[demo] Retire as " + trailers
+             + RetiredDelegatedItem.TRAILERS.format(run="12345", actor=trailers))
+
+    @staticmethod
+    def _check(root):
+        """The chain check against main with no token, so a trailer takes the no-token route the
+        way a local run does (the API is never asked for run 12345)."""
+        env = {k: v for k, v in os.environ.items() if k not in ("GH_TOKEN", "GITHUB_TOKEN")}
+        return subprocess.run([sys.executable, SCRIPT, "--slug", "demo", "--base", "main"],
+                              cwd=root, capture_output=True, text=True, env=env)
+
+    def test_human_retirement_of_an_agent_signed_item_passes(self):
+        """R-1: approved-by: claude on the retired spec.md is history, not the retirer."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            self._retire_agent_signed(root, wd, HUMAN_NAME)
+            result = self._check(root)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS", result.stdout + result.stderr)
+            self.assertIn("mode: in-progress", result.stdout)
+            self.assertNotIn("approved-by 'claude' is not valid", result.stdout)
+
+    def test_agent_actor_on_the_retiring_line_fails_naming_the_line(self):
+        """R-2: the retiring line's actor is the decision, and one cause is one FAIL line."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            self._retire_agent_signed(root, wd, "claude")
+            result = self._check(root)
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL")
+            self.assertIn("no entry recording spec.md superseded by a valid approver", result.stdout)
+            fails = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:") and "spec.md" in l]
+            self.assertEqual(len(fails), 1, result.stdout)
+
+    def test_tap_retirement_with_trailers_passes(self):
+        """R-3: on the trailer route the deciding handle is compared to the retiring line's actor,
+        not to approved-by; with no token the trailer is accepted on the author rule."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            self._retire_agent_signed(root, wd, HUMAN_NAME, trailers=HUMAN_NAME)
+            result = self._check(root)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: PASS", result.stdout + result.stderr)
+            self.assertNotIn("the run's actor is the deciding handle", result.stdout)
+            self.assertIn("accepted on the author rule alone", result.stdout)
+
+    def test_agent_actor_on_the_retiring_line_is_one_fail_on_the_trailer_route_too(self):
+        """R-2 on the trailer route (plan review on pull request 92): with no valid retiring line
+        there is no handle to bind the run to, and the ledger rule's line is the one report."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            self._retire_agent_signed(root, wd, "claude", trailers=HUMAN_NAME)
+            result = self._check(root)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
+            fails = [l for l in result.stdout.splitlines() if l.startswith("  FAIL:") and "spec.md" in l]
+            self.assertEqual(len(fails), 1, result.stdout)
+            self.assertIn("no entry recording spec.md superseded by a valid approver", fails[0])
+
+    def test_a_delegated_line_by_another_handle_switches_nothing_off(self):
+        """Security pass on pull request 92: the signature that spares approved-by from the approver
+        list is the `-> delegated` line whose actor is that very handle; a fabricated line by some
+        other handle on a human-approved, bot-attributed plan leaves the approver check in place."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _make_repo(root)
+            _git(root, "checkout", "-q", "-b", "work/demo")
+            _write(os.path.join(wd, "plan.md"), _plan("claude[bot]", status="superseded"))
+            with open(os.path.join(wd, "log.md"), "a", encoding="utf-8") as f:
+                f.write("- 2026-01-02T00:00:00Z | plan.md | in-review -> delegated | someone | abc1234 |\n")
+                f.write("- 2026-01-02T00:00:00Z | plan.md | approved -> superseded | luissiviero | abc1234 | retired\n")
+            _commit_as(root, HUMAN_NAME, HUMAN_EMAIL, "retire with a bot approver and a stray signature line")
+            result = self._check(root)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
+            self.assertIn("approved-by 'claude[bot]' is not valid", result.stdout)
+
+    def test_the_append_hint_never_names_the_agent(self):
+        """Security pass on pull request 92: on a signed artifact the hint's actor is not approved-by."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            self._retire_agent_signed(root, wd, "claude")
+            result = self._check(root)
+            hints = [l for l in result.stdout.splitlines() if "spec.md" in l and "append:" in l]
+            self.assertEqual(len(hints), 1, result.stdout)
+            self.assertNotIn("| claude |", hints[0])
+            self.assertIn("delegated -> superseded", hints[0])
+
+    def test_tap_retirement_by_a_handle_outside_the_role_fails(self):
+        """R-3, a pin: loosening the approver rule on approved-by opens nothing for a retirer
+        outside the role, on either route."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            self._retire_agent_signed(root, wd, "someone-else", trailers="someone-else")
+            result = self._check(root)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
+            self.assertIn("superseded by a valid approver", result.stdout)
+
+    def test_strict_mode_still_refuses_a_superseded_artifact(self):
+        """R-4, a pin: a pull request carrying anything but the item's own files names a live item."""
+        with tempfile.TemporaryDirectory() as root:
+            wd = _base_delegated_repo(root)
+            self._retire_agent_signed(root, wd, HUMAN_NAME, stray="src/x.txt")
+            result = self._check(root)
+            self.assertEqual(_last_line(result.stdout), "CHAIN: FAIL", result.stdout)
+            self.assertIn("status is 'superseded', must be 'approved'", result.stdout)
+            self.assertNotIn("mode: in-progress", result.stdout)
 
 
 if __name__ == "__main__":

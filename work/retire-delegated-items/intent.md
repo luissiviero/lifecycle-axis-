@@ -5,11 +5,11 @@ title: A delegated item cannot be retired into a green chain, and its retirement
 description: "An agent signs spec.md and plan.md with approved-by: claude; when the owner retires the item the chain check validates superseded against the approver list exactly as approved, so every pull request that names the retired item fails, including the one that regenerates the indexes the web-editor retirement left stale. Make superseded a human act the check reads from the ledger, and make the retirement a tap that regenerates what it changes."
 stage: plan
 # status: draft | in-review | approved | delegated | superseded
-status: in-review
+status: superseded
 author: Luis Siviero (repo owner), who retired work/approve-tap-regenerates-index on 2026-09-14 and hit both halves; drafted by Claude from the measurement on pull request 86 and the 2026-09-13 retrospective that predicted it
 # approved-by: product owner; set only by a human, with scripts/approve.py from their own shell
-approved-by:
-approved-on:
+approved-by: luissiviero
+approved-on: 2026-09-14
 # risk-class: low | medium | high; the grant below is valid only for classes the policy lists
 risk-class: medium
 # mode: supervised | delegated; delegated-by and delegated-on are set only by a human, like approved-by
@@ -61,11 +61,14 @@ and one red merge to close it. Every delegated item from here on repeats that.
   line whose actor is a handle in `.sdlc/approvers.yaml` in a commit that handle authored,
   `python3 scripts/check_artifact_chain.py --slug <item>` ends `CHAIN: PASS` in both modes; the same
   tree with that ledger line's actor set to `claude` ends `CHAIN: FAIL` naming the line. A new case in
-  `scripts/test_check_artifact_chain.py` pins each half, red before the change.
+  `scripts/test_check_artifact_chain.py` pins each half, red before the change. The change is narrow: the
+  check already locates the commit that set `superseded` and requires a human author; what fails is the
+  separate, earlier validation of `approved-by` against the approver list, applied to `superseded` exactly
+  as to `approved`. Skip that one validation on `superseded` and the existing author check carries the weight.
 - A retirement is one tap that regenerates what it changes. Observable: `.github/workflows/approve.yml`
   accepts `mode: retire` (or an equivalent input the spec decides), runs the retirement the way the
-  approval script would (three `superseded` statuses, three ledger lines, the pointer cleared or left to
-  the owner's next grant), and commits through `scripts/approve_dispatch.py --commit`, which already
+  approval script would (three `superseded` statuses, three ledger lines, and the pointer set from a
+  `next` input: a slug repoints it, blank clears it), and commits through `scripts/approve_dispatch.py --commit`, which already
   regenerates the indexes; `gen_index.py --check` on the resulting commit prints `INDEX: up to date`. The
   web-editor route stays valid for a human who prefers it, and stays stale, as the lesson records.
 - Nothing an agent can do becomes wider. Observable: `protect-approvals.sh` still refuses an Edit that
@@ -109,15 +112,15 @@ supervised by construction and needs the tech lead's eye on spec and plan.
   attestation, or a separate script? Proposed: `approve.py --retire`, so the tap runs the one script a
   human would run in a shell and the trailers, the role gate and the committer are the ones already
   verified; the script refuses an agent session as it does today.
-  A:
+A: yes, approve.py --retire under the same attestation. Retiring advance-push today took five web-editor commits, a pasted ledger block that landed one line twice, and a separate pull request (#91) to regenerate the two indexes; one tap through the script and approve_dispatch.py --commit does all of that in one commit with the indexes already regenerated. The script keeps refusing an agent session.
 - Q: should the retirement tap also clear `.sdlc/active`, or leave the pointer for the next grant tap to
   move? Proposed: leave it; every grant tap repoints the pointer, and clearing it makes the next
   `/sdlc-run` precondition fail until the owner taps again anyway.
-  A:
+A: move it, never leave it. The tap takes a `next` input: a slug repoints .sdlc/active at it, blank clears it. A retired slug left in the pointer fails every later pull request, which check_artifact_chain.py already detects and reports. This also becomes the only tap that can point at a supervised item, since a supervised approval tap moves nothing today and I moved the pointer by hand. An empty pointer is a handled state, but any pull request with no Work-Item line then fails the check, so a handoff-only pull request carries the line or I point first.
 - Q: for the chain check, is the retiring ledger line enough, or must the retirement commit also carry
   `Approved-Run`/`Approved-Actor` trailers like a dispatch approval? Proposed: the ledger line's actor
   plus the commit's author for a shell or web-editor retirement, and the trailers when the tap did it,
   the same two routes the chain check already walks for `approved-by` (the trailer route when
   `dispatch_attestation` finds one on the commit, the author rule otherwise, at
   `scripts/check_artifact_chain.py:806`).
-  A:
+A: yes, both routes. Today's five retirement commits are authored by luissiviero with GitHub's web-flow committer, which is the author rule; a tap will carry Approved-Run and Approved-Actor trailers, which is the trailer route. The check reads whichever the commit that set superseded has, and never approved-by, which stays the signature's record.

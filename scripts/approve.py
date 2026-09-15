@@ -4,8 +4,20 @@
 Usage:
   scripts/approve.py <slug> <artifact>... [--as HANDLE] [--note TEXT] [--delegate] [--activate] [--dry-run]
                      [--from-dispatch RUN_ID]
+  scripts/approve.py <slug> [<artifact>...] --retire [--next SLUG] [--as HANDLE] [--note TEXT] [--dry-run]
+                     [--from-dispatch RUN_ID]
 
   <artifact> is one of intent.md, spec.md, plan.md, incident.md (or several).
+  --retire      retire the item instead of approving it (work/retire-delegated-items R-5): every
+                named artifact -- by default every chain artifact present -- goes `status: superseded`
+                with approved-by and approved-on untouched (a human's approval or the agent's signature
+                stays the record), and one `<old> -> superseded` ledger line each. Every present
+                artifact must be approved, delegated or already superseded (skipped); a draft or
+                in-review one is refused and nothing is written. The handle must hold every artifact's
+                role. Refuses --delegate and --activate.
+  --next SLUG   with --retire (R-6): point .sdlc/active at SLUG, an existing work item that is not
+                retired. Blank, or omitted, clears a pointer that names the retired item and leaves a
+                pointer at any other item as it is, so a retired slug never stays in the pointer.
   --as HANDLE   GitHub handle recorded as approved-by (default: `git config sdlc.approver`; there is
                 no fallback to user.name, a display name is not a handle); it must hold the
                 artifact's role in .sdlc/approvers.yaml.
@@ -52,7 +64,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import approvers  # noqa: E402
 import log_ledger  # noqa: E402
-from check_artifact_chain import ROOT, front_matter  # noqa: E402
+from check_artifact_chain import ROOT, SLUG_RE, front_matter  # noqa: E402
 
 ARTIFACTS = ("intent.md", "spec.md", "plan.md", "incident.md")
 PREDECESSOR = {"spec.md": "intent.md", "plan.md": "spec.md"}
@@ -60,6 +72,138 @@ PREDECESSOR = {"spec.md": "intent.md", "plan.md": "spec.md"}
 
 def git(*args):
     return subprocess.run(["git", *args], capture_output=True, text=True, cwd=ROOT).stdout.strip()
+
+
+def append_ledger(wd, slug, ts, lines):
+    """Append rendered ledger lines to work/<slug>/log.md, creating it from the template shape if absent."""
+    log_path = os.path.join(wd, "log.md")
+    if not os.path.exists(log_path):
+        header = (f"---\ntype: sdlc/log\nid: {slug}-log\ntitle: Gate ledger for {slug}\n"
+                  f"description: Chronological record of stage transitions and approvals for this work item.\n"
+                  f"timestamp: {ts}\n---\n# Log: {slug}\n\n"
+                  "Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>` "
+                  "(append-only; parsed by scripts/log_ledger.py).\n\n")
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(header)
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def retire(a, av, wd, handle):
+    """--retire: validate every write first, in one pass, then write (R-5, R-6). Returns an exit code."""
+    now = datetime.now(timezone.utc)
+    ts = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    sha = git("rev-parse", "--short", "HEAD") or "0000000"
+
+    names = [n for n in ARTIFACTS if n in a.artifacts] or \
+        [n for n in ARTIFACTS if os.path.exists(os.path.join(wd, n))]
+    if not names:
+        print(f"approve: work/{a.slug} has no chain artifact to retire", file=sys.stderr)
+        return 1
+    todo, skipped = [], []  # (name, path, old_status, new_text)
+    for name in names:
+        path = os.path.join(wd, name)
+        fm = front_matter(path)
+        if fm is None:
+            print(f"approve: work/{a.slug}/{name} is missing", file=sys.stderr)
+            return 1
+        ok, reason = av.is_valid(name, handle)
+        if not ok:
+            print(f"approve: '{handle}' may not retire {name}: {reason}", file=sys.stderr)
+            return 1
+        old = fm.get("status", "draft") or "draft"
+        if old == "superseded":
+            skipped.append(name)
+            continue
+        if old not in ("approved", "delegated"):
+            print(f"approve: work/{a.slug}/{name} is '{old}'; a retirement supersedes approved or "
+                  f"delegated artifacts only", file=sys.stderr)
+            return 1
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        todo.append((name, path, old, set_front_matter(text, {"status": "superseded"})))
+
+    # The pointer (spec D3): a slug repoints it, blank clears it when it names the retired item, and a
+    # pointer at any other item is left alone. Judged before any write, like everything above. A
+    # partial retirement (some named artifacts, others still live) moves nothing: the item is not
+    # retired, and an empty pointer would fail every later pull request without a Work-Item line
+    # (security pass on pull request 92).
+    active_path = os.path.join(ROOT, ".sdlc", "active")
+    current = ""
+    if os.path.exists(active_path):
+        with open(active_path, encoding="utf-8") as f:
+            current = f.read().strip()
+    present = [n for n in ARTIFACTS if os.path.exists(os.path.join(wd, n))]
+    whole = all(
+        n in names or (front_matter(os.path.join(wd, n)) or {}).get("status") == "superseded"
+        for n in present
+    )
+    nxt = a.next_slug or ""
+    if nxt and not whole:
+        live = ", ".join(n for n in present if n not in names)
+        print(f"approve: --next moves the pointer off an item that is still live ({live} not retired); "
+              f"retire every artifact, or omit --next", file=sys.stderr)
+        return 1
+    if nxt:
+        if not SLUG_RE.match(nxt):
+            print(f"approve: --next '{nxt}' is not a work-item slug (letters, digits, '_' and '-', "
+                  f"with '.'-separated parts)", file=sys.stderr)
+            return 1
+        if nxt == a.slug:
+            print("approve: --next may not name the item being retired", file=sys.stderr)
+            return 1
+        nfm = front_matter(os.path.join(ROOT, "work", nxt, "intent.md"))
+        if nfm is None:
+            print(f"approve: --next '{nxt}' names no work/{nxt}/intent.md", file=sys.stderr)
+            return 1
+        if nfm.get("status") == "superseded":
+            print(f"approve: --next '{nxt}' is retired (work/{nxt}/intent.md is superseded)", file=sys.stderr)
+            return 1
+        pointer, said = nxt, f"pointer: .sdlc/active -> {nxt}"
+    elif current == a.slug and not whole:
+        pointer, said = None, "pointer: .sdlc/active still names the item, which is not fully retired; left as it is"
+    elif current == a.slug:
+        pointer, said = "", "pointer: .sdlc/active cleared"
+    elif current:
+        pointer, said = None, f"pointer: .sdlc/active names '{current}', left as it is"
+    else:
+        pointer, said = None, "pointer: .sdlc/active is empty, left as it is"
+    move = pointer is not None and pointer != current
+
+    lines, changed = [], []
+    for name, path, old, new_text in todo:
+        entry = log_ledger.Entry(ts=ts, artifact=name, from_status=old, to_status="superseded",
+                                 actor=handle, sha=sha, note=a.note, lineno=0)
+        line = log_ledger.render(entry)
+        print(f"{'would retire' if a.dry_run else 'retired'}: work/{a.slug}/{name} ({old} -> superseded) by {handle}")
+        print(f"  ledger: {line}")
+        if not a.dry_run:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(new_text)
+            lines.append(line)
+        changed.append(name)
+    for name in skipped:
+        print(f"approve: work/{a.slug}/{name} already superseded; nothing to do")
+    if lines:
+        append_ledger(wd, a.slug, ts, lines)
+    if move and not a.dry_run:
+        with open(active_path, "w", encoding="utf-8") as f:
+            f.write(pointer + "\n" if pointer else "")
+    print(said if move or pointer is None else said + " (already)")
+
+    if changed and not a.dry_run and a.from_dispatch is not None:
+        out = os.environ.get("GITHUB_OUTPUT")
+        if out:
+            with open(out, "a", encoding="utf-8") as f:
+                f.write(f"retired={' '.join(changed)}\n")
+                f.write(f"run-id={a.from_dispatch}\n")
+                f.write(f"actor={handle}\n")
+    elif (changed or move) and not a.dry_run:
+        paths = f"work/{a.slug}" + (" .sdlc/active" if move else "")
+        print("\nNext: review the diff, then commit as yourself:")
+        print(f"  git add {paths} && git commit -m \"[{a.slug}] retire\"")
+        print("  python3 scripts/check_artifact_chain.py --slug", a.slug, "--base origin/main")
+    return 0
 
 
 def set_front_matter(text, updates):
@@ -83,16 +227,40 @@ def set_front_matter(text, updates):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("slug")
-    ap.add_argument("artifacts", nargs="+", choices=ARTIFACTS, metavar="artifact")
+    # No `choices` here: argparse validates the empty default of a `*` positional against them and
+    # refuses `<slug> --retire`; the names are checked below instead.
+    ap.add_argument("artifacts", nargs="*", metavar="artifact",
+                    help="one or more of " + ", ".join(ARTIFACTS))
     ap.add_argument("--as", dest="handle")
     ap.add_argument("--note", default="")
     ap.add_argument("--delegate", action="store_true",
                     help="with intent.md: also grant delegated mode (mode/delegated-by/delegated-on)")
     ap.add_argument("--activate", action="store_true")
+    ap.add_argument("--retire", action="store_true",
+                    help="retire the item: superseded on every present artifact, a ledger line each")
+    ap.add_argument("--next", dest="next_slug", default=None, metavar="SLUG",
+                    help="with --retire: point .sdlc/active at SLUG; blank clears a pointer naming the item")
     ap.add_argument("--from-dispatch", dest="from_dispatch", metavar="RUN_ID",
                     help="run inside the approve.yml workflow_dispatch run RUN_ID; requires --as")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
+
+    # `artifacts` is optional only under --retire, where it defaults to every artifact present;
+    # an approval of nothing is a usage error, as it was when the positional was required.
+    if not a.artifacts and not a.retire:
+        ap.error("at least one artifact is required (or --retire)")
+    unknown = [x for x in a.artifacts if x not in ARTIFACTS]
+    if unknown:
+        ap.error(f"argument artifact: invalid choice: {unknown[0]!r} (choose from {', '.join(ARTIFACTS)})")
+    if a.retire and a.delegate:
+        print("approve: --retire and --delegate are exclusive", file=sys.stderr)
+        return 1
+    if a.retire and a.activate:
+        print("approve: --retire takes --next, not --activate", file=sys.stderr)
+        return 1
+    if a.next_slug is not None and not a.retire:
+        print("approve: --next applies to --retire only", file=sys.stderr)
+        return 1
 
     # A dispatch run is the one caller that is neither a human shell nor an agent session: the
     # human act happened in the Actions tab, and GitHub -- not this process -- recorded who made
@@ -121,6 +289,8 @@ def main(argv=None):
     if not os.path.isdir(wd):
         print(f"approve: work/{a.slug} does not exist", file=sys.stderr)
         return 1
+    if a.retire:
+        return retire(a, av, wd, handle)
 
     # The grant lives on intent.md and nowhere else: a later artifact may not widen the item's
     # permission, and the agent never signs the file that grants it (work/delegated-mode R-8, D-b).
@@ -205,18 +375,8 @@ def main(argv=None):
             lines.append(line)
         changed.append(name)
 
-    log_path = os.path.join(wd, "log.md")
     if lines:
-        if not os.path.exists(log_path):
-            header = (f"---\ntype: sdlc/log\nid: {a.slug}-log\ntitle: Gate ledger for {a.slug}\n"
-                      f"description: Chronological record of stage transitions and approvals for this work item.\n"
-                      f"timestamp: {ts}\n---\n# Log: {a.slug}\n\n"
-                      "Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>` "
-                      "(append-only; parsed by scripts/log_ledger.py).\n\n")
-            with open(log_path, "w", encoding="utf-8") as f:
-                f.write(header)
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
+        append_ledger(wd, a.slug, ts, lines)
 
     if a.activate and not a.dry_run:
         with open(os.path.join(ROOT, ".sdlc", "active"), "w", encoding="utf-8") as f:
