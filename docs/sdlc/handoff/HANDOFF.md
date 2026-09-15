@@ -3,7 +3,7 @@ type: doc
 title: Session handoff (2026-09-15)
 description: "How to resume in a new session: the session protocol, the task state, the owner's routine, and the seed prompt the finishing session leaves for the next one."
 tags: [sdlc, handoff, playbook-comparison, delegated-mode]
-timestamp: 2026-09-15T01:50:00Z
+timestamp: 2026-09-15T02:30:00Z
 ---
 
 # Session handoff (read this first after any context reset)
@@ -69,7 +69,46 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-15 ~01:50 UTC)
+## Task state (2026-09-15 ~02:30 UTC)
+- **`parked-marker-on-retired` is granted and `.sdlc/active` names it; it is the whole queue.** After the
+  01:50 section: the owner locked `scripts/next_item.py` (`796d47b`, intent `risk-detour` Q5, done), merged
+  the handoff refresh #97 (`b15bacb`), retired `risk-detour` by tap with `next` `ci-budget` (`fd39dd0`:
+  three artifacts `superseded`, pointer `ci-budget`, indexes regenerated), then chose a separate low item for
+  the one defect that retirement exposed: the retired item's `work/index.md` row still read `parked` and its
+  index kept the `Parked:` line, because `gen_index.py` reads only the latest `parked:`/`resumed:` ledger
+  line and a retirement writes neither word. The session drafted `work/parked-marker-on-retired/intent.md`
+  (#98, `0a6d336`, one open question answered by the owner: the marker reads `parked` only for
+  `status: approved`), and the grant tap landed as `bad2b14` (`approved`, `mode: delegated`,
+  `delegated-on: 2026-09-15`, pointer moved to the item). On `bad2b14`: `INDEX: up to date`,
+  `VERIFY: PASS (bad2b14)`; `python3 scripts/next_item.py --list` prints `parked-marker-on-retired` and
+  nothing else.
+- **What the next session does: `/sdlc-run` on `parked-marker-on-retired`, spec to merged pull request.**
+  `kind: fix`: the regression case goes in a new module (`scripts/test_gen_index_retired.py`, the intent
+  names it; existing test files are locked under fix) and is seen red before the one condition in
+  `scripts/gen_index.py` changes; `next_item.parked_note` does not change (intent Must). Its file list is
+  `scripts/` and generated indexes only, so `check_detour.py` ends `DETOUR: none` and the delegated merge
+  should take the pull request: **this is the first delegated merge since `risk-detour` landed and the
+  production observation `advance-push` was built for.** Read the `delegated-merge` job log for
+  `ADVANCE: .sdlc/active -> (empty queue)` (the queue behind it is empty, so the advance clears the pointer),
+  check that `main` gained an advance commit whose first parent is the merge commit, and record both in the
+  next Task state. An empty pointer then makes `verify.sh` end `FAIL: no active work item` on every later
+  pull request (defect 1 below), so the next session's first ask to the owner is the retire tap with `next`
+  set to a placeholder, as on 2026-09-14.
+- **The predicted refusal on `risk-detour` is on record and the park machinery is in production.**
+  `delegated-merge` run `34917675636` ended `DELEGATED-MERGE: refused (locked-paths)` on
+  `.claude/skills/sdlc-intent/SKILL.md`; `next_item.py` skipped the parked item while it was active (the
+  queue printed nothing at `e7fa769`); the advance's own skip of a parked item is still proven on the merge
+  tests' fixture only.
+- **Still true**: deepen the clone first (resume step 8) and run the checks with
+  `env -u GH_TOKEN -u GITHUB_TOKEN`; the two red `delegated-merge` runs `34908767884` and `34909007398` are
+  unread; the filed defects keep the 01:50 section's numbers (defect 1: the self-check fails on an empty
+  pointer instead of noting it, and misattributes approvals on a shallow clone, one intent; defect 2:
+  `EXEMPT` in the chain check lists `CLAUDE.md` but not `GEMINI.md`/`AGENTS.md`; defect 3: the chain check
+  crashes on a token with no `gh` binary); `standing-grant` stays in-review, supervised, medium; `ci-budget`
+  keeps its session on 2026-09-20 15:00 UTC. The successor for this state was scheduled by the finishing
+  session through the session API (step 7(d)), the first time (d) has fired; no other trigger is armed.
+
+## Task state (2026-09-15 ~01:50 UTC) — HISTORY, superseded by the section above
 - **`risk-detour` is merged; `.sdlc/active` still names it, parked; nothing is queued.** The owner merged #96
   by click at 01:45 UTC (`c377b0c`) and #95, the earlier handoff refresh, right after (`e7fa769`). The pointer
   was last written by the grant tap (`3ce6eae`) and a click runs no advance, so it still reads `risk-detour`.
@@ -591,27 +630,37 @@ before acting, whatever this section says. It is written for the state as of the
 that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
 "Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'
-(2026-09-15 ~01:50 UTC). `risk-detour` is merged (#96, `c377b0c`) and parked in its own ledger; `.sdlc/active`
-still names it because a click runs no advance, and nothing is granted or queued, so no item is yours yet.
-Before anything else run `git fetch --unshallow origin` (the container clone is shallow and the chain check
+(2026-09-15 ~02:30 UTC). Your item is `parked-marker-on-retired`: `.sdlc/active` on main names it, and
+`work/parked-marker-on-retired/intent.md` is approved and delegated by the owner (commit `bad2b14`), with its
+one open question answered (the `parked` marker reads only for `status: approved`). Re-read both before
+acting. First run `git fetch --unshallow origin` (the container clone is shallow and the chain check
 misattributes approvals on it), then, with `env -u GH_TOKEN -u GITHUB_TOKEN` (the container sets a token but
 has no `gh`, and the chain check crashes on that), `python3 scripts/gen_index.py --check` and
-`scripts/verify.sh` on main; both were green on `e7fa769`. If the owner has retired `risk-detour` and verify
-ends `FAIL: no active work item`, the pointer is empty: ask for the retire tap to be re-run with `next` set
-to a placeholder (Actions -> approve -> Run workflow on main, `mode` `retire`, `slug` `risk-detour`, `next`
-`ci-budget`) and wait. Then ask the owner which item is next and wait; do not draft anything they have not
-named. Candidates: `standing-grant` (in-review, supervised, medium: it cannot be granted under a low-only
-policy and runs with the owner's taps at every gate; its answers 3 and Depends-on are overtaken), and four
-defects needing three `/sdlc-intent`s, numbered in the Task state (defect 1: the self-check fails on an
-empty pointer and misattributes on a shallow clone; defect 2: `EXEMPT` in the chain check lacks
-`GEMINI.md`/`AGENTS.md`; defect 3: the chain check crashes on a token with no `gh`). Every gate now runs `python3 scripts/check_detour.py` (`--paths`, `--plan`, `--diff`), and a
-`DETOUR: needed` line goes to the run skill's detour rule, never to a stop; a park is a `parked:` ledger line
-on intent.md. Never write approved or superseded, never touch the grant keys, never sign intent.md, never
-merge, never move `.sdlc/active`. Do not touch `ci-budget`, which has a scheduled session on 2026-09-20. Run
-scripts/verify.sh, the chain check with --slug <your item>, scripts/run_evals.sh and scripts/check_okf.py
-before asking the owner for anything."
+`scripts/verify.sh` on main; both were green on `bad2b14`. Then `/sdlc-run`: print the queue (it is this one
+item), `/sdlc-spec` and sign, `/sdlc-plan` (`kind: fix`; run `python3 scripts/check_detour.py --plan` on it,
+expect `DETOUR: none`) and sign, build on a `claude/` branch as a draft pull request with `Work-Item:
+parked-marker-on-retired`: the regression case in a new module `scripts/test_gen_index_retired.py`, seen red
+first, then the one condition in `scripts/gen_index.py`, then `python3 scripts/gen_index.py` (the
+`risk-detour` row and its index change, nothing else); `next_item.parked_note` does not change. Verify at
+every step, `/sdlc-review` on a different model from the writer, ready. No path is locked, so the
+delegated-merge workflow should merge it: that merge is the first delegated merge since `risk-detour` and
+the production observation `advance-push` was built for. When it merges, do step 7 of the run skill: read the
+`delegated-merge` job log for `ADVANCE: .sdlc/active -> (empty queue)`, check that main gained an advance
+commit whose first parent is the merge commit, re-read `.sdlc/active` (expect empty, since nothing else is
+granted), refresh the handoff's Task state and seed prompt on a fresh branch from main, open that pull request
+ready with `Work-Item: ci-budget` (the one item with a complete approved chain), and say that no successor is
+scheduled because the queue is empty. An empty pointer makes `verify.sh` end `FAIL: no active work item` on
+every later pull request, so tell the owner the next tap is the retire tap on `parked-marker-on-retired` with
+`next` `ci-budget`. Never write approved or superseded, never touch the grant keys, never sign intent.md,
+never merge, never move `.sdlc/active`. Do not touch `ci-budget`, which has a scheduled session on
+2026-09-20, nor `standing-grant`, nor the three defect intents the Task state numbers; they are not yours. Run
+scripts/verify.sh, the chain check with --slug parked-marker-on-retired, scripts/run_evals.sh and
+scripts/check_okf.py before asking the owner for anything."
 
-(Superseded, kept as a record: the prompt before it named `risk-detour` as the item to take from spec to a
+(Superseded, kept as a record: the prompt before it held no item, said `risk-detour` was merged and parked
+with the pointer still on it, and told the next session to run the checks with the token unset, ask for the
+retire tap if the pointer was empty, and ask the owner which item was next. Before that, the prompt named
+`risk-detour` as the item to take from spec to a
 ready pull request under `/sdlc-run`, said its skill, template and rule paths would make the merge a click,
 and told the session to do step 7 with `Work-Item: ci-budget` on the merge. Before that, the prompt held no
 item, told the next session to run the checks
