@@ -106,7 +106,8 @@ with `--plan work/<slug>/plan.md`, and mid-build with `--diff origin/main` (step
    with it, and open the item's own pull request (`Work-Item: <slug>`, own artifacts only, ready once step 4 is
    green). The delegated merge takes it and its advance moves `.sdlc/active` past the item: `next_item.py` skips
    an item whose latest `parked:`/`resumed:` line on `intent.md` is `parked:`. Never write a status word or a
-   front-matter key for a park; the owner resumes with a `resumed: <why>` line.
+   front-matter key for a park; the owner resumes with a `resumed: <why>` line, and only an actor holding the
+   `intent.md` role in `.sdlc/approvers.yaml` can (an agent's `resumed:` line changes nothing).
 4. **The remainder.** `/sdlc-intent <slug>-supervised` from the record's route section: `mode: supervised`, the
    record's risk class, `detour-of: <slug>`, on its own branch and pull request, never in the park pull request
    (a diff touching another item's `work/<other>/` drops the chain check to strict mode).

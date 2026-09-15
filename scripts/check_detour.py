@@ -116,7 +116,13 @@ def plan_paths(plan_file, root=None):
     if not inside:
         raise DetourInputError("%s has no '%s' heading" % (plan_file, FILES_HEADING))
     paths = []
-    for b in bullets:
+    for raw in bullets:
+        # One spelling per path, the matcher's (knowledge/lessons/one-path-spelling-in-guards.md):
+        # `./x` and `a/../x` are `x`. A bullet that leaves the root is bad input, not a clean path
+        # (security pass on pull request 96, nits 1 and 2).
+        b = os.path.normpath(raw).replace(os.sep, "/")
+        if os.path.isabs(raw) or b == ".." or b.startswith("../"):
+            raise DetourInputError("plan bullet '%s' is not a path under the repository root" % raw)
         if any(c in b for c in GLOB_CHARS):
             matches = sorted(glob.glob(b, root_dir=root, recursive=True))
             paths.extend(m.replace(os.sep, "/") for m in matches) if matches else paths.append(b)
@@ -132,16 +138,23 @@ def diff_paths(root, base):
                         capture_output=True, text=True)
     if ok.returncode != 0:
         raise DetourInputError("git cannot resolve '%s' as a commit" % base)
-    r = subprocess.run(["git", "-C", root, "diff", "--name-status", "-M", "%s...HEAD" % base, "--"],
+    # `-z`: NUL-terminated, so a name with a tab, a newline or a non-ASCII byte arrives as itself
+    # rather than C-quoted (`core.quotePath`), and the matcher sees the real name
+    # (knowledge/lessons/nul-terminated-git-output.md; security pass on pull request 96, finding 1).
+    # The record is `<status>NUL<path>NUL`, and `<status>NUL<old>NUL<new>NUL` for a rename or copy.
+    r = subprocess.run(["git", "-C", root, "diff", "--name-status", "-M", "-z", "%s...HEAD" % base, "--"],
                        capture_output=True, text=True)
     if r.returncode != 0:
         raise DetourInputError("git diff failed: %s" % (r.stderr.strip().splitlines() or ["?"])[-1])
-    paths = []
-    for line in r.stdout.splitlines():
-        fields = line.split("\t")
-        if len(fields) < 2:
-            continue
-        paths.extend(f for f in fields[1:] if f and f not in paths)
+    fields = r.stdout.split("\0")
+    paths, i = [], 0
+    while i < len(fields) and fields[i]:
+        status = fields[i]
+        take = 2 if status[:1] in ("R", "C") else 1
+        for name in fields[i + 1:i + 1 + take]:
+            if name and name not in paths:
+                paths.append(name)
+        i += 1 + take
     return paths
 
 

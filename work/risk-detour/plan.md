@@ -2,7 +2,7 @@
 type: sdlc/plan
 id: risk-detour
 title: Tests first, then the check, the queue rule, the index marker, the templates, the skills, two rewritten rule lines, three evals and the decision record, in one pull request the owner clicks
-description: "Twenty-nine files in one claude/ branch: eight under scripts/ (a new check_detour.py and its test module, a parked_note helper in next_item.py with four cases, a parked marker in gen_index.py with a golden case, a detour-record guard in test_sign.py, a new test_park_advance.py composing the merge tests' Advance fixture), three templates, four skills, two rule fragments with the three context files regenerated, three eval cases, a decision record with an amendment note and an index line, and the item's own artifacts; every new case is watched red before its code, the adopter's render is measured at the cap, and the last commit parks the item as `parked: ready PR #<n>; click needed (<path>)` because every skill, template and rule path sits on the merge script's ALWAYS_LOCKED floor."
+description: "Thirty-two files in one claude/ branch: eight under scripts/ (a new check_detour.py and its test module, a parked_note helper in next_item.py with four cases, a parked marker in gen_index.py with a golden case, a detour-record guard in test_sign.py, a new test_park_advance.py composing the merge tests' Advance fixture), three templates, four skills, two rule fragments with the three context files regenerated, three eval cases, a decision record with an amendment note and an index line, and the item's own artifacts; every new case is watched red before its code, the adopter's render is measured at the cap, and the last commit parks the item as `parked: ready PR #<n>; click needed (<path>)` because every skill, template and rule path sits on the merge script's ALWAYS_LOCKED floor."
 stage: build
 # status: draft | in-review | approved | delegated | superseded  (require-plan.sh refuses code edits until approved)
 status: delegated
@@ -31,12 +31,12 @@ on the intent). The pull request is the owner's click (spec C1): `.claude/skills
 - scripts/check_detour.py — new; `locked(paths, root, slug=None)`, `verdict(hits)`, `plan_paths(plan_file, root)`, `diff_paths(root, base)`, `main(argv)`; imports `delegated_merge` for `check_locked_paths`, `_locked_paths`, `ALWAYS_LOCKED`, `load_config`, and `delegation.load`; exit 0 `DETOUR: none`, 3 `DETOUR: needed (<n>)`, 2 bad input (spec R-2, Interfaces)
 - scripts/test_check_detour.py — new; classes `Matching`, `Sources`, `Cli` with the seven cases spec R-2 names, on a fixture root carrying its own `.sdlc/config.env` and `.sdlc/delegation.yaml`, and a throwaway git repository for `--diff`
 - scripts/next_item.py — `parked_note(entries)` and the `_eligible` branch before the spec test; docstring gains the parked rule (spec R-3)
-- scripts/test_next_item.py — `class Parked` with the four cases spec R-3 names; a `_log(lines)` fixture helper writing `work/<slug>/log.md`
+- scripts/test_next_item.py — `class Parked` with the five cases spec R-3 names; a `_log(root, slug, notes)` fixture helper writing `work/<slug>/log.md`; `_repo` also writes `.sdlc/approvers.yaml`
 - scripts/gen_index.py — `build_item` reads `next_item.parked_note(entries)` into `item["parked"]`; `_stage` unchanged, `render_top_index` writes `parked` in the stage cell when set; `render_item_index` writes `Parked: <note>` before `Last gate:` (spec R-6)
 - scripts/test_gen_index.py — `class ParkedMarker` with its own three-item tree and golden strings; existing goldens untouched (spec G-7)
 - scripts/test_sign.py — `REVISION_DETOUR_RECORD` constant in the template's detour shape and `SignPasses::test_resigns_with_a_detour_record` (spec R-1)
 - scripts/test_park_advance.py — new; `class ParkAdvance(test_delegated_merge.Advance)` overriding `setUp` to park `next-item` with a `parked:` ledger line, one case: the advance lands on `later-item` (spec R-4)
-- docs/sdlc/templates/revision.md — `kind:` key with its comment, `## Route (detour only)` section with five bullets, the detour question sentence in each `## Reviewer:` section, one sentence in `## Closing note` (spec R-1)
+- docs/sdlc/templates/revision.md — `kind:` key with its comment, `## Route (detour only)` section with five bullets, the detour question sentence in the first `## Reviewer:` section and "Same questions" in the second, one sentence in `## Closing note` (spec R-1)
 - docs/sdlc/templates/intent.md — `# detour-of:` comment and `detour-of:` key after `supersedes:` (spec R-5)
 - docs/sdlc/templates/log.md — one example line in the park shape (spec R-5, Interfaces)
 - .claude/skills/sdlc-run/SKILL.md — the locked-path case leaves "Stop and call the owner back"; new `## The detour rule` section with the gates, the trigger command per gate, the record, rounds, the park (both shapes), the remainder, the second-Claude-model rule; step 3 names the park pull request beside the code one (spec R-7)
@@ -173,4 +173,15 @@ rules and context files are on `ALWAYS_LOCKED`, so the pull request is the owner
   key, because `scripts/test_check_artifact_chain.py::ExampleMatchesTemplates::test_front_matter_keys_match` holds the
   always-green example to the intent template's keys in the template's order and went red on the template change
   (step 6). Added to `## Files that change`.
+- 2026-09-15 review round on pull request 96 (security pass, Opus 5: Important 2, Nits 3; plan pass, Opus 5:
+  Important 0, Nits 5). Fixed in the same push, no file-list change: `diff_paths` reads `git diff --name-status
+  -M -z` and splits on NUL, since a C-quoted name never matched a locked prefix (`test_diff_names_arrive_unquoted`,
+  watched red first); `parked_note(entries, av)` lifts a park on a `resumed:` line only when the actor holds the
+  `intent.md` role in `.sdlc/approvers.yaml`, through `next_item.resumers(root)`, so the agent a park stops cannot
+  lift it (`test_an_agent_cannot_lift_a_park`, watched red first; fixtures and the eval write an approvers file);
+  plan bullets are normalised with `os.path.normpath` and an absolute or root-escaping bullet is exit 2
+  (`test_plan_bullets_are_normalised_and_confined_to_the_root`). The Markdown nit on the `Parked:` line is
+  accepted as cosmetic (the table cell is the literal `parked`; a note can carry no `|`). Spec R-2, R-3 and the
+  Interfaces section amended under a ledger `deviation:` line; the plan's description count, the `_log` helper
+  name and the revision-template bullet corrected here.
 - 

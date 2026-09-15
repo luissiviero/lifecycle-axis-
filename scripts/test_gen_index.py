@@ -197,6 +197,9 @@ class ParkedMarker(unittest.TestCase):
     def test_a_parked_item_is_marked_in_both_indexes(self):
         with tempfile.TemporaryDirectory() as root:
             _build_two_item_tree(root)
+            # Who may lift a park: the fixture's own approvers file (a missing one fails closed).
+            _write(os.path.join(root, ".sdlc", "approvers.yaml"),
+                   "roles:\n  product-owner: [alice]\nartifacts:\n  intent.md: product-owner\nnever-approve: [claude]\n")
             _write(os.path.join(root, "work", "parked", "intent.md"), PARKED_INTENT)
             _write(os.path.join(root, "work", "parked", "log.md"), PARKED_LOG)
             outputs = _outputs_by_path(gen_index.render_all(root))

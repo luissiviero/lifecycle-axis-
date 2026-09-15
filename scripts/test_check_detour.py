@@ -157,6 +157,44 @@ class Sources(unittest.TestCase):
             hits = cd.locked(paths, root)
             self.assertEqual([p for p, _, _ in hits], ["REVIEW.md"])
 
+    def test_diff_names_arrive_unquoted(self):
+        """git C-quotes a name with a non-ASCII byte or a tab unless asked for NUL-terminated output;
+        a quoted name never matches a locked prefix, so the check would answer `none` on a locked file
+        (knowledge/lessons/nul-terminated-git-output.md; security pass on pull request 96, finding 1)."""
+        with tempfile.TemporaryDirectory() as root:
+            _root(root)
+            git = lambda *a: subprocess.run(["git", "-C", root, *a], check=True,  # noqa: E731
+                                            capture_output=True, text=True).stdout.strip()
+            git("init", "-q", "-b", "main")
+            _write(os.path.join(root, "README.md"), "x\n")
+            git("add", "-A")
+            git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-q", "-m", "base")
+            base = git("rev-parse", "HEAD")
+            _write(os.path.join(root, ".claude", "hooks", "naïve.sh"), "#!/bin/sh\n")
+            _write(os.path.join(root, ".claude", "hooks", "tab\tfile.sh"), "#!/bin/sh\n")
+            _write(os.path.join(root, "migrations", "plain.sql"), "select 1;\n")
+            git("add", "-A")
+            git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "commit", "-q", "-m", "change")
+            paths = cd.diff_paths(root, base)
+            self.assertEqual(sorted(paths), [".claude/hooks/naïve.sh", ".claude/hooks/tab\tfile.sh",
+                                             "migrations/plain.sql"])
+            self.assertEqual(cd.verdict(cd.locked(paths, root)), ("DETOUR: needed (3)", 3))
+
+    def test_plan_bullets_are_normalised_and_confined_to_the_root(self):
+        """`./x` and `a/../x` are `x` (one spelling, the matcher's); an absolute bullet or one that
+        climbs out of the root is bad input, never a clean path (security pass on pull request 96,
+        nits 1 and 2)."""
+        with tempfile.TemporaryDirectory() as root:
+            _root(root)
+            plan = os.path.join(root, "work", "demo", "plan.md")
+            _write(plan, "# Plan\n\n## Files that change\n- ./REVIEW.md — x\n- scripts/checks/../verify.sh — y\n")
+            self.assertEqual(cd.plan_paths(plan, root), ["REVIEW.md", "scripts/verify.sh"])
+            self.assertEqual(cd.verdict(cd.locked(cd.plan_paths(plan, root), root)), ("DETOUR: needed (2)", 3))
+            for bad in ("/etc/hostn*", "../outside.md", "work/../../x"):
+                _write(plan, "# Plan\n\n## Files that change\n- %s — z\n" % bad)
+                with self.assertRaises(cd.DetourInputError, msg=bad):
+                    cd.plan_paths(plan, root)
+
 
 class Cli(unittest.TestCase):
     def _run(self, root, *args):

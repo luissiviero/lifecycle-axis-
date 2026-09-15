@@ -155,7 +155,7 @@ def build_item(root, slug):
         "timestamp": timestamp,
         "last_entry": last_entry,
         # work/risk-detour R-6: the `parked:` note that parks the item, or None.
-        "parked": next_item.parked_note(entries),
+        "parked": next_item.parked_note(entries, next_item.resumers(root)),
     }
 
 

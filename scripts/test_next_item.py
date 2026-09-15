@@ -46,9 +46,20 @@ def _intent(status="approved", mode="delegated", on="2026-09-08", risk="low"):
     return "\n".join(lines)
 
 
+APPROVERS = """\
+roles:
+  product-owner: [luissiviero]
+artifacts:
+  intent.md: product-owner
+never-approve: ["claude[bot]", "claude"]
+"""
+
+
 def _repo(root, items):
-    """items: {slug: (intent_text, spec_text_or_None)}. Writes .sdlc/delegation.yaml too."""
+    """items: {slug: (intent_text, spec_text_or_None)}. Writes .sdlc/delegation.yaml and
+    .sdlc/approvers.yaml too (the latter says who may lift a park)."""
     _write(os.path.join(root, ".sdlc", "delegation.yaml"), POLICY)
+    _write(os.path.join(root, ".sdlc", "approvers.yaml"), APPROVERS)
     for slug, (intent, spec) in items.items():
         _write(os.path.join(root, "work", slug, "intent.md"), intent)
         if spec is not None:
@@ -175,26 +186,51 @@ class Parked(unittest.TestCase):
             self.assertEqual(ni.queue(root, policy), [])
             self.assertIsNone(ni.next_item(root, policy))
 
+    def test_an_agent_cannot_lift_a_park(self):
+        """The park is the owner's stop, and the agent it stops must not be the one to lift it: a
+        `resumed:` line by an agent handle, or by anyone without the intent role, changes nothing
+        (security-standards §8; security pass on pull request 96, finding 2). A missing approvers
+        file fails closed the same way."""
+        with tempfile.TemporaryDirectory() as root:
+            policy = _repo(root, {"parked-item": (_intent(on="2026-09-01"), None)})
+            _log(root, "parked-item", [
+                ("claude", "parked: revision 1: no route; remainder: parked-item-supervised"),
+                ("claude", "resumed: reconsidered"),
+                ("someone-else", "resumed: not an approver"),
+            ])
+            self.assertEqual(ni.queue(root, policy), [])
+            _log(root, "parked-item", [
+                ("claude", "parked: revision 1: no route; remainder: parked-item-supervised"),
+                ("luissiviero", "resumed: the remainder merged"),
+            ])
+            self.assertEqual(ni.queue(root, policy), ["parked-item"])
+            os.remove(os.path.join(root, ".sdlc", "approvers.yaml"))
+            self.assertEqual(ni.queue(root, policy), [])
+
     def test_parked_note_reads_the_latest_of_parked_and_resumed(self):
         """The helper alone: only intent.md lines count, only the two words count, the last wins."""
         import log_ledger
         with tempfile.TemporaryDirectory() as root:
+            _write(os.path.join(root, ".sdlc", "approvers.yaml"), APPROVERS)
+            av = ni.resumers(root)
             _log(root, "x", [
                 ("claude", "parked: first"),
                 ("luissiviero", "resumed: back"),
                 ("claude", "deviation: unrelated"),
             ])
             entries, _ = log_ledger.parse(os.path.join(root, "work", "x", "log.md"))
-            self.assertIsNone(ni.parked_note(entries))
+            self.assertIsNone(ni.parked_note(entries, av))
+            # Without an approvers instance nothing resumes.
+            self.assertEqual(ni.parked_note(entries), "parked: first")
             _log(root, "y", [("claude", "parked: first"), ("luissiviero", "resumed: back"), ("claude", "parked: again")])
             entries, _ = log_ledger.parse(os.path.join(root, "work", "y", "log.md"))
-            self.assertEqual(ni.parked_note(entries), "parked: again")
+            self.assertEqual(ni.parked_note(entries, av), "parked: again")
             # A parked: note on another artifact is not a park of the item.
             _write(os.path.join(root, "work", "z", "log.md"),
                    "---\ntype: sdlc/log\n---\n- 2026-01-01T00:00:00Z | spec.md | in-review -> in-review | claude | abc | parked: not this\n")
             entries, _ = log_ledger.parse(os.path.join(root, "work", "z", "log.md"))
-            self.assertIsNone(ni.parked_note(entries))
-            self.assertIsNone(ni.parked_note([]))
+            self.assertIsNone(ni.parked_note(entries, av))
+            self.assertIsNone(ni.parked_note([], av))
 
 
 class EmptyQueue(unittest.TestCase):
