@@ -107,11 +107,12 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   section); the four defects below, each needing a `/sdlc-intent` (all low, all grantable; the chain check and
   `verify.sh` are locked paths, so their pull requests are clicks too). `ci-budget` keeps its session on
   2026-09-20 15:00 UTC and works by slug.
-- **Two gotchas from this session, first occurrences, no lesson file yet.** A commit staged before
+- **One new gotcha from this session, a first occurrence with no lesson file yet:** a commit staged before
   `gen_index.py` ran carried stale indexes (`cffcedd`, `INDEX: 2 file(s) drifted` on the runner; the next
-  commit carried the regeneration): regenerate, then `git add`, then commit. And the container sets `GH_TOKEN`
-  with no `gh` binary, so `verify.sh` and the chain check crash unless run with
-  `env -u GH_TOKEN -u GITHUB_TOKEN` (defect 3 below).
+  commit carried the regeneration): regenerate, then `git add`, then commit. The token-without-`gh` crash hit
+  this session too, but it is not new: "Hard facts" below records it with the `env -u GH_TOKEN -u GITHUB_TOKEN`
+  workaround, the 2026-09-08 section says it bit two sessions before it was written down, and it is defect 3
+  below, whose fix is the intent it still needs rather than another gotcha line.
 - **Still true**: the container clone is shallow, deepen first (resume step 8); the two red
   `delegated-merge` runs `34908767884` and `34909007398` on `cb5cde5`/`8f4bb3c` are still unread; the four
   defects each need an intent: the self-check fails on an empty pointer instead of noting it and misattributes
