@@ -33,6 +33,6 @@ timestamp: 2026-09-15T15:05:00Z
 | [run-queue](run-queue/index.md) | Grant several items up front and let one delegated run work through them, so I can be away for hours | plan | approved | delegated | delegated | plan.md -> delegated by claude |
 | [run-queue-followups](run-queue-followups/index.md) | The chain check reports PASS on work it never saw; make it say so instead | plan | approved | delegated | delegated | PR #58 -> in-review by claude |
 | [sdlc-kit-phase-1](sdlc-kit-phase-1/index.md) | Make lifecycle-axis a reusable AI-native SDLC kit for Claude + Gemini projects | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
-| [self-check-false-reds](self-check-false-reds/index.md) | The self-check fails on an empty pointer and misreads approvals on a shallow clone | plan | approved | approved | approved | plan.md -> approved by luissiviero |
+| [self-check-false-reds](self-check-false-reds/index.md) | The self-check fails on an empty pointer and misreads approvals on a shallow clone | plan | approved | approved | approved | PR #106 -> in-review by claude |
 | [session-chaining](session-chaining/index.md) | The kit never says who manages session context, so the owner has been doing it by hand | plan | superseded | superseded | superseded | plan.md -> superseded by luissiviero |
 | [standing-grant](standing-grant/index.md) | Delegated mode is the state every session starts in, a subject typed in and a merged pull request out, with no per-item tap | intent | in-review | — | — | intent.md -> in-review by claude |
