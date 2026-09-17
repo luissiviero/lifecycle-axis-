@@ -5,7 +5,7 @@ title: The self-check fails on an empty pointer and misreads approvals on a shal
 description: "Three requirements: an empty .sdlc/active becomes a note where nothing needs proving, a grafted boundary commit is never reported as an approver, and advance() regenerates the indexes its own ledger line dirties."
 stage: design
 # status: draft | in-review | approved | delegated | superseded
-status: approved
+status: superseded
 reads: intent.md
 # approved-by: product owner; tech lead consulted for medium/high risk; set only by a human
 approved-by: luissiviero

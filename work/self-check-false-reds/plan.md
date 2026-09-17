@@ -5,7 +5,7 @@ title: Three red modules first, then the three fixes in the order the spec numbe
 description: "Three new test modules, each committed red on its own (kind fix locks every existing one), then check_artifact_chain.py gains a slugless EXEMPT decision after the diff guards and a graft predicate on both -G lookups, then advance() in delegated_merge.py regenerates exactly the three indexes it dirties; every judging suite stays green unmodified as the net, and the owner merges by click."
 stage: build
 # status: draft | in-review | approved | delegated | superseded  (require-plan.sh refuses code edits until approved)
-status: approved
+status: superseded
 # kind: feature | fix  (fix: protect-tests.sh refuses edits to existing test files)
 kind: fix
 reads: spec.md
