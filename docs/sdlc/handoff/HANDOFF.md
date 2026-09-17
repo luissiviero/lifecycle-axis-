@@ -1,6 +1,6 @@
 ---
 type: doc
-title: Session handoff (2026-09-15)
+title: Session handoff (2026-09-17)
 description: "How to resume in a new session: the session protocol, the task state, the owner's routine, and the seed prompt the finishing session leaves for the next one."
 tags: [sdlc, handoff, playbook-comparison, delegated-mode]
 timestamp: 2026-09-15T03:10:00Z
@@ -69,7 +69,65 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-15 ~03:10 UTC)
+## Task state (2026-09-17 ~19:00 UTC)
+- **`self-check-false-reds` (defect 1) is merged; all three faults are dead on `main`; `main` is green.**
+  #106 merged by click as `4194263` at 18:57 UTC — the owner's own click, because the diff touches two
+  `locked-paths` scripts. On `4194263`: `VERIFY: PASS`, `INDEX: up to date`, `EVALS: 49 pass, 0 fail`,
+  `OKF: 232 docs, 0 warnings`. The item ran the full four-gate chain, every gate a human tap:
+  intent `d3bd674` (#103), spec `ba6c885` (#104), plan `0d8598d` (#105), code #106.
+- **What the item landed** (`work/self-check-false-reds/spec.md` R1 to R8), each fault proven by a test
+  module committed red on its own before its fix, with the other two staying red across it:
+  (a) `check_artifact_chain.py` — the diff and its two fail-closed guards moved into `_changed_paths(base)`,
+  computed before the slug is read, and the no-slug decision is made on it: every changed path under an
+  `EXEMPT` prefix is `note: no active work item ...` and `CHAIN: PASS` exit 0; anything outside `EXEMPT`
+  keeps today's `FAIL` (R1, R2, R3; D1 substitutes `EXEMPT` for `own_artifact`, which closes over the slug;
+  D2 keeps the base-ref and dirty-tree guards ahead of the pointer). (b) `_is_graft(sha)` reads the file
+  `git rev-parse --git-path shallow` names and answers by membership; both `-G` lookups take their existing
+  "author check skipped" note branch when the commit they found is the graft, and nothing ever fetches
+  (R4, R5, R6; D3, D4). (c) `advance()` imports `gen_index` and, after its ledger appends, renders through
+  `render_all` but writes only `work/<merged>/index.md`, `work/<next>/index.md` and `work/index.md`,
+  appending exactly those to the `written` allowlist, whose refusal at `:1169` is untouched (R7, R8; D6 —
+  `render_all` is repo-wide, 29 paths today, and feeding all of them in would have widened the allowlist).
+- **Both production shapes are measured on `main` itself, not only in fixtures.** A depth-1 clone of
+  `4194263` ends `CHAIN: PASS` with three `history is shallow at 419426329810` notes; its boundary is
+  *human*-authored, so before the fix that clone would have **silently passed** by attributing all three
+  approvals to the merge commit — the false pass is closed along with the false fail. And `4eb8383`'s shape
+  rebuilt on `main` (pointer emptied by a `github-actions[bot]` commit, then a docs-only commit) ends
+  `note: no active work item (.sdlc/active is empty); the diff touches no code, so there is no chain to
+  prove` / `CHAIN: PASS`, with `INDEX: up to date`; add one `scripts/` path to the same diff and it is
+  `CHAIN: FAIL` again, which is R2 doing its job. **The next delegated merge with an empty queue leaves
+  `main` green with no tap.**
+- **One thing only a human could do, and the hook said so.** Fix (a) turns `ActiveSlugRequired`'s two cases
+  red: they pin the exact `FAIL` line R1 replaces. `.claude/hooks/protect-tests.sh` locks every existing
+  test file under `kind: fix` and its message directs the agent to "say so and stop; a human changes it" —
+  so the session stopped, stated the case, and held fix (a) as a patch for 24 hours while (b) and (c)
+  proceeded. The owner edited both cases by hand (`5dc6c0c`, `6b24c62`); `work/delegated-mode` R-6's intent
+  (one clear line, not a cascade) survives as one clear note. **This is the loop-protection hook working as
+  designed on a real item, and the first time it has blocked this repository's own work.** Three deviations
+  logged of five: the fixture base-class name, the step order, and the test file joining the file list.
+- **Two automated reviews, `Important: 0` both times**, on Opus 5. The second caught that the pull request's
+  title and body still read "fix (a) held" after `35834c5` landed — stale prose, not a defect; corrected
+  before the merge. The first item's review (#104) had earlier caught a real design fault: R7's acceptance
+  test was unsatisfiable against `render_all`, which produced D6.
+- **Still open for the owner, in no order.** `standing-grant` (`main`, `in-review`, `mode: supervised`,
+  `risk-class: medium`); **defect 2** (`EXEMPT` in the chain check lists `CLAUDE.md` but not
+  `GEMINI.md`/`AGENTS.md`) and **defect 3** (the chain check crashes on a token with no `gh` binary), each
+  still needing a `/sdlc-intent`; the two red `delegated-merge` runs `34908767884` and `34909007398`, still
+  unread. **New, found while writing this item's spec and deliberately not fixed in it**: the module
+  docstring at `check_artifact_chain.py:23` says check 3 exempts `evals/`, but `EXEMPT` at `:55` has no such
+  entry and the comment at `:53` says the omission is deliberate — the docstring is stale, and since it is
+  also an `EXEMPT` defect it may belong with defect 2.
+- **`.sdlc/active` still names `self-check-false-reds`** and this session never wrote it. The owner moves it
+  by hand for a supervised item (`approve.yml` passes `--activate` only for `mode: delegated`); with (a)
+  fixed, a retire tap with no `next` now leaves it empty and `main` stays green, so the placeholder slug the
+  01:50-to-03:10 sections needed is no longer necessary.
+- **Still true**: run the checks with `env -u GH_TOKEN -u GITHUB_TOKEN` (defect 3). Resume step 8's
+  `git fetch --unshallow origin` is **no longer required for correctness** — a shallow clone now says so
+  instead of misreporting — but it is still worth doing, because a shallow clone cannot verify an approval
+  at all, only decline to guess. This session's container arrived with no repository cloned and the repo
+  outside its authorized set; `add_repo` with `access: push` fixed both, and the clone came down complete.
+
+## Task state (2026-09-15 ~03:10 UTC) — HISTORY, superseded by the section above
 - **The cycle is closed: `parked-marker-on-retired` is merged and retired, the handoff is on `main`, and
   `main` is green.** After the 03:00 section: the owner's retire tap landed as `e8ec522` (03:05:27Z, three
   artifacts `superseded`, three retiring ledger lines by `luissiviero`, `.sdlc/active` repointed to
@@ -716,35 +774,38 @@ before acting, whatever this section says. It is written for the state as of the
 that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
 "Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'
-(2026-09-15 ~03:10 UTC). `parked-marker-on-retired` is merged (#100), retired by tap (`e8ec522`) and its
-handoff is on main (#101, `5bf9573`); `main` is green and nothing is granted or in flight. Your task is one
-artifact: draft **defect 1's intent** with `/sdlc-intent`, the defect the Task state numbers 1, which the
-owner named as the next item. It is two faults in one intent, both in `scripts/check_artifact_chain.py`'s
-self-check: (a) an empty `.sdlc/active` ends `verify.sh` with `FAIL: no active work item` instead of a note,
-which is now the common case, because a delegated merge with an empty queue clears the pointer and every
-pull request is red until a retire tap puts a placeholder slug back; and (b) on a shallow clone the check
-attributes an approval to the newest boundary commit carrying the artifact, so it fails for a reason that is
-not on main (resume step 8). Fold in the advance's second effect the 03:10 section records, for the owner to
-accept or split: `advance()` appends a ledger line without regenerating `work/<slug>/index.md` and
-`work/index.md`, so the same window is also red on `INDEX: 2 file(s) drifted`; the retire tap heals it today
-(`work/approve-tap-regenerates-index`). Before anything else run `git fetch --unshallow origin` (the
-container clone is shallow), then, with `env -u GH_TOKEN -u GITHUB_TOKEN` (the container sets a token but
-has no `gh`, and the chain check crashes on that), `python3 scripts/gen_index.py --check` and
-`scripts/verify.sh` on main; both were green on `5bf9573`. Then `/sdlc-intent` on your own `claude/` branch:
-the template's every field, `risk-class` your honest reading with its reason, `mode: supervised` (only a
-human grants), every open question with a proposed answer so the owner can reply in one tap, and
-`python3 scripts/check_detour.py --paths` over the paths the Affected systems name (`check_artifact_chain.py`
-is on the policy's locked list, so expect `DETOUR: needed` and say so in the intent: the code lands by the
-owner's click, not a delegated merge). Open the intent-only pull request with `Work-Item: <your slug>`, run
-scripts/verify.sh, the chain check, scripts/run_evals.sh and scripts/check_okf.py, paste the last lines, and
-then stop and ask for the approval tap (Actions -> approve -> Run workflow on main, `artifact` `intent.md`,
-`mode` `supervised` or `delegated`, `slug` yours) — naming the inputs is not approving. Write no spec and no
-plan until that tap lands. `.sdlc/active` names `ci-budget`: that is the retire tap's placeholder, not your
-item, and `ci-budget` keeps its own session on 2026-09-20 — do not touch it, nor `standing-grant`, nor
-defects 2 and 3. Never write approved or superseded, never touch the grant keys, never sign intent.md,
-never merge, never move `.sdlc/active`."
+(2026-09-17 ~19:00 UTC). `self-check-false-reds` (defect 1) is merged by the owner's click (#106,
+`4194263`); `main` is green and nothing is granted or in flight. **You have no item.** `.sdlc/active` still
+names `self-check-false-reds`, which is finished but not retired — that is the pointer's normal state
+between items now, not a placeholder, and it is not yours to move. Your task is to confirm `main` and then
+ask the owner which item is next; do not start one on your own.
 
-(Superseded, kept as a record: the prompt before it held no item, said `parked-marker-on-retired` was merged
+First, with `env -u GH_TOKEN -u GITHUB_TOKEN` (the container sets a token but has no `gh`, and the chain
+check crashes on that — defect 3, still open): `python3 scripts/gen_index.py --check` and `scripts/verify.sh`
+on main. Both were green on `4194263`. You do **not** need `git fetch --unshallow origin` for correctness any
+more: defect 1's fix makes a shallow clone report `history is shallow at <sha>` instead of attributing the
+approval to the graft. Deepen anyway if you want an author check that can actually run — a shallow clone can
+only decline to guess. If the container arrives with no repository cloned, or the push is refused as not in
+this session's authorized set, use `add_repo` with `access: push` and clone; that happened on 2026-09-15.
+
+Then report to the owner and stop. The candidates, none granted: `standing-grant` (`main`, `in-review`,
+`mode: supervised`, `risk-class: medium`; the low-only policy cannot grant it, so every gate is a tap; its
+answers 3 and Depends-on line are overtaken, see the 00:35 section); **defect 2** (`EXEMPT` in the chain
+check lists `CLAUDE.md` but not `GEMINI.md`/`AGENTS.md`) and **defect 3** (the chain check crashes on a
+token with no `gh` binary), each still needing a `/sdlc-intent`; the stale `evals/` sentence in
+`check_artifact_chain.py`'s module docstring at `:23`, which is also an `EXEMPT` defect and may fold into
+defect 2; and the two red `delegated-merge` runs `34908767884` and `34909007398`, still unread. `ci-budget`
+keeps its own session on 2026-09-20 15:00 UTC and works by slug — do not touch it.
+
+If the owner names an item, that item's own gates start from its first unapproved artifact, and every one of
+them is a tap you ask for and never make. Expect the `kind: fix` hook to stop you if a fix would falsify an
+existing test: say so and stop, as defect 1 did — the owner edits the test, and the wait is correct
+behaviour, not a blocker to route around. Never write approved or superseded, never touch the grant keys,
+never sign an artifact, never merge, never move `.sdlc/active`."
+
+(Superseded, kept as a record: the prompt before it named defect 1 as one `/sdlc-intent` to draft and stop
+at the approval tap, which is what this cycle then carried all the way to a merged code pull request. Before
+that, the prompt held no item, said `parked-marker-on-retired` was merged
 with its advance landed and the pointer empty, and told the next session to ask for the retire tap if the
 checks were red and then to ask the owner which item was next. Before that, the prompt named
 `parked-marker-on-retired` as the item to take from
