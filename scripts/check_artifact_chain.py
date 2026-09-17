@@ -159,6 +159,36 @@ APPROVED_RUN_RE = re.compile(r"^Approved-Run:\s*(\d+)\s*$", re.MULTILINE)
 APPROVED_ACTOR_RE = re.compile(r"^Approved-Actor:\s*(\S+)\s*$", re.MULTILINE)
 
 
+def _is_graft(sha):
+    """True when `sha` is a shallow clone's boundary commit -- one git grafted in with no parents,
+    listed in its own shallow file (`git rev-parse --git-path shallow`). At a graft `git log -G`
+    reads the whole file as added by that commit, so both author lookups below would name the
+    boundary as the approver, whoever it is: on 2026-09-15 an agent's unrelated commit, and `main`
+    failed on a chain a full clone passes (work/self-check-false-reds R4; spec D3). A full clone has
+    no shallow file, so its real root commit is never mistaken for a graft; an unreadable file is
+    "no graft", which leaves today's behaviour rather than inventing a skip (spec R5)."""
+    if not sha:
+        return False
+    path = subprocess.run(["git", "rev-parse", "--git-path", "shallow"],
+                          capture_output=True, text=True, cwd=ROOT).stdout.strip()
+    if not path:
+        return False
+    if not os.path.isabs(path):
+        path = os.path.join(ROOT, path)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return sha in {line.strip() for line in f if line.strip()}
+    except OSError:
+        return False
+
+
+def _shallow_note(rel, sha):
+    """The author check could not run: the note branch the callers already have, with the reason.
+    Never a fetch -- a verification step does not mutate what it judges (spec R6, D4)."""
+    return (f"{rel}: history is shallow at {sha[:12]}; the author check needs the real approval "
+            f"commit -- run `git fetch --unshallow origin`")
+
+
 def dispatch_attestation(commit_sha):
     """(run_id, actor) from a commit's Approved-Run / Approved-Actor trailers, or None.
 
@@ -383,18 +413,20 @@ def check_grant(slug, wd, policy, av, notes, errors):
     who = ""
     if front_matter_text(head_text).get("mode") == "delegated":
         who = subprocess.run(
-            ["git", "log", "-n1", "--format=%an%x00%ae", "-G", "^mode: delegated$", "--", rel],
+            ["git", "log", "-n1", "--format=%H%x00%an%x00%ae", "-G", "^mode: delegated$", "--", rel],
             capture_output=True, text=True, cwd=ROOT,
         ).stdout.strip()
+    sha, an, ae = (who.split("\x00") + ["", "", ""])[:3]
     if not who:
         notes.append(f"work/{slug}/intent.md: grant not committed yet (author check skipped)")
-    else:
-        an, _, ae = who.partition("\x00")
-        if is_agent_identity(an, ae, av):
-            errors.append(
-                f"work/{slug}/intent.md: the commit that set mode: delegated is authored by an agent "
-                f"identity ({an} <{ae}>); a human grants delegated mode and commits"
-            )
+    elif _is_graft(sha):
+        # A shallow clone's boundary, not the grant's author (work/self-check-false-reds R4).
+        notes.append(_shallow_note(f"work/{slug}/intent.md", sha))
+    elif is_agent_identity(an, ae, av):
+        errors.append(
+            f"work/{slug}/intent.md: the commit that set mode: delegated is authored by an agent "
+            f"identity ({an} <{ae}>); a human grants delegated mode and commits"
+        )
 
 
 def check_signature(slug, name, fm, policy, entries, log_exists, errors):
@@ -500,6 +532,59 @@ def check_deviations(slug, policy, entries, errors):
         )
 
 
+def _changed_paths(base):
+    """Every path `git diff <base>...HEAD` names, or exit 1 in one line when the answer cannot be
+    trusted: an unknown base ref, or an empty diff over a dirty tree. Computed before the slug is
+    read, because the no-slug decision in main() is made on it (work/self-check-false-reds R1, R2;
+    spec D2): both guards keep their priority over the pointer, so a broken checkout reports the
+    checkout first."""
+    diff = subprocess.run(["git", "diff", "--name-only", f"{base}...HEAD"], capture_output=True, text=True, cwd=ROOT)
+    if diff.returncode != 0:
+        # work/retire-active-pointer R-4: a base ref git does not know used to give an empty diff, and
+        # `all([])` below then read that as in-progress mode -- a silent pass on the wrong question.
+        # One line, before anything else, the way an empty pointer is handled above.
+        detail = (diff.stderr.strip().splitlines() or ["no detail from git"])[-1]
+        print(f"  FAIL: base ref '{base}' is not known here (git diff failed: {detail}); pass --base HEAD "
+              f"for a local self-check, or fetch the ref")
+        print("CHAIN: FAIL")
+        sys.exit(1)
+    changed_all = [p for p in diff.stdout.split() if p]
+    # work/run-queue-followups R-1..R-5: `git diff <base>...HEAD` sees commits only, so staged and
+    # untracked work is invisible to it. An empty diff then selects in-progress mode below, because
+    # `all([])` is True, and the check reports PASS under a note describing a diff that does not
+    # exist -- it audited the wrong work twice in one session
+    # (knowledge/lessons/commit-before-the-chain-check.md). Refuse instead, in the shape the
+    # unknown-base-ref case above uses.
+    #
+    # The predicate is the caller's spelling of --base, not the commit it resolves to, and it is
+    # deliberately NOT `self_check` below. The two answer different questions: there, "is there a
+    # `before` to judge a retirement against" (commit identity); here, "did the caller ask to
+    # validate the working tree as it stands" (call-site identity, which is what scripts/verify.sh
+    # requests by passing literally `--base HEAD`). In the recorded scenario the base and HEAD are
+    # the *same* commit, so a revision comparison is inert exactly where this guard is needed
+    # (work/run-queue-followups/revisions/1.md). Do not unify them.
+    if not changed_all and base != "HEAD":
+        st = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, cwd=ROOT)
+        if st.returncode != 0:
+            # Fail closed: unable to tell whether the tree is clean is not the same as clean, and
+            # assuming clean would reopen the very defect this guard exists to close.
+            detail = (st.stderr.strip().splitlines() or ["no detail from git"])[-1]
+            print(f"  FAIL: cannot tell whether the working tree is clean (git status failed: {detail}); "
+                  f"the chain check will not report on a tree it could not examine -- fix the checkout, "
+                  f"or pass --base HEAD for a local self-check")
+            print("CHAIN: FAIL")
+            sys.exit(1)
+        dirty = [l for l in st.stdout.splitlines() if l.strip()]
+        if dirty:
+            print(f"  FAIL: the diff against '{base}' is empty but the working tree is not: "
+                  f"{len(dirty)} uncommitted path(s) ({_porcelain_sample(dirty)}); the chain check reads "
+                  f"commits only, so it would report on nothing -- commit them first, or pass "
+                  f"--base HEAD for a local self-check")
+            print("CHAIN: FAIL")
+            sys.exit(1)
+    return changed_all
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="origin/main")
@@ -521,10 +606,22 @@ def main():
                   f"second spelling of an item; fix it")
             print("CHAIN: FAIL")
             sys.exit(1)
+    # The diff first, before the slug is read: the no-slug decision below is made on it, and its
+    # two fail-closed guards keep priority over the pointer (work/self-check-false-reds D2).
+    changed_all = _changed_paths(a.base)
     slug = a.slug or pointer
     if not slug:
-        # Before anything else, and in one line: with no slug there is no item to check, which is a
-        # setup mistake rather than a broken chain (work/delegated-mode R-6).
+        # An empty pointer is what every delegated merge with an empty queue leaves behind
+        # (delegated_merge.advance), not a setup mistake. With no slug there is no `own_artifact`
+        # to decide in-progress against, so the one question left is whether the diff changes
+        # anything outside EXEMPT -- the same line check 3 draws for "does this path need a plan".
+        # Nothing outside it: nothing to prove, a note. Anything outside it: a code change with no
+        # chain behind it, still a failure (work/self-check-false-reds R1, R2; spec D1).
+        if all(p.startswith(EXEMPT) for p in changed_all):
+            print("  note: no active work item (.sdlc/active is empty); the diff touches no code, so "
+                  "there is no chain to prove")
+            print("CHAIN: PASS")
+            sys.exit(0)
         print("  FAIL: no active work item (.sdlc/active is empty; pass --slug or set it)")
         print("CHAIN: FAIL")
         sys.exit(1)
@@ -552,50 +649,6 @@ def main():
 
     any_approved = False
 
-    diff = subprocess.run(["git", "diff", "--name-only", f"{a.base}...HEAD"], capture_output=True, text=True, cwd=ROOT)
-    if diff.returncode != 0:
-        # work/retire-active-pointer R-4: a base ref git does not know used to give an empty diff, and
-        # `all([])` below then read that as in-progress mode -- a silent pass on the wrong question.
-        # One line, before anything else, the way an empty pointer is handled above.
-        detail = (diff.stderr.strip().splitlines() or ["no detail from git"])[-1]
-        print(f"  FAIL: base ref '{a.base}' is not known here (git diff failed: {detail}); pass --base HEAD "
-              f"for a local self-check, or fetch the ref")
-        print("CHAIN: FAIL")
-        sys.exit(1)
-    changed_all = [p for p in diff.stdout.split() if p]
-    # work/run-queue-followups R-1..R-5: `git diff <base>...HEAD` sees commits only, so staged and
-    # untracked work is invisible to it. An empty diff then selects in-progress mode below, because
-    # `all([])` is True, and the check reports PASS under a note describing a diff that does not
-    # exist -- it audited the wrong work twice in one session
-    # (knowledge/lessons/commit-before-the-chain-check.md). Refuse instead, in the shape the
-    # unknown-base-ref case above uses.
-    #
-    # The predicate is the caller's spelling of --base, not the commit it resolves to, and it is
-    # deliberately NOT `self_check` below. The two answer different questions: there, "is there a
-    # `before` to judge a retirement against" (commit identity); here, "did the caller ask to
-    # validate the working tree as it stands" (call-site identity, which is what scripts/verify.sh
-    # requests by passing literally `--base HEAD`). In the recorded scenario the base and HEAD are
-    # the *same* commit, so a revision comparison is inert exactly where this guard is needed
-    # (work/run-queue-followups/revisions/1.md). Do not unify them.
-    if not changed_all and a.base != "HEAD":
-        st = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, cwd=ROOT)
-        if st.returncode != 0:
-            # Fail closed: unable to tell whether the tree is clean is not the same as clean, and
-            # assuming clean would reopen the very defect this guard exists to close.
-            detail = (st.stderr.strip().splitlines() or ["no detail from git"])[-1]
-            print(f"  FAIL: cannot tell whether the working tree is clean (git status failed: {detail}); "
-                  f"the chain check will not report on a tree it could not examine -- fix the checkout, "
-                  f"or pass --base HEAD for a local self-check")
-            print("CHAIN: FAIL")
-            sys.exit(1)
-        dirty = [l for l in st.stdout.splitlines() if l.strip()]
-        if dirty:
-            print(f"  FAIL: the diff against '{a.base}' is empty but the working tree is not: "
-                  f"{len(dirty)} uncommitted path(s) ({_porcelain_sample(dirty)}); the chain check reads "
-                  f"commits only, so it would report on nothing -- commit them first, or pass "
-                  f"--base HEAD for a local self-check")
-            print("CHAIN: FAIL")
-            sys.exit(1)
     # Artifact-only means *this* item's artifacts (plus the generated top-level index), and
     # .sdlc/active when the diff points it at this item -- activating an item is part of opening it.
     # A PR that touches another item's work/<other>/ while labelled with this slug is mislabelled,
@@ -833,11 +886,15 @@ def main():
                     ["git", "log", "-n1", "--format=%H%x00%an%x00%ae", "-G", f"^status: {status}$", "--", rel],
                     capture_output=True, text=True, cwd=ROOT,
                 ).stdout.strip()
+            sha, an, ae = (who.split("\x00") + ["", "", ""])[:3]
             if not who:
                 act = "approval" if status == "approved" else "supersession"
                 notes.append(f"work/{slug}/{name}: {act} not committed yet (author check skipped)")
+            elif _is_graft(sha):
+                # A shallow clone's boundary, not the approver: the same "could not run" note as
+                # above, never a fetch (work/self-check-false-reds R4, R6; spec D3, D4).
+                notes.append(_shallow_note(f"work/{slug}/{name}", sha))
             else:
-                sha, an, ae = (who.split("\x00") + ["", ""])[:3]
                 attested = dispatch_attestation(sha)
                 if attested:
                     # The trailer route: the decision was a tap in the Actions tab, and the run --

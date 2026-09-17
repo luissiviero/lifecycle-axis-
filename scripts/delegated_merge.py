@@ -47,6 +47,7 @@ if HERE not in sys.path:
 import approvers  # noqa: E402  (path set up above)
 import check_artifact_chain as chain  # noqa: E402  (front_matter_text and config())
 import delegation  # noqa: E402  (the one policy parser)
+import gen_index  # noqa: E402  (render_all: the one spelling of an index, for the advance)
 import log_ledger  # noqa: E402  (the one ledger renderer, for the advance's two lines)
 import next_item  # noqa: E402  (the queue rule, shared with the sdlc-run skill)
 
@@ -1063,7 +1064,8 @@ def advance(root, out, merged_slug, number, policy, now=None, merge_sha=None):
 
     Refuses, writing nothing, on a dirty tree, when the pointer does not name the item just merged,
     and when the computed next item is the merged one. An empty queue clears the pointer, which is a
-    valid state every reader already handles.
+    valid state every reader already handles. The indexes the two ledger lines below put out of
+    date are regenerated in the same commit (work/self-check-false-reds R7).
 
     What actually protects a concurrent run is the push at the end: it is not forced, so any commit
     that landed on the remote in between rejects it and this run stands down (security pass on pull
@@ -1160,6 +1162,22 @@ def advance(root, out, merged_slug, number, policy, now=None, merge_sha=None):
                   % (number, _ledger_safe(fm.get("delegated-by")),
                      _ledger_safe(fm.get("delegated-on")))),
             lineno=0)))
+
+    # The two ledger lines above put both items' `Last gate:` and both rows of work/index.md out of
+    # date, so the advance regenerates exactly those indexes in the same commit (work/self-check-
+    # false-reds R7). `render_all` is the one spelling of how an index renders, but it is repo-wide
+    # -- one entry per work item -- so only the paths this advance dirtied are written: extending
+    # the allowlist with every rendered path would let an unrelated stale index ride an unattended
+    # bot commit (spec D6, C2). The allowlist check below is untouched and keeps refusing the rest.
+    touched = {"work/%s/index.md" % merged_slug, "work/index.md"}
+    if nxt:
+        touched.add("work/%s/index.md" % nxt)
+    for rel, content in gen_index.render_all(root):
+        rel = rel.replace(os.sep, "/")  # git pathspecs are forward-slash on every platform
+        if rel in touched:
+            with open(os.path.join(root, rel), "w", encoding="utf-8", newline="\n") as f:
+                f.write(content)
+            written.append(rel)
 
     _git(root, "add", "--", *written)
     staged = [p for p in _git(root, "diff", "--cached", "--name-only").split("\n") if p]
