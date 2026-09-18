@@ -5,7 +5,7 @@ title: The chain check crashes on a token with no gh binary instead of taking th
 description: "check_artifact_chain.py guards the dispatch attestation against a missing token but not against a missing gh binary, so in every remote session container -- token set, no gh -- the check raises FileNotFoundError at :237 on any item with a tapped approval instead of printing the one-line skipped note it prints when the token is absent; every session since 2026-09-08 has run the checks under env -u GH_TOKEN -u GITHUB_TOKEN to get around it."
 stage: plan
 # status: draft | in-review | approved | delegated | superseded
-status: approved
+status: superseded
 author: Luis Siviero (repo owner), who named defect 3 as the next item in the 2026-09-17 ~22:45 Task state; drafted by Claude in the successor session opened for it
 # approved-by: product owner; set only by a human, with scripts/approve.py from their own shell
 approved-by: luissiviero
