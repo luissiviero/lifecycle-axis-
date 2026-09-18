@@ -181,28 +181,28 @@ defect (the same reading the owner accepted on defect 1's question 5).
   `except FileNotFoundError` around it for a `PATH` that changes between the two. The note names the binary
   (`no gh binary on PATH; the dispatch trailer was accepted on the author rule alone`) so a reader can tell
   the two skipped causes apart in a pasted log.
-  A:
+  A: accepted as proposed (owner, 2026-09-18): a missing binary takes the no-token path -- None, one note naming gh, then the author rule; detected as github_metrics.py does, shutil.which plus except FileNotFoundError.
 - Q: a binary that is present but fails -- non-zero exit on a bad token, the wrong repository, no network --
   stays a hard `False` today (`:239`). Keep that?
   Proposed: **keep it.** A refusal from an oracle that answered is evidence; treating it as "could not ask"
   would let a revoked token or a mis-set `GITHUB_REPOSITORY` pass on the author rule alone, and CI is where
   that path runs. The cost is that a workstation with `gh` installed and an expired token gets `CHAIN: FAIL`
   with the API's own message, and the remedy stays what it is today: unset the token, or fix it.
-  A:
+  A: accepted as proposed (owner, 2026-09-18): keep the hard False; a binary that answers non-zero is a FAIL with the API's own message.
 - Q: is `medium` the class you want, or is this `low`?
   Proposed: **medium**, for the reason above. `low` is defensible -- one guard, one note, in-CI behaviour
   unchanged because the runner has the binary -- and would let you grant it, but a grant buys nothing here:
   the only file that changes is on `locked-paths`, so `/sdlc-run` would open a detour record at the first
   gate around a locked file that is the whole item, and the merge is your click either way. `medium`
   keeps the route straight: a tap at each gate, no detour machinery.
-  A:
+  A: accepted as proposed (owner, 2026-09-18): medium, supervised. The owner's preference is maximal autonomy, and low would still cost a risk-class edit, a grant tap, detour records at every gate and the same click on the locked file, so medium is the shorter route here; the autonomy lever is standing-grant.
 - Q: where does the workaround retire -- in this item's code pull request, or in the handoff refresh the
   finishing session writes at `sdlc-run` step 7?
   Proposed: **the handoff refresh.** `docs/sdlc/handoff` is itself a `locked-paths` entry, the finishing
   session rewrites the Task state and the seed prompt regardless, and the "Hard facts" line becomes history
   in the same edit. The code pull request then touches exactly the script and the new test module, and the
   plan's file list stays two entries.
-  A:
+  A: accepted as proposed (owner, 2026-09-18): the workaround retires in the step-7 handoff refresh, not in this item's code pull request.
 - Q: CI cannot be told apart from a workstation by the check today, and the fix makes a runner with no
   `gh` degrade to the author rule silently in the gate's log, as a runner with no token already would.
   Do you want the gate to fail closed on a missing binary?
@@ -210,4 +210,4 @@ defect (the same reading the owner accepted on defect 1's question 5).
   relies on for the token, and `ubuntu-latest` ships `gh`. If you want a hard stop, it is one line the
   gate's job can run before the check -- `gh --version` -- in `.github/workflows/sdlc-gate.yml`, which is a
   workflow change only you make; named here so it is a decision and not an omission.
-  A:
+  A: accepted as proposed (owner, 2026-09-18): no environment sniffing in the check; the gh --version step in sdlc-gate.yml is noted as available and not taken.
