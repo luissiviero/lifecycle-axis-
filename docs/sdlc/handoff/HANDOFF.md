@@ -1,9 +1,9 @@
 ---
 type: doc
-title: Session handoff (2026-09-17)
+title: Session handoff (2026-09-18)
 description: "How to resume in a new session: the session protocol, the task state, the owner's routine, and the seed prompt the finishing session leaves for the next one."
 tags: [sdlc, handoff, playbook-comparison, delegated-mode]
-timestamp: 2026-09-17T22:45:00Z
+timestamp: 2026-09-18T20:50:00Z
 ---
 
 # Session handoff (read this first after any context reset)
@@ -29,8 +29,10 @@ timestamp: 2026-09-17T22:45:00Z
    clone the chain check now prints `history is shallow at <sha>` and skips the author check instead of
    attributing the approval to the boundary commit, so `verify.sh` stays green either way. `git fetch
    --unshallow origin` is still worth running when you want an author check that can actually run; a shallow
-   clone can only decline to guess. Run the checks with `env -u GH_TOKEN -u GITHUB_TOKEN` until defect 3 is
-   fixed (Task state 2026-09-17 ~22:45 UTC).
+   clone can only decline to guess. Since 2026-09-18 (`work/chain-check-without-gh`, defect 3) the checks run
+   bare: a token with no `gh` on `PATH` takes the same skipped path a missing token takes, so the
+   `env -u GH_TOKEN -u GITHUB_TOKEN` prefix every session carried since 2026-09-08 is retired. If a command
+   still ends `FileNotFoundError: 'gh'`, that is a regression, not the old workaround being forgotten.
 
 ## Session protocol
 Three invariants, in force since 2026-09-13 (`work/session-chaining`):
@@ -70,7 +72,78 @@ Three invariants, in force since 2026-09-13 (`work/session-chaining`):
   evals use `! cmd` under `set -e`, which never fails a case; check exit codes explicitly. Both belong in WI-9
   agent-evals or WI-11 docs-reconcile, owner's call.
 
-## Task state (2026-09-17 ~22:45 UTC)
+## Task state (2026-09-18 ~20:50 UTC)
+- **`chain-check-without-gh` (defect 3) is merged; the token workaround is dead on `main`; the retire tap
+  is owed.** #111 merged by the owner's click as `c96184d` at 20:40 UTC. On `c96184d` **with the container's
+  token set and no `gh` binary**: `VERIFY: PASS (c96184d)`, `INDEX: up to date`, `.sdlc/active` empty. This
+  section is the first written without the `env -u` prefix; resume step 8 and "Hard facts" say so. The
+  item's artifacts are still `approved` / `delegated` / `delegated`: the retire tap (`mode` `retire`, `slug`
+  `chain-check-without-gh`, `next` blank) comes **after** this handoff pull request merges, because this pull
+  request carries `Work-Item: chain-check-without-gh` and the gate's chain check on a retired slug is `FAIL`
+  (the 22:45 section measured that order on defect 1).
+- **What the item landed** (`work/chain-check-without-gh/spec.md` R1 to R7): `verify_dispatch_run`'s one
+  `gh api` call is wrapped in `try`/`except FileNotFoundError` and returns `(None, NO_GH_NOTE)`, the tuple a
+  missing token returns, so the caller's author rule still runs beneath it and an agent-authored trailer
+  commit still ends `FAIL` (R2, the pull-request-51 property). A present binary that exits non-zero stays
+  `False` (R4). Nothing runs before the call: the locked suite's `DispatchAttestation._verify` stubs
+  `subprocess.run` at the `["gh", "api"]` boundary and never has a real `gh`, so the `shutil.which` guard the
+  intent proposed would have turned five of its cases red on every machine without `gh`; spec gotcha 1,
+  D3, and R6's pin. Six cases in the new `scripts/test_chain_no_gh.py`, three seen red in `ba86169` and green
+  since `b9d38b4` with the module byte-identical; `test_check_artifact_chain.py` 94 green unmodified. Both
+  real items that crashed on `17004b4` measured `CHAIN: PASS` with the token set before the ready flip.
+- **Firsts, all measured in production.** (1) The first item driven under a grant through the detour rule:
+  `revisions/1.md` and `revisions/2.md` are the repository's first `kind: detour` records, one per gate,
+  each with two reviewers on models other than the writer (plan-reviewer on claude-sonnet-5,
+  security-reviewer on claude-opus-5), each unanimous `revise`; the ledger names the writer
+  (claude-fable-5-1) on every signing line at the security reviewer's ask. (2) The first park with `click
+  needed`: #112, ledger-only, merged by the delegated merge at 17:24 UTC; its advance cleared the pointer on
+  the empty queue **and regenerated the indexes it dirtied**, which is defect 1's fix (c) running for the
+  first time on a real merge, with `INDEX: up to date` on the resulting `4d0ccbc`. (3) The first bare
+  `VERIFY: PASS` on an item with a tapped approval since 2026-09-06 (`b9d38b4`, then `c96184d` on `main`).
+  (4) Two pull requests open and ready at once for one item, as `check_pull_request` filters by head sha:
+  the delegated merge took #112 and never saw #111.
+- **The owner's acts this cycle, for the record.** Intent tap (supervised) at 11:38 UTC; the five answers
+  pasted at 14:15 UTC; a second tap that found nothing to write; the pointer set by hand at 16:20 UTC; a
+  **retire tap by mistake** at 16:21 UTC (`mode` `retire` instead of the pointer edit), which superseded the
+  intent and cleared the pointer; `risk-class` edited to `low` and the answer to question 3 revised; one
+  `delegated` tap at 16:49 UTC that re-approved the intent, wrote the grant and set the pointer in one run;
+  the click on #111 at 20:40 UTC. The ledger shows `approved -> superseded -> approved` honestly. `approve.py`
+  accepts a superseded artifact back to `approved`, which is what made the recovery one tap.
+- **Reviews.** Three automated reviews on #111 (`9afe0f6`, `2143b32`, `fc93e98`), `Important: 0` each,
+  and one on #112, `Important: 0 | Nits: 0`. Taken: two plan-bullet nits (`35edf62`), the docstring naming
+  both causes of the caught exception (`3982151`), and the plan bullet re-quoted with deviation 1 logged
+  (`fc93e98`). Left for a human, because `protect-tests.sh` locks the new module the moment it exists: in
+  `scripts/test_chain_no_gh.py`, `_env` keeps the ambient `HOME` and `shutil.which("git")` (add
+  `GIT_CONFIG_GLOBAL=/dev/null` and skip when `REAL_GIT` is `None`), and the `cac.subprocess.run = fake`
+  rebinding wants a scope comment. Both threads are resolved with that answer.
+- **Gotchas of record, each a first occurrence, none a lesson yet.** A ledger note may not contain `|`: it
+  is the field delimiter, and `log_ledger.py` reports the line `MALFORMED` (the park line was rewritten
+  with "Important 0 and Nits 3"). A code commit whose plan bullet quotes its text must carry the plan edit in
+  the same commit; `3982151` did not and the re-review caught it. A reviewer subagent ended a report that
+  found no fault with the word `keep`, which the template defines as a rejection; asked once which meaning it
+  intended, it corrected to `revise`, and `revisions/2.md` holds the original word, the question and the
+  answer verbatim. `sign.py --revision` on a first signature warns and proceeds, and `check_revisions`
+  validates re-signatures only, so a detour record at a first signature is validated by its reviewers and
+  the ledger note's shape, not by the chain check. `protect-approvals.sh` refuses any Bash line naming
+  `approve.py`, a `grep` included: read that script with the file tools.
+- **Still open for the owner, in no order.** The retire tap for `chain-check-without-gh` after this pull
+  request merges; `standing-grant` (`main`, `in-review`, `mode: supervised`, `risk-class: medium`);
+  **defect 2** (`EXEMPT` in the chain check lists `CLAUDE.md` but not `GEMINI.md`/`AGENTS.md`), which can
+  absorb the stale `evals/` sentence in `check_artifact_chain.py`'s module docstring at `:23`; the two red
+  `delegated-merge` runs `34908767884` and `34909007398`, still unread; the two nits on
+  `scripts/test_chain_no_gh.py` above; step 7(c)'s wording (a handoff pull request after a retire tap cannot
+  carry the retired slug), still the one-line doc fix the 22:45 section named. `ci-budget` keeps its own
+  session on 2026-09-20 15:00 UTC.
+- **How this session ended.** Step 7(a) read an empty pointer on `main`: the queue is done. 7(b) is this
+  section and the seed prompt below. 7(c) is this pull request, ready with `Work-Item:
+  chain-check-without-gh`, whose chain check is in-progress mode on a slug still `approved`, so it passes;
+  the owner merges it by click (`docs/sdlc/handoff` is a `locked-paths` entry). 7(d): no successor, the
+  queue is empty and (a) found no item. Both of this session's check-in triggers were deleted once #111
+  merged; the only routine left is `ci-budget`'s. Nothing was approved or superseded by this session;
+  spec.md and plan.md were signed `delegated` under the grant; no grant key was touched; `.sdlc/active` was
+  written by the owner's taps and the merge workflow's advance only.
+
+## Task state (2026-09-17 ~22:45 UTC) — HISTORY, superseded by the section above
 - **`self-check-false-reds` (defect 1) is retired; `.sdlc/active` is empty; `main` is green with the empty
   pointer, which is the first production confirmation of fix (a).** After the 19:00 section: #108, the
   handoff refresh, merged by click as `4766f1c` (19:11 UTC); then the owner's retire tap landed as `17004b4`
@@ -817,37 +890,44 @@ before acting, whatever this section says. It is written for the state as of the
 that carries it, so it may run ahead of the "Task state" above by exactly that merge.
 
 "Read docs/sdlc/handoff/HANDOFF.md on main, starting at 'Session protocol' and the newest 'Task state'
-(2026-09-17 ~22:45 UTC). `self-check-false-reds` (defect 1) is merged and retired; `.sdlc/active` is empty,
-which is the normal state between items and not yours to move; nothing is granted or in flight. Your task is
-one artifact: draft **defect 3's intent** with `/sdlc-intent`, open its intent-only pull request, and stop at
-the owner's approval tap. Do not start its spec, plan or code.
+(2026-09-18 ~20:50 UTC). `chain-check-without-gh` (defect 3) is merged by the owner's click (#111,
+`c96184d`); `.sdlc/active` is empty, which is the normal state between items and not yours to move; nothing
+is granted or in flight. **You have no item.** Your task is to confirm `main` and then ask the owner which
+item is next; do not start one on your own.
 
-Before anything else, with `env -u GH_TOKEN -u GITHUB_TOKEN` (the container sets a token but has no `gh`,
-and the chain check crashes on that — this is the defect you are drafting): `python3 scripts/gen_index.py
---check` and `scripts/verify.sh` on main. Both were green on `17004b4`. Then reproduce the defect once with
-the token left set: `scripts/verify.sh` ends `FileNotFoundError: [Errno 2] No such file or directory: 'gh'`
-and `VERIFY: FAIL`. The cause is `scripts/check_artifact_chain.py:233`, which returns with a skipped note only
-when no token is set, and `:237`, which then runs `subprocess.run(["gh", "api", ...])` unconditionally. The
-intent should state the fault as measured, not as described here, and propose an answer for each open
-question (the honest one is probably that a missing binary takes the same skipped path a missing token takes,
-since neither can attest anything; whether a present binary that fails should stay a hard `False` is a
-question for the owner). `git fetch --unshallow origin` is optional now; the checks say `history is shallow`
-instead of misreporting. If the container arrives with no repository cloned, or the push is refused as not in
-this session's authorized set, use `add_repo` with `access: push` and clone; that happened on 2026-09-15 and
-2026-09-17.
+First, bare, with whatever the container sets in its environment: `python3 scripts/gen_index.py --check` and
+`scripts/verify.sh` on main. Both were green on `c96184d` with the token set and no `gh` binary; the
+`env -u GH_TOKEN -u GITHUB_TOKEN` prefix earlier prompts carried is retired, and a `FileNotFoundError: 'gh'`
+anywhere is a regression to report, not a workaround to remember. `git fetch --unshallow origin` is optional;
+the checks say `history is shallow` instead of misreporting. If the container arrives with no repository
+cloned, or the push is refused as not in this session's authorized set, use `add_repo` with `access: push`
+and clone; that happened on 2026-09-15 and 2026-09-17.
 
-Branch `claude/<slug>-intent` from `origin/main`, `status: in-review`, never signed; the pull request carries
-`Work-Item: <slug>` and is marked ready so the gate runs; drive its review to `Important: 0`; then tell the
-owner, in this order: merge the pull request by click, then tap intent.md (Actions -> approve -> Run workflow
-on main, artifact intent.md, mode supervised unless the intent's risk class is low, slug <slug>). The merge
-comes first because `approve.yml` checks out the dispatched ref and `work/<slug>/` must exist on `main`.
+Then check one thing before reporting: `work/chain-check-without-gh/intent.md` on `main`. If its status is
+still `approved`, the item's retire tap has not landed; say so to the owner (Actions -> approve -> Run
+workflow on main, mode retire, slug chain-check-without-gh, next blank) and do nothing else about it. If it
+is `superseded`, the item is closed.
 
-Do not touch `standing-grant`, defect 2, the stale `evals/` docstring, the two unread red `delegated-merge`
-runs, or `ci-budget` (its own session runs on 2026-09-20 15:00 UTC). Never write approved or superseded,
-never touch the grant keys, never sign an artifact, never merge, never move `.sdlc/active`. If a hook refuses
-an edit, that is the repository working as designed: say so and stop."
+Then report to the owner and stop. The candidates, none granted: `standing-grant` (`main`, `in-review`,
+`mode: supervised`, `risk-class: medium`; the low-only policy cannot grant it as it stands, so every gate is
+a tap; its answers 3 and Depends-on line are overtaken, see the 2026-09-15 ~00:35 section); **defect 2**
+(`EXEMPT` in the chain check lists `CLAUDE.md` but not `GEMINI.md`/`AGENTS.md`), still needing a
+`/sdlc-intent`, which can absorb the stale `evals/` sentence in `check_artifact_chain.py`'s module docstring
+at `:23`; the two nits on `scripts/test_chain_no_gh.py` left for a human's edit (see the 20:50 section); and
+the two red `delegated-merge` runs `34908767884` and `34909007398`, still unread. `ci-budget` keeps its own
+session on 2026-09-20 15:00 UTC and works by slug — do not touch it.
 
-(Superseded, kept as a record: the prompt before it held no item, said defect 1 was merged with the pointer
+If the owner names an item, that item's own gates start from its first unapproved artifact. Under a grant
+(`mode: delegated`, a `risk-class` the policy lists), `/sdlc-run` drives it; a locked path is the detour
+rule's trigger, and `work/chain-check-without-gh/revisions/` shows the two records and the park that route
+produces. Under `mode: supervised`, every gate is a tap you ask for and never make. Expect the `kind: fix`
+hook to stop you if a fix would change an existing test: say so and stop; the owner edits the test. Never
+write approved or superseded, never touch the grant keys, never sign `intent.md`, never merge, never move
+`.sdlc/active`."
+
+(Superseded, kept as a record: the prompt before it named defect 3 as one `/sdlc-intent` to draft and stop
+at the approval tap, which is what this cycle then carried, under a grant the owner gave mid-cycle, all the
+way to a merged code pull request. Before that, the prompt held no item, said defect 1 was merged with the pointer
 still on it, and told the next session to confirm `main` and ask the owner which item was next. Before that,
 the prompt named defect 1 as one `/sdlc-intent` to draft and stop
 at the approval tap, which is what this cycle then carried all the way to a merged code pull request. Before
@@ -953,9 +1033,11 @@ Batch A is merged; open Batch B starting with WI-7 band-detector.")
   committed to `main` as `github-actions[bot]`. An owner's merge click runs no workflow, so it does not advance.
 - The queue's first item is whatever `.sdlc/active` names, and every grant tap repoints it — so **the last
   tap runs first**, then the rest in date/slug order. Tap the item you want first, last.
-- No `gh` binary in the remote container: with `GH_TOKEN` set, the chain check's trailer verification raises
-  `FileNotFoundError` (`check_artifact_chain.py:192`, a follow-up). Locally, prefix `GH_TOKEN= GITHUB_TOKEN=`
-  on `scripts/verify.sh` and on the chain check; that takes the documented author-rule fallback. CI has `gh`.
+- No `gh` binary in the remote container, and it no longer matters: since `c96184d` (2026-09-18,
+  `work/chain-check-without-gh`) the chain check's trailer verification takes the same skipped path for a
+  missing binary as for a missing token, one `note:` per artifact and then the author rule. From 2026-09-06
+  to that commit every local run needed `GH_TOKEN= GITHUB_TOKEN=` in front of `scripts/verify.sh` and the
+  chain check; that prefix is retired. CI has `gh` and never saw the fault.
 - `SDLC_CONTROL_PLANE_UNLOCK=1` (`.claude/settings.json`): writes to hooks, workflows, `.sdlc` pass with
   an audit line. The never-unlock files (`.sdlc/release-authorizations*`, `.sdlc/approvers.yaml`,
   `.sdlc/hook-decisions.log`) block any Bash command whose text names them, including `git rm --cached`;
