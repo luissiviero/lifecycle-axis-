@@ -5,7 +5,7 @@ title: One new module seen red, then one except clause, then the production shap
 description: "kind fix: scripts/test_chain_no_gh.py lands red on three of its six cases, then verify_dispatch_run gains a NO_GH_NOTE constant and a try/except around its one gh call, the module goes green with every locked suite green unmodified, and the two real items that crashed on 17004b4 end CHAIN: PASS with the token set; the locked file lands by the owner's click and the item parks from a ledger-only pull request."
 stage: build
 # status: draft | in-review | approved | delegated | superseded  (require-plan.sh refuses code edits until approved)
-status: delegated
+status: superseded
 # kind: feature | fix  (fix: protect-tests.sh refuses edits to existing test files)
 kind: fix
 reads: spec.md

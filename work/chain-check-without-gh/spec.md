@@ -5,7 +5,7 @@ title: The chain check crashes on a token with no gh binary instead of taking th
 description: "Seven requirements: a missing gh binary takes the no-token path (None, one note, then the author rule), the retire route included; a present binary that fails stays False; every existing attestation answer is unchanged; the check stays offline; all seen red-then-green in one new test module, with the locked file landing by the owner's click."
 stage: design
 # status: draft | in-review | approved | delegated | superseded
-status: delegated
+status: superseded
 reads: intent.md
 # approved-by: product owner; tech lead consulted for medium/high risk; set only by a human
 approved-by: claude
