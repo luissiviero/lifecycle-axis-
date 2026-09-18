@@ -215,9 +215,10 @@ def dispatch_attestation(commit_sha):
 
 def verify_dispatch_run(run_id, actor, slug=None, artifact=None, commit_sha=None, retired=False):
     """(True, detail) when the Actions API confirms the run; (False, reason) when it contradicts it;
-    (None, reason) when there is no token to ask with, or when the `gh` exec itself fails with
-    FileNotFoundError -- no binary on PATH, in practice -- which is the same skipped path, so the
-    caller's author rule still applies (work/chain-check-without-gh R1, R2).
+    (None, reason) when there is no token to ask with, or when the `gh` exec itself raises
+    FileNotFoundError: no `gh` on PATH (every remote session container), or `cwd=ROOT` gone from
+    under the process. Both are "could not ask", the same skipped path, so the caller's author rule
+    still applies (work/chain-check-without-gh R1, R2).
 
     `retired` is the retirement's binding (work/retire-delegated-items R-3): one `mode: retire` run
     supersedes every present artifact of the item, so the title's artifact segment is whatever the
