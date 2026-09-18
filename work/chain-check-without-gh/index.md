@@ -11,4 +11,4 @@ timestamp: 2026-09-17T23:00:00Z
 
 Parked: parked: ready PR #111; click needed (scripts/check_artifact_chain.py). The fix is one locked file, so the delegated merge refuses the code by design and the owner's click merges it; spec and plan signed under the grant with detour records revisions/1.md and revisions/2.md, the module seen red then green, verify.sh green with the token set and unset, automated review Important 0 and Nits 3 on 9afe0f6. Writer claude-fable-5-1
 
-Last gate: - 2026-09-18T17:25:00Z | intent.md | approved -> approved | claude | 9afe0f6 | parked: ready PR #111; click needed (scripts/check_artifact_chain.py). The fix is one locked file, so the delegated merge refuses the code by design and the owner's click merges it; spec and plan signed under the grant with detour records revisions/1.md and revisions/2.md, the module seen red then green, verify.sh green with the token set and unset, automated review Important 0 and Nits 3 on 9afe0f6. Writer claude-fable-5-1
+Last gate: - 2026-09-18T17:24:32Z | PR #112 | in-review -> in-review | github-actions[bot] | 622deaf | merged as 622deaf; the queue is empty, .sdlc/active cleared
