@@ -11,7 +11,7 @@ author: Luis Siviero (repo owner), who named defect 3 as the next item in the 20
 approved-by: luissiviero
 approved-on: 2026-09-18
 # risk-class: low | medium | high; the grant below is valid only for classes the policy lists
-risk-class: medium
+risk-class: low
 # mode: supervised | delegated; delegated-by and delegated-on are set only by a human, like approved-by
 mode: supervised
 delegated-by:
@@ -195,7 +195,7 @@ defect (the same reading the owner accepted on defect 1's question 5).
   the only file that changes is on `locked-paths`, so `/sdlc-run` would open a detour record at the first
   gate around a locked file that is the whole item, and the merge is your click either way. `medium`
   keeps the route straight: a tap at each gate, no detour machinery.
-  A: accepted as proposed (owner, 2026-09-18): medium, supervised. The owner's preference is maximal autonomy, and low would still cost a risk-class edit, a grant tap, detour records at every gate and the same click on the locked file, so medium is the shorter route here; the autonomy lever is standing-grant.
+  A: revised by the owner on 2026-09-18: low, delegated. The one changed file is on locked-paths, so the code merge stays the owner's click whatever the class; the grant removes the spec and plan taps, which is the owner's stated priority.
 - Q: where does the workaround retire -- in this item's code pull request, or in the handoff refresh the
   finishing session writes at `sdlc-run` step 7?
   Proposed: **the handoff refresh.** `docs/sdlc/handoff` is itself a `locked-paths` entry, the finishing
