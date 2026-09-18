@@ -129,6 +129,13 @@ AGENT_EMAIL_PATTERNS = (r"@anthropic\.com$", r"\[bot\]@", r"^noreply@")
 # other workflow is refused, not merely unverified (work/approve-by-dispatch R-6).
 DISPATCH_WORKFLOW_PATH = ".github/workflows/approve.yml"
 
+# The skipped path for a token with no `gh` to spend it through: the same `None` a missing token
+# returns, so the caller's author rule still runs beneath it. Caught at the failed exec, never looked
+# up ahead of the call -- the locked suite stubs `subprocess.run` at the `["gh", "api"]` boundary on
+# machines that have no `gh`, and a lookup first would skip that stub (work/chain-check-without-gh
+# R1, R6; spec D3, gotcha 1).
+NO_GH_NOTE = "no gh binary on PATH; the dispatch trailer was accepted on the author rule alone"
+
 # approve.yml's `run-name`. Parsed rather than substring-matched so a blank slug segment is
 # distinguishable from a slug that simply differs: the first falls back to .sdlc/active at the
 # approval's parent, the second is a refusal. test_check_workflow_permissions.py asserts the
@@ -208,7 +215,9 @@ def dispatch_attestation(commit_sha):
 
 def verify_dispatch_run(run_id, actor, slug=None, artifact=None, commit_sha=None, retired=False):
     """(True, detail) when the Actions API confirms the run; (False, reason) when it contradicts it;
-    (None, reason) when there is no token to ask with.
+    (None, reason) when there is no token to ask with, or when the `gh` exec itself fails with
+    FileNotFoundError -- no binary on PATH, in practice -- which is the same skipped path, so the
+    caller's author rule still applies (work/chain-check-without-gh R1, R2).
 
     `retired` is the retirement's binding (work/retire-delegated-items R-3): one `mode: retire` run
     supersedes every present artifact of the item, so the title's artifact segment is whatever the
@@ -234,8 +243,11 @@ def verify_dispatch_run(run_id, actor, slug=None, artifact=None, commit_sha=None
     repo = os.environ.get("GITHUB_REPOSITORY") or _repo_slug()
     if not repo:
         return None, "cannot determine the repository; dispatch attestation skipped"
-    r = subprocess.run(["gh", "api", f"repos/{repo}/actions/runs/{run_id}"],
-                       capture_output=True, text=True, cwd=ROOT)
+    try:
+        r = subprocess.run(["gh", "api", f"repos/{repo}/actions/runs/{run_id}"],
+                           capture_output=True, text=True, cwd=ROOT)
+    except FileNotFoundError:
+        return None, NO_GH_NOTE
     if r.returncode != 0:
         return False, f"run {run_id} could not be read from {repo}: {r.stderr.strip()[:200]}"
     try:
