@@ -19,3 +19,8 @@ by click, parked from a ledger-only pull request.
   and park with `click needed`. plan-reviewer (claude-sonnet-5) and security-reviewer (claude-opus-5) both
   `revise`; two corrections taken into the record (where the plan states the click; the blast radius after
   the click is the gate on `main`, so the net there is the owner's reading, not CI).
+- [2.md](2.md) — `plan.md`, the plan gate: the plan's file list names the same locked script; the route of
+  `1.md` confirmed with the order of work and the park mechanics written down. Both reviewers `revise`; the
+  plan-reviewer's report first carried the wrong verdict word for its own finding of no gap and corrected it
+  on one question, recorded verbatim; the security-reviewer's two nits (the docstring names the exception,
+  not only the absent binary; the hook locks the new module the moment it exists) are in the plan.
