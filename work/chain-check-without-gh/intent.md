@@ -5,7 +5,7 @@ title: The chain check crashes on a token with no gh binary instead of taking th
 description: "check_artifact_chain.py guards the dispatch attestation against a missing token but not against a missing gh binary, so in every remote session container -- token set, no gh -- the check raises FileNotFoundError at :237 on any item with a tapped approval instead of printing the one-line skipped note it prints when the token is absent; every session since 2026-09-08 has run the checks under env -u GH_TOKEN -u GITHUB_TOKEN to get around it."
 stage: plan
 # status: draft | in-review | approved | delegated | superseded
-status: superseded
+status: approved
 author: Luis Siviero (repo owner), who named defect 3 as the next item in the 2026-09-17 ~22:45 Task state; drafted by Claude in the successor session opened for it
 # approved-by: product owner; set only by a human, with scripts/approve.py from their own shell
 approved-by: luissiviero
@@ -13,9 +13,9 @@ approved-on: 2026-09-18
 # risk-class: low | medium | high; the grant below is valid only for classes the policy lists
 risk-class: low
 # mode: supervised | delegated; delegated-by and delegated-on are set only by a human, like approved-by
-mode: supervised
-delegated-by:
-delegated-on:
+mode: delegated
+delegated-by: luissiviero
+delegated-on: 2026-09-18
 # supersedes: previous intent id, if any
 supersedes:
 # detour-of: the slug of the parked item this intent is the remainder of, if any (mode stays supervised; the class is the record's)

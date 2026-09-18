@@ -14,3 +14,4 @@ Format: `- <RFC3339> | <artifact> | <from> -> <to> | <actor> | <sha> | <note>`
 - 2026-09-18T11:38:16Z | intent.md | in-review -> approved | luissiviero | d33b145
 - 2026-09-18T12:00:00Z | intent.md | in-review -> in-review | luissiviero | main | open questions answered: all five proposals accepted as written, the owner delegating each answer to the drafter's proposal for autonomy; Q3 stays medium and supervised
 - 2026-09-18T16:21:36Z | intent.md | approved -> superseded | luissiviero | 2906513
+- 2026-09-18T16:49:41Z | intent.md | superseded -> approved | luissiviero | 9adde1a | mode: delegated
