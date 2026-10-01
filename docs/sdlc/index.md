@@ -23,3 +23,5 @@ timestamp: 2026-09-02T16:18:39Z
 [spikes/](spikes/) — Design spikes and investigations.
 
 [rules/](rules/) — Enforcement rules and validation checks.
+
+[revision/](revision/) — Meta-reviews of the kit as a whole, with their evidence.
