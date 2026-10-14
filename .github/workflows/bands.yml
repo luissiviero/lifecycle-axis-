@@ -66,7 +66,7 @@ jobs:
 
       #    Keep the series with the run so a breach (or a silent night) can be re-examined.
       - name: Upload series for ${{ matrix.metric }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bands-series-${{ matrix.metric }}
           path: monitoring/series/${{ matrix.metric }}.txt
